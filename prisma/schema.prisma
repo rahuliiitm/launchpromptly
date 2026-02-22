@@ -15,7 +15,7 @@ model User {
 }
 
 model Scenario {
-  id                String   @id @default(uuid())
+  id                String     @id @default(uuid())
   userId            String
   name              String
   model             String
@@ -24,6 +24,23 @@ model Scenario {
   requestsPerUser   Int
   projectedUsers    Int
   subscriptionPrice Float
+  createdAt         DateTime   @default(now())
+  user              User       @relation(fields: [userId], references: [id])
+  snapshots         Snapshot[]
+}
+
+model Snapshot {
+  id                String   @id @default(uuid())
+  scenarioId        String
+  label             String
+  model             String
+  avgInputTokens    Int
+  avgOutputTokens   Int
+  requestsPerUser   Int
+  projectedUsers    Int
+  subscriptionPrice Float
   createdAt         DateTime @default(now())
-  user              User     @relation(fields: [userId], references: [id])
+  scenario          Scenario @relation(fields: [scenarioId], references: [id])
+
+  @@index([scenarioId])
 }
