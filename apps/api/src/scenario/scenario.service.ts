@@ -7,9 +7,11 @@ import {
   calculateGrossMargin,
   assessRisk,
   simulateArchitectures,
+  runSensitivityAnalysis,
 } from '@aiecon/calculators';
-import type { FinancialResult, SimulationResult } from '@aiecon/types';
+import type { FinancialResult, SensitivityResult, SimulationResult } from '@aiecon/types';
 import { CreateScenarioDto } from './dto/create-scenario.dto';
+import type { SensitivityDto } from './dto/sensitivity.dto';
 
 export interface ScenarioWithFinancials {
   id: string;
@@ -69,6 +71,29 @@ export class ScenarioService {
       requestsPerUser: scenario.requestsPerUser,
       projectedUsers: scenario.projectedUsers,
       subscriptionPrice: scenario.subscriptionPrice,
+    });
+  }
+
+  async runSensitivity(id: string, dto: SensitivityDto): Promise<SensitivityResult> {
+    const scenario = await this.prisma.scenario.findUnique({ where: { id } });
+
+    if (!scenario) {
+      throw new NotFoundException(`Scenario with id ${id} not found`);
+    }
+
+    return runSensitivityAnalysis({
+      baseScenario: {
+        avgInputTokens: scenario.avgInputTokens,
+        avgOutputTokens: scenario.avgOutputTokens,
+        requestsPerUser: scenario.requestsPerUser,
+        projectedUsers: scenario.projectedUsers,
+        subscriptionPrice: scenario.subscriptionPrice,
+      },
+      model: scenario.model,
+      parameter: dto.parameter,
+      steps: dto.steps,
+      rangeMin: dto.rangeMin,
+      rangeMax: dto.rangeMax,
     });
   }
 

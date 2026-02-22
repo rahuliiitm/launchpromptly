@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/comm
 import type { Request } from 'express';
 import { ScenarioService } from './scenario.service';
 import { CreateScenarioDto } from './dto/create-scenario.dto';
+import { SensitivityDto } from './dto/sensitivity.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthUser } from '../auth/jwt.strategy';
 
@@ -24,5 +25,11 @@ export class ScenarioController {
   @Get(':id/simulations')
   async getSimulations(@Param('id') id: string) {
     return this.scenarioService.getSimulations(id);
+  }
+
+  @Post(':id/sensitivity')
+  @UseGuards(JwtAuthGuard)
+  async sensitivity(@Param('id') id: string, @Body() dto: SensitivityDto) {
+    return this.scenarioService.runSensitivity(id, dto);
   }
 }

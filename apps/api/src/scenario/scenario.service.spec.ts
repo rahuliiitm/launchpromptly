@@ -133,4 +133,44 @@ describe('ScenarioService', () => {
       );
     });
   });
+
+  describe('runSensitivity', () => {
+    it('should return sensitivity result with correct number of data points', async () => {
+      const result = await service.runSensitivity('scenario-123', {
+        parameter: 'projectedUsers',
+        steps: 5,
+        rangeMin: 100,
+        rangeMax: 5000,
+      });
+
+      expect(result.parameter).toBe('projectedUsers');
+      expect(result.dataPoints).toHaveLength(5);
+    });
+
+    it('should throw NotFoundException for missing scenario', async () => {
+      (prisma.scenario.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.runSensitivity('nonexistent', {
+          parameter: 'projectedUsers',
+          steps: 5,
+          rangeMin: 100,
+          rangeMax: 5000,
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should pass scenario parameters to the calculator', async () => {
+      const result = await service.runSensitivity('scenario-123', {
+        parameter: 'subscriptionPrice',
+        steps: 3,
+        rangeMin: 10,
+        rangeMax: 50,
+      });
+
+      expect(result.dataPoints).toHaveLength(3);
+      expect(result.dataPoints[0]!.parameterValue).toBe(10);
+      expect(result.dataPoints[2]!.parameterValue).toBe(50);
+    });
+  });
 });
