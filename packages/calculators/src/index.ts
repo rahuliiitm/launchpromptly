@@ -10,3 +10,5 @@ export {
 } from './unitEconomics';
 
 export { simulateArchitectures } from './architectureSimulator';
+
+export { runSensitivityAnalysis } from './sensitivityAnalysis';
