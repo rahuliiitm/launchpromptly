@@ -17,7 +17,7 @@ interface ScenarioResponse {
 }
 
 interface ScenarioFormProps {
-  onSuccess: (scenario: ScenarioResponse, simulations: SimulationResult[]) => void;
+  onSuccess: (scenario: ScenarioResponse, simulations: SimulationResult[], token: string) => void;
 }
 
 const SUPPORTED_MODELS = ['gpt-4', 'gpt-4-mini'];
@@ -39,7 +39,6 @@ export function ScenarioForm({ onSuccess }: ScenarioFormProps) {
     setLoading(true);
 
     try {
-      // Register/login to get token (simplified for v1)
       const auth = await apiFetch<{ accessToken: string }>('/auth/register', {
         method: 'POST',
         body: JSON.stringify({ email: 'demo@aiecon.app' }),
@@ -63,7 +62,7 @@ export function ScenarioForm({ onSuccess }: ScenarioFormProps) {
         `/scenario/${scenario.id}/simulations`,
       );
 
-      onSuccess(scenario, simulations);
+      onSuccess(scenario, simulations, auth.accessToken);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -73,7 +72,7 @@ export function ScenarioForm({ onSuccess }: ScenarioFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h3 className="text-lg font-medium">Step 1: Define Your AI Feature</h3>
+      <h3 className="text-lg font-medium">Define Your AI Feature</h3>
 
       {error && (
         <div className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
