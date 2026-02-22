@@ -32,4 +32,10 @@ export class ScenarioController {
   async sensitivity(@Param('id') id: string, @Body() dto: SensitivityDto) {
     return this.scenarioService.runSensitivity(id, dto);
   }
+
+  @Get(':id/pricing-recommendation')
+  @UseGuards(JwtAuthGuard)
+  async pricingRecommendation(@Param('id') id: string) {
+    return this.scenarioService.getPricingRecommendation(id);
+  }
 }

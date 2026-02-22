@@ -173,4 +173,31 @@ describe('ScenarioService', () => {
       expect(result.dataPoints[2]!.parameterValue).toBe(50);
     });
   });
+
+  describe('getPricingRecommendation', () => {
+    it('should return 3 pricing tiers with default target margins', async () => {
+      const result = await service.getPricingRecommendation('scenario-123');
+
+      expect(result.tiers).toHaveLength(3);
+      expect(result.tiers[0]!.targetMargin).toBe(50);
+      expect(result.tiers[1]!.targetMargin).toBe(65);
+      expect(result.tiers[2]!.targetMargin).toBe(80);
+    });
+
+    it('should return correct cost per user', async () => {
+      const result = await service.getPricingRecommendation('scenario-123');
+
+      // gpt-4: (1000/1000)*0.01 + (500/1000)*0.03 = 0.025 per request
+      // costPerUser = 0.025 * 100 = 2.50
+      expect(result.costPerUser).toBeCloseTo(2.5, 4);
+    });
+
+    it('should throw NotFoundException for missing scenario', async () => {
+      (prisma.scenario.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.getPricingRecommendation('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
 });
