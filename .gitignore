@@ -3,8 +3,26 @@ node_modules/
 
 # Build outputs
 dist/
+dist-test/
 .next/
 out/
+*.tsbuildinfo
+
+# Stale TypeScript build artifacts in source directories
+apps/*/src/**/*.js
+apps/*/src/**/*.js.map
+apps/*/src/**/*.d.ts
+apps/*/src/**/*.d.ts.map
+apps/*/app/**/*.js
+apps/*/app/**/*.js.map
+apps/*/app/**/*.d.ts
+apps/*/app/**/*.d.ts.map
+apps/*/test/**/*.d.ts
+apps/*/test/**/*.d.ts.map
+apps/*/test/**/*.js.map
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
 
 # Turbo
 .turbo/
