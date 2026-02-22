@@ -1,0 +1,136 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
+import { ScenarioService } from './scenario.service';
+import { PrismaService } from '../prisma/prisma.service';
+
+const mockScenario = {
+  id: 'scenario-123',
+  userId: 'user-123',
+  name: 'Test Scenario',
+  model: 'gpt-4',
+  avgInputTokens: 1000,
+  avgOutputTokens: 500,
+  requestsPerUser: 100,
+  projectedUsers: 1000,
+  subscriptionPrice: 29,
+  createdAt: new Date('2025-01-01'),
+};
+
+describe('ScenarioService', () => {
+  let service: ScenarioService;
+  let prisma: PrismaService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ScenarioService,
+        {
+          provide: PrismaService,
+          useValue: {
+            scenario: {
+              create: jest.fn().mockResolvedValue(mockScenario),
+              findUnique: jest.fn().mockResolvedValue(mockScenario),
+            },
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get<ScenarioService>(ScenarioService);
+    prisma = module.get<PrismaService>(PrismaService);
+  });
+
+  describe('create', () => {
+    it('should create a scenario and attach financial results', async () => {
+      const result = await service.create('user-123', {
+        name: 'Test Scenario',
+        model: 'gpt-4',
+        avgInputTokens: 1000,
+        avgOutputTokens: 500,
+        requestsPerUser: 100,
+        projectedUsers: 1000,
+        subscriptionPrice: 29,
+      });
+
+      expect(result.id).toBe('scenario-123');
+      expect(result.financialResult).toBeDefined();
+      expect(result.financialResult.costPerRequest).toBeCloseTo(0.025, 4);
+      expect(result.financialResult.costPerUser).toBeCloseTo(2.5, 4);
+      expect(result.financialResult.monthlyCost).toBeCloseTo(2500, 2);
+      expect(result.financialResult.grossMargin).toBeCloseTo(91.38, 1);
+      expect(result.financialResult.riskLevel).toBe('Low');
+    });
+
+    it('should call prisma create with correct data', async () => {
+      await service.create('user-123', {
+        name: 'Test Scenario',
+        model: 'gpt-4',
+        avgInputTokens: 1000,
+        avgOutputTokens: 500,
+        requestsPerUser: 100,
+        projectedUsers: 1000,
+        subscriptionPrice: 29,
+      });
+
+      expect(prisma.scenario.create).toHaveBeenCalledWith({
+        data: {
+          userId: 'user-123',
+          name: 'Test Scenario',
+          model: 'gpt-4',
+          avgInputTokens: 1000,
+          avgOutputTokens: 500,
+          requestsPerUser: 100,
+          projectedUsers: 1000,
+          subscriptionPrice: 29,
+        },
+      });
+    });
+  });
+
+  describe('findById', () => {
+    it('should return scenario with financial results', async () => {
+      const result = await service.findById('scenario-123');
+
+      expect(result.id).toBe('scenario-123');
+      expect(result.financialResult).toBeDefined();
+      expect(result.financialResult.costPerRequest).toBeCloseTo(0.025, 4);
+    });
+
+    it('should throw NotFoundException for missing scenario', async () => {
+      (prisma.scenario.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.findById('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('getSimulations', () => {
+    it('should return 4 architecture simulations', async () => {
+      const results = await service.getSimulations('scenario-123');
+
+      expect(results).toHaveLength(4);
+      const names = results.map((r) => r.architectureName);
+      expect(names).toContain('Full GPT-4');
+      expect(names).toContain('GPT-4 Mini');
+      expect(names).toContain('Hybrid (20% GPT-4, 80% Mini)');
+      expect(names).toContain('RAG-style (GPT-4, 50% fewer input tokens)');
+    });
+
+    it('should return simulations sorted by highest margin', async () => {
+      const results = await service.getSimulations('scenario-123');
+
+      for (let i = 0; i < results.length - 1; i++) {
+        expect(results[i]!.grossMargin).toBeGreaterThanOrEqual(results[i + 1]!.grossMargin);
+      }
+    });
+
+    it('should throw NotFoundException for missing scenario', async () => {
+      (prisma.scenario.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.getSimulations('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+});
