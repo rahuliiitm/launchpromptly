@@ -1,0 +1,246 @@
+📘 PROJECT EXECUTION PRD
+Project Name: AIEcon
+Product: AI Feature Unit Economics Simulator
+Version: v1 (Simulation-Only)
+1️⃣ PRODUCT THESIS (DO NOT DEVIATE)
+We help AI SaaS founders model and optimize the unit economics of their AI features before they scale.
+The system must answer:
+What is my AI cost per user?
+What is my gross margin?
+What happens at 10k / 100k users?
+Which architecture gives better margin?
+This is NOT a prompt optimizer.
+This is NOT a token calculator.
+This is a financial decision simulator.
+2️⃣ TECH STACK (MANDATORY)
+Backend
+Framework: NestJS (TypeScript, strict mode)
+ORM: Prisma
+Validation: class-validator
+Architecture: Modular Monolith
+Database
+PostgreSQL
+JSONB allowed for scenario storage
+Frontend
+Next.js (App Router)
+TypeScript (strict)
+TailwindCSS
+No Redux / no heavy state managers
+React hooks only
+Deployment
+Frontend: Vercel
+Backend: Render
+DB: Managed Postgres
+Do NOT change stack.
+3️⃣ SYSTEM ARCHITECTURE
+Pattern: Modular Monolith
+/apps
+  /web
+  /api
+/packages
+  /types
+  /utils
+  /calculators
+/prisma
+4️⃣ CORE MODULES
+Only 3 modules in v1:
+Auth
+Scenario Simulator
+Architecture Engine
+Nothing else.
+No Slack.
+No Jira.
+No SDK.
+No tracking.
+No billing in v1.
+5️⃣ DATABASE MODELS
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+  scenarios Scenario[]
+}
+
+model Scenario {
+  id                 String   @id @default(uuid())
+  userId             String
+  name               String
+  model              String
+  avgInputTokens     Int
+  avgOutputTokens    Int
+  requestsPerUser    Int
+  projectedUsers     Int
+  subscriptionPrice  Float
+  createdAt          DateTime @default(now())
+  user               User     @relation(fields: [userId], references: [id])
+}
+No additional tables in v1.
+6️⃣ FINANCIAL CALCULATION ENGINE
+Create reusable module:
+/packages/calculators/unitEconomics.ts
+Functions Required
+calculatePerRequestCost(model, inputTokens, outputTokens)
+Uses internal pricing map:
+const MODEL_PRICING = {
+  "gpt-4": { input: 0.01, output: 0.03 }, // example per 1k tokens
+  "gpt-4-mini": { input: 0.002, output: 0.006 }
+}
+Return cost per request.
+calculateMonthlyCost(perRequestCost, requestsPerUser, projectedUsers)
+monthlyCost = perRequestCost × requestsPerUser × projectedUsers
+calculateCostPerUser(perRequestCost, requestsPerUser)
+costPerUser = perRequestCost × requestsPerUser
+calculateGrossMargin(subscriptionPrice, costPerUser)
+margin = (subscriptionPrice - costPerUser) / subscriptionPrice
+Return percentage.
+calculateBreakEven(subscriptionPrice, costPerUser)
+breakEvenUsers = fixedCost / (subscriptionPrice - costPerUser)
+(Assume fixedCost = 0 in v1, but leave extensible.)
+7️⃣ ARCHITECTURE SIMULATION ENGINE
+Create:
+/packages/calculators/architectureSimulator.ts
+It must simulate:
+Full GPT-4
+GPT-4 Mini
+Hybrid fallback (20% GPT-4, 80% Mini)
+RAG-style (reduce input tokens by 50%)
+Each simulation returns:
+{
+  architectureName,
+  costPerUser,
+  monthlyCost,
+  grossMargin
+}
+No AI needed in v1.
+Pure deterministic math.
+8️⃣ API ENDPOINTS
+POST /scenario
+Create scenario
+GET /scenario/:id
+Return scenario + computed results
+GET /scenario/:id/simulations
+Return architecture comparisons
+9️⃣ FRONTEND UX FLOW
+Step 1 — Define Feature
+Form fields:
+Model
+Avg input tokens
+Avg output tokens
+Requests per user per month
+Projected active users
+SaaS subscription price
+Step 2 — Show Financial Output
+Display:
+Cost per request
+Cost per user
+Monthly AI cost
+Gross margin %
+Risk level
+Risk rule:
+Margin > 75% → Low
+50–75% → Medium
+< 50% → High
+Step 3 — Architecture Comparison Table
+Architecture	Cost/User	Margin	Risk
+Sorted by highest margin.
+🔟 CODING GUIDELINES (STRICT)
+SOLID
+Controllers: HTTP only
+Services: business logic only
+Calculators: pure functions only
+No DB access inside controllers
+DRY
+All math logic in /packages/calculators
+No duplicated pricing logic
+Centralized model pricing config
+Type Safety
+Strict TypeScript
+No any
+DTO validation for all API inputs
+Dependency Injection
+Inject calculator services into modules
+No static calls inside controllers
+Error Handling
+Centralized exception filter
+No console.log in production
+1️⃣1️⃣ TESTING REQUIREMENTS
+Minimum 80% coverage.
+Unit Tests
+Cost per request
+Cost per user
+Gross margin
+Architecture simulation
+Edge cases (zero tokens, zero users)
+Integration Tests
+Create scenario
+Fetch scenario
+Fetch simulation
+1️⃣2️⃣ PERFORMANCE RULES
+All calculations synchronous (fast math only)
+No blocking I/O
+No external calls in v1
+1️⃣3️⃣ COMMIT DISCIPLINE
+For each story:
+Implement
+Add tests
+Run lint
+Run typecheck
+Run tests
+Commit
+Message format:
+feat(simulator): implement unit economics calculator
+test(simulator): add unit tests for margin calculation
+One story per commit.
+1️⃣4️⃣ OUT OF SCOPE (DO NOT IMPLEMENT)
+LLM prompt optimization
+Slack
+Jira
+Billing
+Multi-team workspaces
+Historical tracking
+SDK ingestion
+Enterprise features
+Stay focused.
+1️⃣5️⃣ DEFINITION OF DONE
+The project is complete when:
+User can create scenario
+System calculates economics
+Architecture comparison works
+Margin simulation accurate
+Tests ≥ 80%
+No TypeScript errors
+Clean modular structure
+1️⃣6️⃣ FUTURE ROADMAP (NOT NOW)
+Phase 2:
+Save scenario history
+Add model recommendation AI
+Add cost alerts
+Phase 3:
+SDK tracking
+Real usage ingestion
+Phase 4:
+Benchmark data layer
+Not now.
+🧠 STRATEGIC NOTE FOR CLAUDE
+This is a financial modeling engine, not a UI toy.
+Prioritize:
+Clean math
+Clean architecture
+Clear output
+Maintainability
+Avoid:
+Overengineering
+Fancy animations
+Heavy abstraction
+🔥 FINAL FOUNDER NOTE
+This looks simple.
+It is.
+That’s the power.
+If you execute this cleanly:
+You now have:
+A serious foundation
+A focused ICP
+A scalable architecture
+A clear positioning
+
+
