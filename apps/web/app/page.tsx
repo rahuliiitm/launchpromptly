@@ -6,6 +6,8 @@ import { FinancialOutput } from './scenario/financial-output';
 import { ArchitectureTable } from './scenario/architecture-table';
 import { SensitivityPanel } from './scenario/sensitivity-panel';
 import { PricingTiers } from './scenario/pricing-tiers';
+import { SnapshotManager } from './scenario/snapshot-manager';
+import { AdvisoryPanel } from './scenario/advisory-panel';
 import type { FinancialResult, SimulationResult } from '@aiecon/types';
 
 interface ScenarioResponse {
@@ -114,15 +116,11 @@ export default function Home() {
               )}
 
               {activeTab === 'snapshots' && (
-                <div className="text-sm text-gray-500">
-                  Snapshots tab — coming in the next story.
-                </div>
+                <SnapshotManager scenarioId={scenario.id} token={token} />
               )}
 
               {activeTab === 'advisory' && (
-                <div className="text-sm text-gray-500">
-                  AI Advisory tab — coming in the next story.
-                </div>
+                <AdvisoryPanel scenarioId={scenario.id} token={token} />
               )}
             </div>
           </>
