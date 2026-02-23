@@ -1,0 +1,15 @@
+import type { Config } from 'jest';
+
+const config: Config = {
+  moduleFileExtensions: ['js', 'json', 'ts'],
+  rootDir: 'src',
+  testRegex: '.*\\.test\\.ts$',
+  transform: { '^.+\\.ts$': 'ts-jest' },
+  testEnvironment: 'node',
+  moduleNameMapper: {
+    '^@aiecon/calculators$': '<rootDir>/../../calculators/src',
+    '^@aiecon/types$': '<rootDir>/../../types/src',
+  },
+};
+
+export default config;
