@@ -8,6 +8,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { SnapshotModule } from './snapshot/snapshot.module';
 import { AdvisoryModule } from './advisory/advisory.module';
 import { ScenarioModule } from './scenario/scenario.module';
+import { PromptModule } from './prompt/prompt.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -21,6 +22,7 @@ import { AppController } from './app.controller';
     SnapshotModule,
     AdvisoryModule,
     ScenarioModule,
+    PromptModule,
   ],
   controllers: [AppController],
 })

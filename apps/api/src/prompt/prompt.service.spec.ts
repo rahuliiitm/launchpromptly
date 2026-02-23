@@ -1,0 +1,397 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { PromptService } from './prompt.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { ProjectService } from '../project/project.service';
+import {
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
+
+describe('PromptService', () => {
+  let service: PromptService;
+
+  const mockPrisma = {
+    managedPrompt: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    promptVersion: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      updateMany: jest.fn(),
+      update: jest.fn(),
+      aggregate: jest.fn(),
+    },
+    promptTemplate: {
+      findUnique: jest.fn(),
+    },
+    $transaction: jest.fn(),
+  };
+
+  const mockProjectService = {
+    assertProjectAccess: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        PromptService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: ProjectService, useValue: mockProjectService },
+      ],
+    }).compile();
+
+    service = module.get<PromptService>(PromptService);
+    jest.clearAllMocks();
+  });
+
+  // ── createPrompt ──
+
+  describe('createPrompt', () => {
+    it('should create a ManagedPrompt with correct slug and projectId', async () => {
+      const prompt = { id: 'p1', projectId: 'proj1', slug: 'hello-world', name: 'Hello World' };
+      mockPrisma.managedPrompt.create.mockResolvedValue(prompt);
+
+      const result = await service.createPrompt('proj1', 'user1', {
+        slug: 'hello-world',
+        name: 'Hello World',
+      } as any);
+
+      expect(result).toEqual(prompt);
+      expect(mockPrisma.managedPrompt.create).toHaveBeenCalledWith({
+        data: { projectId: 'proj1', slug: 'hello-world', name: 'Hello World', description: '' },
+      });
+    });
+
+    it('should reject duplicate slug with ConflictException', async () => {
+      mockPrisma.managedPrompt.create.mockRejectedValue({ code: 'P2002' });
+
+      await expect(
+        service.createPrompt('proj1', 'user1', {
+          slug: 'duplicate',
+          name: 'Dup',
+        } as any),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should create initial version (v1) when initialContent is provided', async () => {
+      const prompt = { id: 'p1', projectId: 'proj1', slug: 'with-content', name: 'Test' };
+      const version = { id: 'v1', managedPromptId: 'p1', version: 1, content: 'Hello', status: 'draft' };
+
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          managedPrompt: { create: jest.fn().mockResolvedValue(prompt) },
+          promptVersion: { create: jest.fn().mockResolvedValue(version) },
+        };
+        return fn(tx);
+      });
+
+      const result = await service.createPrompt('proj1', 'user1', {
+        slug: 'with-content',
+        name: 'Test',
+        initialContent: 'Hello',
+      } as any);
+
+      expect(result).toEqual({ ...prompt, versions: [version] });
+    });
+
+    it('should call assertProjectAccess', async () => {
+      mockPrisma.managedPrompt.create.mockResolvedValue({ id: 'p1' });
+      await service.createPrompt('proj1', 'user1', { slug: 'test', name: 'Test' } as any);
+      expect(mockProjectService.assertProjectAccess).toHaveBeenCalledWith('proj1', 'user1');
+    });
+  });
+
+  // ── listPrompts ──
+
+  describe('listPrompts', () => {
+    it('should return prompts with version counts', async () => {
+      const prompts = [
+        { id: 'p1', slug: 'a', _count: { versions: 2 }, versions: [{ status: 'active' }] },
+      ];
+      mockPrisma.managedPrompt.findMany.mockResolvedValue(prompts);
+
+      const result = await service.listPrompts('proj1', 'user1');
+      expect(result).toEqual(prompts);
+    });
+
+    it('should return empty array for project with no prompts', async () => {
+      mockPrisma.managedPrompt.findMany.mockResolvedValue([]);
+      const result = await service.listPrompts('proj1', 'user1');
+      expect(result).toEqual([]);
+    });
+
+    it('should call assertProjectAccess', async () => {
+      mockPrisma.managedPrompt.findMany.mockResolvedValue([]);
+      await service.listPrompts('proj1', 'user1');
+      expect(mockProjectService.assertProjectAccess).toHaveBeenCalledWith('proj1', 'user1');
+    });
+  });
+
+  // ── getPrompt ──
+
+  describe('getPrompt', () => {
+    it('should return prompt with versions ordered by version desc', async () => {
+      const prompt = {
+        id: 'p1',
+        versions: [
+          { version: 3, status: 'draft' },
+          { version: 2, status: 'active' },
+          { version: 1, status: 'archived' },
+        ],
+      };
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue(prompt);
+
+      const result = await service.getPrompt('proj1', 'p1', 'user1');
+      expect(result.versions[0].version).toBe(3);
+    });
+
+    it('should throw NotFoundException for missing prompt', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue(null);
+      await expect(service.getPrompt('proj1', 'bad-id', 'user1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  // ── updatePrompt ──
+
+  describe('updatePrompt', () => {
+    it('should update name and description', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({ id: 'p1' });
+      mockPrisma.managedPrompt.update.mockResolvedValue({ id: 'p1', name: 'Updated' });
+
+      const result = await service.updatePrompt('proj1', 'p1', 'user1', {
+        name: 'Updated',
+      } as any);
+      expect(result.name).toBe('Updated');
+    });
+
+    it('should reject slug collision with ConflictException', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({ id: 'p1' });
+      mockPrisma.managedPrompt.update.mockRejectedValue({ code: 'P2002' });
+
+      await expect(
+        service.updatePrompt('proj1', 'p1', 'user1', { slug: 'taken' } as any),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  // ── deletePrompt ──
+
+  describe('deletePrompt', () => {
+    it('should cascade-delete prompt and versions', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({ id: 'p1' });
+      mockPrisma.managedPrompt.delete.mockResolvedValue({ id: 'p1' });
+
+      const result = await service.deletePrompt('proj1', 'p1', 'user1');
+      expect(result).toEqual({ deleted: true });
+      expect(mockPrisma.managedPrompt.delete).toHaveBeenCalledWith({ where: { id: 'p1' } });
+    });
+  });
+
+  // ── createVersion ──
+
+  describe('createVersion', () => {
+    it('should auto-increment version number', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({ id: 'p1' });
+      mockPrisma.promptVersion.aggregate.mockResolvedValue({ _max: { version: 3 } });
+      mockPrisma.promptVersion.create.mockResolvedValue({ version: 4, status: 'draft' });
+
+      const result = await service.createVersion('proj1', 'p1', 'user1', {
+        content: 'New content',
+      } as any);
+      expect(result.version).toBe(4);
+      expect(mockPrisma.promptVersion.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ version: 4 }) }),
+      );
+    });
+
+    it('should default status to draft', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({ id: 'p1' });
+      mockPrisma.promptVersion.aggregate.mockResolvedValue({ _max: { version: null } });
+      mockPrisma.promptVersion.create.mockResolvedValue({ version: 1, status: 'draft' });
+
+      const result = await service.createVersion('proj1', 'p1', 'user1', {
+        content: 'Hello',
+      } as any);
+      expect(result.status).toBe('draft');
+    });
+
+    it('should throw NotFoundException for non-existent prompt', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createVersion('proj1', 'bad-id', 'user1', { content: 'Hi' } as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ── deployVersion ──
+
+  describe('deployVersion', () => {
+    it('should set active and archive previous active version', async () => {
+      mockPrisma.promptVersion.findFirst.mockResolvedValue({
+        id: 'v2',
+        managedPromptId: 'p1',
+        status: 'draft',
+      });
+
+      const deployed = { id: 'v2', status: 'active' };
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          promptVersion: {
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            update: jest.fn().mockResolvedValue(deployed),
+          },
+        };
+        return fn(tx);
+      });
+
+      const result = await service.deployVersion('proj1', 'p1', 'v2', 'user1');
+      expect(result.status).toBe('active');
+    });
+
+    it('should work when no version is currently active', async () => {
+      mockPrisma.promptVersion.findFirst.mockResolvedValue({
+        id: 'v1',
+        managedPromptId: 'p1',
+        status: 'draft',
+      });
+
+      const deployed = { id: 'v1', status: 'active' };
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          promptVersion: {
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+            update: jest.fn().mockResolvedValue(deployed),
+          },
+        };
+        return fn(tx);
+      });
+
+      const result = await service.deployVersion('proj1', 'p1', 'v1', 'user1');
+      expect(result.status).toBe('active');
+    });
+
+    it('should throw BadRequestException when version is already active', async () => {
+      mockPrisma.promptVersion.findFirst.mockResolvedValue({
+        id: 'v1',
+        status: 'active',
+      });
+
+      await expect(service.deployVersion('proj1', 'p1', 'v1', 'user1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw NotFoundException for non-existent version', async () => {
+      mockPrisma.promptVersion.findFirst.mockResolvedValue(null);
+
+      await expect(service.deployVersion('proj1', 'p1', 'bad-id', 'user1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  // ── rollbackVersion ──
+
+  describe('rollbackVersion', () => {
+    it('should re-activate most recent archived version', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({ id: 'p1' });
+      mockPrisma.promptVersion.findFirst.mockResolvedValue({
+        id: 'v1',
+        status: 'archived',
+      });
+
+      const activated = { id: 'v1', status: 'active' };
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          promptVersion: {
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            update: jest.fn().mockResolvedValue(activated),
+          },
+        };
+        return fn(tx);
+      });
+
+      const result = await service.rollbackVersion('proj1', 'p1', 'user1');
+      expect(result.status).toBe('active');
+    });
+
+    it('should throw BadRequestException when no archived versions exist', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({ id: 'p1' });
+      mockPrisma.promptVersion.findFirst.mockResolvedValue(null);
+
+      await expect(service.rollbackVersion('proj1', 'p1', 'user1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  // ── promoteTemplate ──
+
+  describe('promoteTemplate', () => {
+    it('should create ManagedPrompt + v1 from PromptTemplate', async () => {
+      mockPrisma.promptTemplate.findUnique.mockResolvedValue({
+        id: 't1',
+        normalizedContent: 'You are helpful',
+      });
+
+      const prompt = { id: 'p1', slug: 'helper', name: 'Helper' };
+      const version = { id: 'v1', version: 1, content: 'You are helpful', status: 'draft' };
+
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          managedPrompt: { create: jest.fn().mockResolvedValue(prompt) },
+          promptVersion: { create: jest.fn().mockResolvedValue(version) },
+        };
+        return fn(tx);
+      });
+
+      const result = await service.promoteTemplate('proj1', 'hash123', 'user1', 'helper', 'Helper');
+      expect(result).toEqual({ ...prompt, versions: [version] });
+    });
+
+    it('should throw NotFoundException for missing template hash', async () => {
+      mockPrisma.promptTemplate.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.promoteTemplate('proj1', 'bad-hash', 'user1', 'slug', 'Name'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ConflictException for duplicate slug', async () => {
+      mockPrisma.promptTemplate.findUnique.mockResolvedValue({
+        id: 't1',
+        normalizedContent: 'content',
+      });
+      mockPrisma.$transaction.mockRejectedValue({ code: 'P2002' });
+
+      await expect(
+        service.promoteTemplate('proj1', 'hash1', 'user1', 'taken', 'Name'),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  // ── Authorization ──
+
+  describe('authorization', () => {
+    it('should propagate ForbiddenException from assertProjectAccess', async () => {
+      mockProjectService.assertProjectAccess.mockRejectedValue(
+        new ForbiddenException('Access denied'),
+      );
+
+      await expect(service.listPrompts('proj1', 'user1')).rejects.toThrow(ForbiddenException);
+      await expect(service.getPrompt('proj1', 'p1', 'user1')).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.createPrompt('proj1', 'user1', { slug: 'a', name: 'A' } as any),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+});

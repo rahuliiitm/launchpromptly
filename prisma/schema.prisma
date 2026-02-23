@@ -33,6 +33,7 @@ model Project {
   apiKeys         ApiKey[]
   events          LLMEvent[]
   promptTemplates PromptTemplate[]
+  managedPrompts  ManagedPrompt[]
 
   @@index([organizationId])
 }
@@ -52,29 +53,34 @@ model ApiKey {
 }
 
 model LLMEvent {
-  id            String   @id @default(uuid())
-  projectId     String
-  customerId    String?
-  feature       String?
-  provider      String
-  model         String
-  inputTokens   Int
-  outputTokens  Int
-  totalTokens   Int
-  costUsd       Float
-  latencyMs     Int
-  systemHash    String?
-  fullHash      String?
-  promptPreview String?
-  statusCode    Int      @default(200)
-  createdAt     DateTime @default(now())
-  project       Project  @relation(fields: [projectId], references: [id])
+  id              String         @id @default(uuid())
+  projectId       String
+  customerId      String?
+  feature         String?
+  provider        String
+  model           String
+  inputTokens     Int
+  outputTokens    Int
+  totalTokens     Int
+  costUsd         Float
+  latencyMs       Int
+  systemHash      String?
+  fullHash        String?
+  promptPreview   String?
+  statusCode      Int            @default(200)
+  managedPromptId String?
+  promptVersionId String?
+  createdAt       DateTime       @default(now())
+  project         Project        @relation(fields: [projectId], references: [id])
+  managedPrompt   ManagedPrompt? @relation(fields: [managedPromptId], references: [id])
+  promptVersion   PromptVersion? @relation("VersionEvents", fields: [promptVersionId], references: [id])
 
   @@index([projectId, createdAt])
   @@index([projectId, customerId])
   @@index([projectId, systemHash])
   @@index([projectId, feature])
   @@index([projectId, model])
+  @@index([projectId, managedPromptId])
 }
 
 model PromptTemplate {
@@ -87,6 +93,65 @@ model PromptTemplate {
   project           Project  @relation(fields: [projectId], references: [id])
 
   @@unique([projectId, systemHash])
+}
+
+model ManagedPrompt {
+  id               String          @id @default(uuid())
+  projectId        String
+  slug             String
+  name             String
+  description      String          @default("")
+  sourceTemplateId String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  project          Project         @relation(fields: [projectId], references: [id])
+  versions         PromptVersion[]
+  abTests          ABTest[]
+  events           LLMEvent[]
+
+  @@unique([projectId, slug])
+  @@index([projectId])
+}
+
+model PromptVersion {
+  id              String          @id @default(uuid())
+  managedPromptId String
+  version         Int
+  content         String
+  status          String          @default("draft")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  managedPrompt   ManagedPrompt   @relation(fields: [managedPromptId], references: [id], onDelete: Cascade)
+  abTestVariants  ABTestVariant[]
+  events          LLMEvent[]      @relation("VersionEvents")
+
+  @@unique([managedPromptId, version])
+  @@index([managedPromptId, status])
+}
+
+model ABTest {
+  id              String          @id @default(uuid())
+  managedPromptId String
+  name            String
+  status          String          @default("draft")
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  managedPrompt   ManagedPrompt   @relation(fields: [managedPromptId], references: [id], onDelete: Cascade)
+  variants        ABTestVariant[]
+
+  @@index([managedPromptId, status])
+}
+
+model ABTestVariant {
+  id              String        @id @default(uuid())
+  abTestId        String
+  promptVersionId String
+  trafficPercent  Int
+  abTest          ABTest        @relation(fields: [abTestId], references: [id], onDelete: Cascade)
+  promptVersion   PromptVersion @relation(fields: [promptVersionId], references: [id])
+
+  @@unique([abTestId, promptVersionId])
 }
 
 model Scenario {

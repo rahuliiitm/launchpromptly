@@ -284,3 +284,85 @@ export interface OptimizationRecommendation {
   currentModel: string | null;
   suggestedModel: string | null;
 }
+
+// ── Platform: Prompt Management ──
+export type PromptVersionStatus = 'draft' | 'active' | 'archived';
+export type ABTestStatus = 'draft' | 'running' | 'completed';
+
+export interface ManagedPrompt {
+  id: string;
+  projectId: string;
+  slug: string;
+  name: string;
+  description: string;
+  sourceTemplateId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PromptVersion {
+  id: string;
+  managedPromptId: string;
+  version: number;
+  content: string;
+  status: PromptVersionStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ManagedPromptWithVersions extends ManagedPrompt {
+  versions: PromptVersion[];
+  _count?: { versions: number };
+  activeVersion?: PromptVersion | null;
+}
+
+export interface CreateManagedPromptInput {
+  slug: string;
+  name: string;
+  description?: string;
+  initialContent?: string;
+}
+
+export interface UpdateManagedPromptInput {
+  slug?: string;
+  name?: string;
+  description?: string;
+}
+
+export interface CreatePromptVersionInput {
+  content: string;
+}
+
+export interface ResolvedPrompt {
+  content: string;
+  managedPromptId: string;
+  promptVersionId: string;
+  version: number;
+}
+
+export interface ABTest {
+  id: string;
+  managedPromptId: string;
+  name: string;
+  status: ABTestStatus;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  variants: ABTestVariant[];
+}
+
+export interface ABTestVariant {
+  id: string;
+  abTestId: string;
+  promptVersionId: string;
+  trafficPercent: number;
+}
+
+export interface PromptVersionAnalytics {
+  promptVersionId: string;
+  version: number;
+  callCount: number;
+  totalCostUsd: number;
+  avgLatencyMs: number;
+  avgCostPerCall: number;
+}
