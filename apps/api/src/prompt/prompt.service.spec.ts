@@ -37,6 +37,7 @@ describe('PromptService', () => {
     },
     lLMEvent: {
       aggregate: jest.fn(),
+      groupBy: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -659,6 +660,118 @@ describe('PromptService', () => {
       expect(result.results[0].callCount).toBe(0);
       expect(result.results[0].totalCostUsd).toBe(0);
       expect(result.results[0].avgLatencyMs).toBe(0);
+    });
+  });
+
+  // ── getPromptAnalytics ──
+
+  describe('getPromptAnalytics', () => {
+    it('should return per-version breakdown', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({
+        id: 'p1',
+        versions: [
+          { id: 'v1', version: 1, status: 'archived' },
+          { id: 'v2', version: 2, status: 'active' },
+        ],
+      });
+      mockPrisma.lLMEvent.aggregate
+        .mockResolvedValueOnce({
+          _count: 50,
+          _sum: { costUsd: 2.5 },
+          _avg: { latencyMs: 180, costUsd: 0.05 },
+        })
+        .mockResolvedValueOnce({
+          _count: 100,
+          _sum: { costUsd: 4.0 },
+          _avg: { latencyMs: 150, costUsd: 0.04 },
+        });
+
+      const result = await service.getPromptAnalytics('proj1', 'p1', 'user1', 30);
+      expect(result).toHaveLength(2);
+      expect(result[0].version).toBe(1);
+      expect(result[0].callCount).toBe(50);
+      expect(result[1].version).toBe(2);
+      expect(result[1].callCount).toBe(100);
+    });
+
+    it('should handle zero events', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({
+        id: 'p1',
+        versions: [{ id: 'v1', version: 1, status: 'draft' }],
+      });
+      mockPrisma.lLMEvent.aggregate.mockResolvedValue({
+        _count: 0,
+        _sum: { costUsd: null },
+        _avg: { latencyMs: null, costUsd: null },
+      });
+
+      const result = await service.getPromptAnalytics('proj1', 'p1', 'user1');
+      expect(result[0].callCount).toBe(0);
+      expect(result[0].totalCostUsd).toBe(0);
+    });
+
+    it('should respect days parameter', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({
+        id: 'p1',
+        versions: [{ id: 'v1', version: 1, status: 'active' }],
+      });
+      mockPrisma.lLMEvent.aggregate.mockResolvedValue({
+        _count: 10,
+        _sum: { costUsd: 1.0 },
+        _avg: { latencyMs: 100, costUsd: 0.1 },
+      });
+
+      await service.getPromptAnalytics('proj1', 'p1', 'user1', 7);
+      expect(mockPrisma.lLMEvent.aggregate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            createdAt: expect.objectContaining({ gte: expect.any(Date) }),
+          }),
+        }),
+      );
+    });
+
+    it('should call assertProjectAccess', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({
+        id: 'p1',
+        versions: [],
+      });
+
+      await service.getPromptAnalytics('proj1', 'p1', 'user1');
+      expect(mockProjectService.assertProjectAccess).toHaveBeenCalledWith('proj1', 'user1');
+    });
+  });
+
+  // ── getPromptTimeSeries ──
+
+  describe('getPromptTimeSeries', () => {
+    it('should return daily data per version', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({
+        id: 'p1',
+        versions: [
+          { id: 'v1', version: 1 },
+          { id: 'v2', version: 2 },
+        ],
+      });
+      mockPrisma.lLMEvent.groupBy.mockResolvedValue([
+        {
+          promptVersionId: 'v1',
+          createdAt: new Date('2025-01-15T10:00:00Z'),
+          _count: 20,
+          _sum: { costUsd: 1.0 },
+        },
+        {
+          promptVersionId: 'v2',
+          createdAt: new Date('2025-01-15T14:00:00Z'),
+          _count: 30,
+          _sum: { costUsd: 1.5 },
+        },
+      ]);
+
+      const result = await service.getPromptTimeSeries('proj1', 'p1', 'user1', 30);
+      expect(result).toHaveLength(1);
+      expect(result[0].date).toBe('2025-01-15');
+      expect(result[0].versions).toHaveLength(2);
     });
   });
 

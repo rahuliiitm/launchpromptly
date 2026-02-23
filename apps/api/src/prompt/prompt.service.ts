@@ -556,4 +556,117 @@ export class PromptService {
       version: activeVersion.version,
     };
   }
+
+  // ── Prompt Analytics ──
+
+  async getPromptAnalytics(
+    projectId: string,
+    promptId: string,
+    userId: string,
+    days = 30,
+  ) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const prompt = await this.prisma.managedPrompt.findFirst({
+      where: { id: promptId, projectId },
+      include: { versions: { select: { id: true, version: true, status: true } } },
+    });
+    if (!prompt) {
+      throw new NotFoundException('Prompt not found');
+    }
+
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const analytics = await Promise.all(
+      prompt.versions.map(async (ver) => {
+        const agg = await this.prisma.lLMEvent.aggregate({
+          where: {
+            projectId,
+            promptVersionId: ver.id,
+            createdAt: { gte: since },
+          },
+          _count: true,
+          _sum: { costUsd: true },
+          _avg: { latencyMs: true, costUsd: true },
+        });
+
+        return {
+          promptVersionId: ver.id,
+          version: ver.version,
+          status: ver.status,
+          callCount: agg._count,
+          totalCostUsd: agg._sum.costUsd ?? 0,
+          avgLatencyMs: agg._avg.latencyMs ?? 0,
+          avgCostPerCall: agg._avg.costUsd ?? 0,
+        };
+      }),
+    );
+
+    return analytics;
+  }
+
+  async getPromptTimeSeries(
+    projectId: string,
+    promptId: string,
+    userId: string,
+    days = 30,
+  ) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const prompt = await this.prisma.managedPrompt.findFirst({
+      where: { id: promptId, projectId },
+      include: { versions: { select: { id: true, version: true } } },
+    });
+    if (!prompt) {
+      throw new NotFoundException('Prompt not found');
+    }
+
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const events = await this.prisma.lLMEvent.groupBy({
+      by: ['promptVersionId', 'createdAt'],
+      where: {
+        projectId,
+        promptVersionId: { in: prompt.versions.map((v) => v.id) },
+        createdAt: { gte: since },
+      },
+      _count: true,
+      _sum: { costUsd: true },
+    });
+
+    // Build a version lookup
+    const versionMap = new Map(prompt.versions.map((v) => [v.id, v.version]));
+
+    // Group by date and version
+    const seriesMap = new Map<string, Map<number, { costUsd: number; callCount: number }>>();
+    for (const event of events) {
+      const dateKey = event.createdAt.toISOString().slice(0, 10);
+      const versionNum = versionMap.get(event.promptVersionId!) ?? 0;
+
+      if (!seriesMap.has(dateKey)) {
+        seriesMap.set(dateKey, new Map());
+      }
+      const dayMap = seriesMap.get(dateKey)!;
+      const existing = dayMap.get(versionNum) ?? { costUsd: 0, callCount: 0 };
+      dayMap.set(versionNum, {
+        costUsd: existing.costUsd + (event._sum.costUsd ?? 0),
+        callCount: existing.callCount + event._count,
+      });
+    }
+
+    // Convert to array format
+    const timeSeries = Array.from(seriesMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, versions]) => ({
+        date,
+        versions: Array.from(versions.entries()).map(([version, data]) => ({
+          version,
+          ...data,
+        })),
+      }));
+
+    return timeSeries;
+  }
 }

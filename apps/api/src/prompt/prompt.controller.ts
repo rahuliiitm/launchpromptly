@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   Req,
   UseGuards,
   HttpCode,
@@ -158,6 +159,40 @@ export class PromptController {
   ) {
     const user = req.user as AuthUser;
     return this.promptService.getABTestResults(projectId, promptId, testId, user.userId);
+  }
+
+  // ── Prompt Analytics ──
+
+  @Get(':projectId/:promptId/analytics')
+  async getAnalytics(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Query('days') days: string | undefined,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.getPromptAnalytics(
+      projectId,
+      promptId,
+      user.userId,
+      days ? parseInt(days, 10) : 30,
+    );
+  }
+
+  @Get(':projectId/:promptId/analytics/timeseries')
+  async getTimeSeries(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Query('days') days: string | undefined,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.getPromptTimeSeries(
+      projectId,
+      promptId,
+      user.userId,
+      days ? parseInt(days, 10) : 30,
+    );
   }
 
   @Post(':projectId/promote/:templateHash')
