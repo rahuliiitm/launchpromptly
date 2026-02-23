@@ -150,3 +150,137 @@ export interface AdvisoryResponse {
   insight: string;
   generatedAt: Date;
 }
+
+// ── Platform: Providers ──
+export type LLMProvider = 'openai' | 'anthropic';
+
+// ── Platform: Multi-tenancy ──
+export interface Organization {
+  id: string;
+  name: string;
+  createdAt: Date;
+}
+
+export interface Project {
+  id: string;
+  organizationId: string;
+  name: string;
+  createdAt: Date;
+}
+
+export interface ApiKey {
+  id: string;
+  projectId: string;
+  keyPrefix: string;
+  name: string;
+  createdAt: Date;
+  lastUsedAt: Date | null;
+  revokedAt: Date | null;
+}
+
+// ── Platform: Events ──
+export interface LLMEvent {
+  id: string;
+  projectId: string;
+  customerId: string | null;
+  feature: string | null;
+  provider: LLMProvider;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  latencyMs: number;
+  systemHash: string | null;
+  fullHash: string | null;
+  promptPreview: string | null;
+  statusCode: number;
+  createdAt: Date;
+}
+
+export interface PromptTemplate {
+  id: string;
+  projectId: string;
+  systemHash: string;
+  normalizedContent: string;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+}
+
+// ── Platform: SDK Event Payloads ──
+export interface IngestEventPayload {
+  provider: LLMProvider;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  latencyMs: number;
+  customerId?: string;
+  feature?: string;
+  systemHash?: string;
+  fullHash?: string;
+  promptPreview?: string;
+  statusCode?: number;
+}
+
+export interface IngestBatchPayload {
+  events: IngestEventPayload[];
+}
+
+// ── Platform: Analytics Responses ──
+export interface ModelBreakdownItem {
+  model: string;
+  totalCostUsd: number;
+  callCount: number;
+  avgLatencyMs: number;
+}
+
+export interface OverviewAnalytics {
+  totalCostUsd: number;
+  totalCalls: number;
+  avgLatencyMs: number;
+  modelBreakdown: ModelBreakdownItem[];
+  periodDays: number;
+}
+
+export interface CustomerAnalyticsItem {
+  customerId: string;
+  totalCostUsd: number;
+  callCount: number;
+  avgCostPerCall: number;
+}
+
+export interface FeatureAnalyticsItem {
+  feature: string;
+  totalCostUsd: number;
+  callCount: number;
+}
+
+export interface TemplateAnalyticsItem {
+  systemHash: string;
+  normalizedContent: string;
+  callCount: number;
+  totalCostUsd: number;
+  avgCostPerCall: number;
+  lastSeenAt: Date;
+}
+
+export interface TimeSeriesPoint {
+  date: string;
+  costUsd: number;
+  callCount: number;
+}
+
+// ── Platform: Optimization ──
+export type OptimizationType = 'model_downgrade' | 'verbose_prompt' | 'caching_opportunity';
+
+export interface OptimizationRecommendation {
+  type: OptimizationType;
+  title: string;
+  description: string;
+  estimatedSavingsUsd: number;
+  affectedTemplateHash: string | null;
+  currentModel: string | null;
+  suggestedModel: string | null;
+}
