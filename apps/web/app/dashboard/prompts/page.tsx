@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
@@ -55,22 +56,35 @@ export default function PromptsPage() {
     }
   };
 
-  if (loading) {
-    return <div className="py-20 text-center text-gray-400">Loading...</div>;
-  }
-
-  if (error) {
-    return <div className="py-20 text-center text-red-500">Error: {error}</div>;
-  }
-
   return (
     <div>
-      <h1 className="text-2xl font-bold">Prompt Templates</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Unique system prompts detected across your AI calls, grouped by content hash.
-      </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Prompts</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Discover and manage your AI prompts.
+          </p>
+        </div>
+      </div>
 
-      {templates.length === 0 ? (
+      {/* Tabs */}
+      <div className="mt-4 flex gap-1 border-b">
+        <span className="border-b-2 border-blue-600 px-4 py-2 text-sm font-medium text-blue-600">
+          Discovered
+        </span>
+        <Link
+          href="/dashboard/prompts/managed"
+          className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700"
+        >
+          Managed
+        </Link>
+      </div>
+
+      {loading ? (
+        <div className="py-20 text-center text-gray-400">Loading...</div>
+      ) : error ? (
+        <div className="py-20 text-center text-red-500">Error: {error}</div>
+      ) : templates.length === 0 ? (
         <div className="mt-12 text-center text-gray-400">
           No prompt templates detected yet. Send events with a system prompt to see them here.
         </div>
@@ -78,7 +92,6 @@ export default function PromptsPage() {
         <div className="mt-6 space-y-3">
           {templates.map((t) => (
             <div key={t.systemHash} className="rounded-lg border bg-white">
-              {/* Row header */}
               <div
                 className="flex cursor-pointer items-center justify-between px-4 py-3 hover:bg-gray-50"
                 onClick={() =>
@@ -115,7 +128,6 @@ export default function PromptsPage() {
                 </div>
               </div>
 
-              {/* Expanded content */}
               {expandedHash === t.systemHash && (
                 <div className="border-t px-4 py-4">
                   <div className="rounded bg-gray-50 p-3">
