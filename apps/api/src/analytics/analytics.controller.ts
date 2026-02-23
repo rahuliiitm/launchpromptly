@@ -1,13 +1,17 @@
-import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AnalyticsService } from './analytics.service';
+import { OptimizationService } from './optimization.service';
 import type { AuthUser } from '../auth/jwt.strategy';
 
 @Controller('analytics')
 @UseGuards(JwtAuthGuard)
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(
+    private readonly analyticsService: AnalyticsService,
+    private readonly optimizationService: OptimizationService,
+  ) {}
 
   private parseDays(days?: string): number {
     const parsed = days ? parseInt(days, 10) : 30;
@@ -62,5 +66,29 @@ export class AnalyticsController {
   ): Promise<unknown> {
     const user = req.user as AuthUser;
     return this.analyticsService.getTimeSeries(projectId, user.userId, this.parseDays(days));
+  }
+
+  @Get(':projectId/optimizations')
+  async optimizations(
+    @Param('projectId') projectId: string,
+    @Req() req: Request,
+  ): Promise<unknown> {
+    const user = req.user as AuthUser;
+    return this.optimizationService.getRecommendations(projectId, user.userId);
+  }
+
+  @Post(':projectId/templates/:hash/analyze')
+  async analyzeTemplate(
+    @Param('projectId') projectId: string,
+    @Param('hash') hash: string,
+    @Req() req: Request,
+  ): Promise<{ analysis: string }> {
+    const user = req.user as AuthUser;
+    const analysis = await this.optimizationService.analyzeTemplateWithClaude(
+      projectId,
+      user.userId,
+      hash,
+    );
+    return { analysis };
   }
 }
