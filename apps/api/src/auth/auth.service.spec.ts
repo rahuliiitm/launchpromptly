@@ -13,6 +13,32 @@ describe('AuthService', () => {
     id: 'user-123',
     email: 'test@example.com',
     createdAt: new Date(),
+    organizationId: 'org-123',
+  };
+
+  const mockOrg = {
+    id: 'org-123',
+    name: "test@example.com's Organization",
+    createdAt: new Date(),
+  };
+
+  const mockProject = {
+    id: 'project-123',
+    organizationId: 'org-123',
+    name: 'Default Project',
+    createdAt: new Date(),
+  };
+
+  const mockTx = {
+    organization: {
+      create: jest.fn().mockResolvedValue(mockOrg),
+    },
+    user: {
+      create: jest.fn().mockResolvedValue(mockUser),
+    },
+    project: {
+      create: jest.fn().mockResolvedValue(mockProject),
+    },
   };
 
   beforeEach(async () => {
@@ -23,9 +49,11 @@ describe('AuthService', () => {
           provide: PrismaService,
           useValue: {
             user: {
-              upsert: jest.fn().mockResolvedValue(mockUser),
-              findUnique: jest.fn().mockResolvedValue(mockUser),
+              findUnique: jest.fn().mockResolvedValue(null),
             },
+            $transaction: jest.fn().mockImplementation(
+              (fn: (tx: typeof mockTx) => Promise<typeof mockUser>) => fn(mockTx),
+            ),
           },
         },
         {
@@ -43,16 +71,36 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    it('should create user and return JWT', async () => {
+    it('should create org, user, and project for new email', async () => {
       const result = await service.register('test@example.com');
 
       expect(result.accessToken).toBe('mock-jwt-token');
       expect(result.userId).toBe('user-123');
-      expect(prisma.user.upsert).toHaveBeenCalledWith({
-        where: { email: 'test@example.com' },
-        update: {},
-        create: { email: 'test@example.com' },
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(mockTx.organization.create).toHaveBeenCalledWith({
+        data: { name: "test@example.com's Organization" },
       });
+      expect(mockTx.user.create).toHaveBeenCalledWith({
+        data: { email: 'test@example.com', organizationId: 'org-123' },
+      });
+      expect(mockTx.project.create).toHaveBeenCalledWith({
+        data: { organizationId: 'org-123', name: 'Default Project' },
+      });
+    });
+
+    it('should return token without creating org for existing user', async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+
+      const result = await service.register('test@example.com');
+
+      expect(result.accessToken).toBe('mock-jwt-token');
+      expect(result.userId).toBe('user-123');
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('should sign JWT with correct payload', async () => {
+      await service.register('test@example.com');
+
       expect(jwtService.sign).toHaveBeenCalledWith({
         sub: 'user-123',
         email: 'test@example.com',
@@ -62,6 +110,8 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('should return JWT for existing user', async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+
       const result = await service.login('test@example.com');
 
       expect(result.accessToken).toBe('mock-jwt-token');
