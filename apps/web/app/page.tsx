@@ -9,6 +9,8 @@ import { PricingTiers } from './scenario/pricing-tiers';
 import { SnapshotManager } from './scenario/snapshot-manager';
 import { AdvisoryPanel } from './scenario/advisory-panel';
 import type { FinancialResult, SimulationResult } from '@aiecon/types';
+import { saveAuth, saveProjectId } from '@/lib/auth';
+import { apiFetch } from '@/lib/api';
 
 interface ScenarioResponse {
   id: string;
@@ -48,6 +50,14 @@ export default function Home() {
     setSimulations(sims);
     setToken(accessToken);
     setActiveTab('summary');
+
+    // Persist auth for dashboard access
+    saveAuth(accessToken, data.id);
+    void apiFetch<Array<{ id: string }>>('/project', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }).then((projects) => {
+      if (projects[0]) saveProjectId(projects[0].id);
+    }).catch(() => { /* non-critical */ });
   };
 
   const handleReset = () => {
@@ -58,7 +68,7 @@ export default function Home() {
   };
 
   return (
-    <div>
+    <main className="mx-auto max-w-4xl px-6 py-8">
       <h2 className="text-2xl font-semibold">AI Feature Unit Economics Simulator</h2>
       <p className="mt-2 text-gray-600">
         Model and optimize the unit economics of your AI features before you scale.
@@ -126,6 +136,6 @@ export default function Home() {
           </>
         )}
       </div>
-    </div>
+    </main>
   );
 }

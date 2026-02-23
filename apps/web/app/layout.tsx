@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'AIEcon — AI Feature Unit Economics Simulator',
-  description: 'Model and optimize the unit economics of your AI features before you scale.',
+  title: 'PlanForge — AI Cost Intelligence Platform',
+  description: 'Track, analyze, and optimize the unit economics of your AI features.',
 };
 
 export default function RootLayout({
@@ -15,9 +16,27 @@ export default function RootLayout({
     <html lang="en">
       <body className="min-h-screen bg-gray-50 text-gray-900 antialiased">
         <header className="border-b bg-white px-6 py-4">
-          <h1 className="text-xl font-bold">AIEcon</h1>
+          <div className="mx-auto flex max-w-7xl items-center gap-8">
+            <Link href="/" className="text-xl font-bold">
+              PlanForge
+            </Link>
+            <nav className="flex gap-4 text-sm font-medium">
+              <Link
+                href="/"
+                className="text-gray-500 transition-colors hover:text-gray-900"
+              >
+                Simulator
+              </Link>
+              <Link
+                href="/dashboard"
+                className="text-gray-500 transition-colors hover:text-gray-900"
+              >
+                Dashboard
+              </Link>
+            </nav>
+          </div>
         </header>
-        <main className="mx-auto max-w-4xl px-6 py-8">{children}</main>
+        {children}
       </body>
     </html>
   );
