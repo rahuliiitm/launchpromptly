@@ -8,6 +8,7 @@ export interface PlanForgeOptions {
   endpoint?: string;
   flushAt?: number;
   flushInterval?: number;
+  promptCacheTtl?: number;
 }
 
 export interface WrapOptions {

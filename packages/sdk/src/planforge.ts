@@ -1,4 +1,5 @@
 import { EventBatcher } from './batcher';
+import { PromptCache } from './prompt-cache';
 import { calculateEventCost, fingerprintMessages } from '@aiecon/calculators';
 import type {
   PlanForgeOptions,
@@ -9,25 +10,109 @@ import type {
 import type { IngestEventPayload } from '@aiecon/types';
 
 const DEFAULT_ENDPOINT = 'https://api.planforge.dev';
+const DEFAULT_PROMPT_CACHE_TTL = 60000; // 60 seconds
 
 type CreateFn = (params: ChatCompletionCreateParams) => Promise<ChatCompletion>;
 
+export class PromptNotFoundError extends Error {
+  constructor(slug: string) {
+    super(`Prompt "${slug}" not found`);
+    this.name = 'PromptNotFoundError';
+  }
+}
+
 export class PlanForge {
   private readonly batcher: EventBatcher;
+  private readonly promptCache: PromptCache;
+  private readonly apiKey: string;
+  private readonly endpoint: string;
+  private readonly promptCacheTtl: number;
+  /** Maps content hash → { managedPromptId, promptVersionId } for event metadata injection */
+  private readonly resolvedPrompts = new Map<
+    string,
+    { managedPromptId: string; promptVersionId: string }
+  >();
 
   constructor(options: PlanForgeOptions) {
+    this.apiKey = options.apiKey;
+    this.endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
+    this.promptCacheTtl = options.promptCacheTtl ?? DEFAULT_PROMPT_CACHE_TTL;
+    this.promptCache = new PromptCache();
     this.batcher = new EventBatcher(
       options.apiKey,
-      options.endpoint ?? DEFAULT_ENDPOINT,
+      this.endpoint,
       options.flushAt ?? 10,
       options.flushInterval ?? 5000,
     );
+  }
+
+  async prompt(slug: string, options?: { customerId?: string }): Promise<string> {
+    // Check cache first
+    const cached = this.promptCache.get(slug);
+    if (cached) {
+      return cached.content;
+    }
+
+    // Fetch from API
+    const queryParams = options?.customerId
+      ? `?customerId=${encodeURIComponent(options.customerId)}`
+      : '';
+    const url = `${this.endpoint}/v1/prompts/resolve/${encodeURIComponent(slug)}${queryParams}`;
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+      });
+
+      if (response.status === 404) {
+        // 404 is authoritative — no stale fallback
+        throw new PromptNotFoundError(slug);
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = (await response.json()) as {
+        content: string;
+        managedPromptId: string;
+        promptVersionId: string;
+        version: number;
+      };
+
+      // Cache the result
+      this.promptCache.set(slug, data, this.promptCacheTtl);
+
+      // Store for event metadata injection
+      this.resolvedPrompts.set(data.content, {
+        managedPromptId: data.managedPromptId,
+        promptVersionId: data.promptVersionId,
+      });
+
+      return data.content;
+    } catch (error) {
+      // On PromptNotFoundError, always throw
+      if (error instanceof PromptNotFoundError) {
+        throw error;
+      }
+
+      // On network error, try stale cache
+      const stale = this.promptCache.getStale(slug);
+      if (stale) {
+        return stale.content;
+      }
+
+      throw error;
+    }
   }
 
   wrap<T extends object>(client: T, options: WrapOptions = {}): T {
     const batcher = this.batcher;
     const customerFn = options.customer;
     const featureTag = options.feature;
+    const resolvedPrompts = this.resolvedPrompts;
 
     return new Proxy(client, {
       get(target, prop) {
@@ -87,6 +172,11 @@ export class PlanForge {
                               feature = ctx.feature ?? featureTag;
                             }
 
+                            // Check if system message matches a resolved managed prompt
+                            const promptMeta = systemMsg?.content
+                              ? resolvedPrompts.get(systemMsg.content)
+                              : undefined;
+
                             const event: IngestEventPayload = {
                               provider: 'openai',
                               model: params.model,
@@ -101,6 +191,8 @@ export class PlanForge {
                               fullHash: fingerprint.fullHash,
                               promptPreview: fingerprint.promptPreview,
                               statusCode: 200,
+                              managedPromptId: promptMeta?.managedPromptId,
+                              promptVersionId: promptMeta?.promptVersionId,
                             };
 
                             batcher.enqueue(event);
