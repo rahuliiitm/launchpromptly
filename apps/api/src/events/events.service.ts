@@ -1,0 +1,53 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import type { IngestBatchDto } from './dto/ingest-batch.dto';
+
+interface IngestResult {
+  accepted: number;
+}
+
+@Injectable()
+export class EventsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async ingestBatch(projectId: string, dto: IngestBatchDto): Promise<IngestResult> {
+    const systemHashEvents = dto.events.filter((e) => e.systemHash);
+    for (const event of systemHashEvents) {
+      if (!event.systemHash) continue;
+      await this.prisma.promptTemplate.upsert({
+        where: {
+          projectId_systemHash: { projectId, systemHash: event.systemHash },
+        },
+        update: { lastSeenAt: new Date() },
+        create: {
+          projectId,
+          systemHash: event.systemHash,
+          normalizedContent: event.promptPreview ?? '',
+          firstSeenAt: new Date(),
+          lastSeenAt: new Date(),
+        },
+      });
+    }
+
+    await this.prisma.lLMEvent.createMany({
+      data: dto.events.map((e) => ({
+        projectId,
+        customerId: e.customerId ?? null,
+        feature: e.feature ?? null,
+        provider: e.provider,
+        model: e.model,
+        inputTokens: e.inputTokens,
+        outputTokens: e.outputTokens,
+        totalTokens: e.totalTokens,
+        costUsd: e.costUsd,
+        latencyMs: e.latencyMs,
+        systemHash: e.systemHash ?? null,
+        fullHash: e.fullHash ?? null,
+        promptPreview: e.promptPreview ?? null,
+        statusCode: e.statusCode ?? 200,
+      })),
+    });
+
+    return { accepted: dto.events.length };
+  }
+}
