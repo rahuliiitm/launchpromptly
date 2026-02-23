@@ -65,6 +65,14 @@ export class IngestEventDto {
   @Min(100)
   @Max(599)
   statusCode?: number;
+
+  @IsOptional()
+  @IsString()
+  managedPromptId?: string;
+
+  @IsOptional()
+  @IsString()
+  promptVersionId?: string;
 }
 
 export class IngestBatchDto {

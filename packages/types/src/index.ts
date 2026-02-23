@@ -222,6 +222,8 @@ export interface IngestEventPayload {
   fullHash?: string;
   promptPreview?: string;
   statusCode?: number;
+  managedPromptId?: string;
+  promptVersionId?: string;
 }
 
 export interface IngestBatchPayload {

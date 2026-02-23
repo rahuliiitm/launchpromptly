@@ -379,6 +379,71 @@ describe('PromptService', () => {
     });
   });
 
+  // ── resolvePrompt ──
+
+  describe('resolvePrompt', () => {
+    it('should return active version content for slug', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({
+        id: 'p1',
+        slug: 'my-prompt',
+        abTests: [],
+        versions: [{ id: 'v2', version: 2, content: 'Active content', status: 'active' }],
+      });
+
+      const result = await service.resolvePrompt('proj1', 'my-prompt');
+      expect(result.content).toBe('Active content');
+      expect(result.managedPromptId).toBe('p1');
+      expect(result.promptVersionId).toBe('v2');
+      expect(result.version).toBe(2);
+    });
+
+    it('should return 404 for unknown slug', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue(null);
+      await expect(service.resolvePrompt('proj1', 'unknown')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should return 404 when no active version exists', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({
+        id: 'p1',
+        abTests: [],
+        versions: [],
+      });
+      await expect(service.resolvePrompt('proj1', 'no-active')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should select A/B variant deterministically with customerId', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({
+        id: 'p1',
+        slug: 'ab-prompt',
+        abTests: [
+          {
+            status: 'running',
+            variants: [
+              { id: 'var1', trafficPercent: 50, promptVersionId: 'v1', promptVersion: { id: 'v1', version: 1, content: 'Version A' } },
+              { id: 'var2', trafficPercent: 50, promptVersionId: 'v2', promptVersion: { id: 'v2', version: 2, content: 'Version B' } },
+            ],
+          },
+        ],
+        versions: [{ id: 'v1', version: 1, content: 'Version A', status: 'active' }],
+      });
+
+      const r1 = await service.resolvePrompt('proj1', 'ab-prompt', 'customer-42');
+      const r2 = await service.resolvePrompt('proj1', 'ab-prompt', 'customer-42');
+      expect(r1.promptVersionId).toBe(r2.promptVersionId); // deterministic
+    });
+
+    it('should use active version when no A/B test is running', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({
+        id: 'p1',
+        abTests: [],
+        versions: [{ id: 'v3', version: 3, content: 'Latest active', status: 'active' }],
+      });
+
+      const result = await service.resolvePrompt('proj1', 'no-ab');
+      expect(result.content).toBe('Latest active');
+    });
+  });
+
   // ── Authorization ──
 
   describe('authorization', () => {

@@ -45,6 +45,8 @@ export class EventsService {
         fullHash: e.fullHash ?? null,
         promptPreview: e.promptPreview ?? null,
         statusCode: e.statusCode ?? 200,
+        managedPromptId: e.managedPromptId ?? null,
+        promptVersionId: e.promptVersionId ?? null,
       })),
     });
 

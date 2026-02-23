@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
+import { selectVariant } from '@aiecon/calculators';
 import type { CreateManagedPromptDto } from './dto/create-managed-prompt.dto';
 import type { UpdateManagedPromptDto } from './dto/update-managed-prompt.dto';
 import type { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
@@ -298,5 +299,73 @@ export class PromptService {
       }
       throw error;
     }
+  }
+
+  async resolvePrompt(
+    projectId: string,
+    slug: string,
+    customerId?: string,
+  ) {
+    const prompt = await this.prisma.managedPrompt.findFirst({
+      where: { projectId, slug },
+      include: {
+        abTests: {
+          where: { status: 'running' },
+          include: {
+            variants: {
+              include: { promptVersion: true },
+            },
+          },
+          take: 1,
+        },
+        versions: {
+          where: { status: 'active' },
+          take: 1,
+        },
+      },
+    });
+
+    if (!prompt) {
+      throw new NotFoundException(`Prompt "${slug}" not found`);
+    }
+
+    // Check for running A/B test first
+    const runningTest = prompt.abTests[0];
+    if (runningTest && runningTest.variants.length > 0) {
+      const hashKey = customerId
+        ? `${customerId}:${slug}`
+        : `${Math.random()}:${slug}`;
+
+      const selectedVariantId = selectVariant(
+        runningTest.variants.map((v) => ({
+          id: v.id,
+          trafficPercent: v.trafficPercent,
+        })),
+        hashKey,
+      );
+
+      const selectedVariant = runningTest.variants.find((v) => v.id === selectedVariantId);
+      if (selectedVariant) {
+        return {
+          content: selectedVariant.promptVersion.content,
+          managedPromptId: prompt.id,
+          promptVersionId: selectedVariant.promptVersionId,
+          version: selectedVariant.promptVersion.version,
+        };
+      }
+    }
+
+    // No A/B test — use active version
+    const activeVersion = prompt.versions[0];
+    if (!activeVersion) {
+      throw new NotFoundException('No active version for this prompt');
+    }
+
+    return {
+      content: activeVersion.content,
+      managedPromptId: prompt.id,
+      promptVersionId: activeVersion.id,
+      version: activeVersion.version,
+    };
   }
 }

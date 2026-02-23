@@ -22,3 +22,6 @@ export {
   hashPrompt,
   fingerprintMessages,
 } from './promptFingerprint';
+
+export { selectVariant } from './abSplitSelector';
+export type { SplitVariant } from './abSplitSelector';
