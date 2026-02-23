@@ -8,10 +8,85 @@ datasource db {
 }
 
 model User {
-  id        String     @id @default(uuid())
-  email     String     @unique
-  createdAt DateTime   @default(now())
-  scenarios Scenario[]
+  id             String        @id @default(uuid())
+  email          String        @unique
+  organizationId String?
+  createdAt      DateTime      @default(now())
+  scenarios      Scenario[]
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+}
+
+model Organization {
+  id        String    @id @default(uuid())
+  name      String
+  createdAt DateTime  @default(now())
+  users     User[]
+  projects  Project[]
+}
+
+model Project {
+  id              String           @id @default(uuid())
+  organizationId  String
+  name            String
+  createdAt       DateTime         @default(now())
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  apiKeys         ApiKey[]
+  events          LLMEvent[]
+  promptTemplates PromptTemplate[]
+
+  @@index([organizationId])
+}
+
+model ApiKey {
+  id         String    @id @default(uuid())
+  projectId  String
+  keyHash    String    @unique
+  keyPrefix  String
+  name       String    @default("Default")
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  project    Project   @relation(fields: [projectId], references: [id])
+
+  @@index([keyHash])
+}
+
+model LLMEvent {
+  id            String   @id @default(uuid())
+  projectId     String
+  customerId    String?
+  feature       String?
+  provider      String
+  model         String
+  inputTokens   Int
+  outputTokens  Int
+  totalTokens   Int
+  costUsd       Float
+  latencyMs     Int
+  systemHash    String?
+  fullHash      String?
+  promptPreview String?
+  statusCode    Int      @default(200)
+  createdAt     DateTime @default(now())
+  project       Project  @relation(fields: [projectId], references: [id])
+
+  @@index([projectId, createdAt])
+  @@index([projectId, customerId])
+  @@index([projectId, systemHash])
+  @@index([projectId, feature])
+  @@index([projectId, model])
+}
+
+model PromptTemplate {
+  id                String   @id @default(uuid())
+  projectId         String
+  systemHash        String
+  normalizedContent String
+  firstSeenAt       DateTime @default(now())
+  lastSeenAt        DateTime @default(now())
+  project           Project  @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, systemHash])
 }
 
 model Scenario {
