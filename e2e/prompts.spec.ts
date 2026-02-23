@@ -52,15 +52,42 @@ test.describe('Prompt Management', () => {
   test('create a new prompt via form', async ({ page }) => {
     await page.goto('/dashboard/prompts/managed');
 
+    // Create Prompt button should be visible when authenticated
+    await expect(page.getByRole('button', { name: 'Create Prompt' })).toBeVisible({ timeout: 5000 });
+
     await page.getByRole('button', { name: 'Create Prompt' }).click();
+
+    // Form should appear
+    await expect(page.locator('input[placeholder="customer-support"]')).toBeVisible();
+
     await page.locator('input[placeholder="customer-support"]').fill('test-prompt');
     await page.locator('input[placeholder="Customer Support Agent"]').fill('Test Prompt');
     await page.locator('textarea').fill('You are a test assistant.');
     await page.getByRole('button', { name: 'Create Prompt' }).last().click();
 
-    // Should see the prompt in the list
+    // Form should close and prompt should appear in the list
     await expect(page.getByText('Test Prompt')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('test-prompt')).toBeVisible();
+
+    // Verify version count shows 1 (from initialContent)
+    await expect(page.getByText('1')).toBeVisible();
+  });
+
+  test('create prompt without auth shows error', async ({ page }) => {
+    // Navigate to managed page without any auth in localStorage
+    await page.goto('/');
+    await page.evaluate(() => {
+      localStorage.removeItem('pf_token');
+      localStorage.removeItem('pf_user_id');
+      localStorage.removeItem('pf_project_id');
+    });
+    await page.goto('/dashboard/prompts/managed');
+
+    // Create Prompt button should NOT be visible when not authenticated
+    await expect(page.getByRole('button', { name: 'Create Prompt' })).not.toBeVisible({ timeout: 3000 });
+
+    // Should show not-authenticated message
+    await expect(page.getByText('Not authenticated')).toBeVisible();
   });
 
   test('click prompt to see detail page', async ({ page }) => {

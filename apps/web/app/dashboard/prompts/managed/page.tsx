@@ -12,6 +12,7 @@ export default function ManagedPromptsPage() {
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
   const [form, setForm] = useState({ slug: '', name: '', description: '', initialContent: '' });
 
   const loadPrompts = useCallback(() => {
@@ -19,8 +20,10 @@ export default function ManagedPromptsPage() {
     const projectId = getProjectId();
     if (!token || !projectId) {
       setLoading(false);
+      setAuthenticated(false);
       return;
     }
+    setAuthenticated(true);
     apiFetch<ManagedPromptWithVersions[]>(
       `/prompt/${projectId}`,
       { headers: { Authorization: `Bearer ${token}` } },
@@ -34,9 +37,13 @@ export default function ManagedPromptsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     const token = getToken();
     const projectId = getProjectId();
-    if (!token || !projectId) return;
+    if (!token || !projectId) {
+      setError('Not authenticated. Please register or log in first.');
+      return;
+    }
     setCreating(true);
     try {
       await apiFetch(`/prompt/${projectId}`, {
@@ -69,12 +76,14 @@ export default function ManagedPromptsPage() {
             Create, version, and deploy your AI prompts.
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(!showCreate)}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          {showCreate ? 'Cancel' : 'Create Prompt'}
-        </button>
+        {authenticated && (
+          <button
+            onClick={() => setShowCreate(!showCreate)}
+            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            {showCreate ? 'Cancel' : 'Create Prompt'}
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -152,13 +161,24 @@ export default function ManagedPromptsPage() {
 
       {error && <div className="mt-4 text-sm text-red-500">{error}</div>}
 
-      {loading ? (
+      {!authenticated && !loading && (
+        <div className="mt-12 text-center">
+          <p className="text-gray-400">Not authenticated.</p>
+          <p className="mt-1 text-sm text-gray-400">
+            Run a scenario from the{' '}
+            <Link href="/" className="text-blue-600 hover:underline">Simulator</Link>
+            {' '}to register, or integrate the SDK to start sending events.
+          </p>
+        </div>
+      )}
+
+      {authenticated && loading ? (
         <div className="py-20 text-center text-gray-400">Loading...</div>
-      ) : prompts.length === 0 ? (
+      ) : authenticated && prompts.length === 0 ? (
         <div className="mt-12 text-center text-gray-400">
           No managed prompts yet. Create one to get started.
         </div>
-      ) : (
+      ) : authenticated ? (
         <div className="mt-6">
           <table className="w-full text-left text-sm">
             <thead>
@@ -203,7 +223,7 @@ export default function ManagedPromptsPage() {
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
