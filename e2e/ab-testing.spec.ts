@@ -193,6 +193,6 @@ test.describe('A/B Testing', () => {
     await page.goto(`/dashboard/prompts/managed/${promptId}/ab-tests`);
     await page.getByRole('button', { name: 'Stop' }).click();
 
-    await expect(page.getByText('completed')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('completed', { exact: true })).toBeVisible({ timeout: 5000 });
   });
 });

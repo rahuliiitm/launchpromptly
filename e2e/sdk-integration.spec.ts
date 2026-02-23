@@ -101,7 +101,9 @@ test.describe('SDK Integration', () => {
         body: JSON.stringify({ name: 'revoke-test-key' }),
       },
     );
-    const { rawKey, id: keyId } = await keyRes.json();
+    const keyData = await keyRes.json();
+    const rawKey = keyData.rawKey;
+    const keyId = keyData.apiKey.id;
 
     // Revoke the key
     await fetch(`${API_BASE}/project/${auth.projectId}/api-keys/${keyId}`, {

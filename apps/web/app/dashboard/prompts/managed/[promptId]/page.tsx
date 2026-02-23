@@ -26,10 +26,9 @@ export default function PromptDetailPage() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', slug: '', description: '' });
 
-  const token = getToken();
-  const projectId = getProjectId();
-
   const loadPrompt = useCallback(() => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) {
       setLoading(false);
       return;
@@ -51,11 +50,13 @@ export default function PromptDetailPage() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [token, projectId, promptId]);
+  }, [promptId]);
 
   useEffect(loadPrompt, [loadPrompt]);
 
   const handleDeploy = async (versionId: string) => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) return;
     setActionLoading(`deploy-${versionId}`);
     try {
@@ -72,6 +73,8 @@ export default function PromptDetailPage() {
   };
 
   const handleRollback = async () => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) return;
     setActionLoading('rollback');
     try {
@@ -88,6 +91,8 @@ export default function PromptDetailPage() {
   };
 
   const handleOptimize = async (versionId: string) => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) return;
     setActionLoading(`optimize-${versionId}`);
     try {
@@ -105,6 +110,8 @@ export default function PromptDetailPage() {
 
   const handleCreateVersion = async (e: React.FormEvent) => {
     e.preventDefault();
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId || !newContent.trim()) return;
     setActionLoading('create-version');
     try {
@@ -125,6 +132,8 @@ export default function PromptDetailPage() {
 
   const handleUpdateMeta = async (e: React.FormEvent) => {
     e.preventDefault();
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) return;
     setActionLoading('update');
     try {
@@ -143,6 +152,8 @@ export default function PromptDetailPage() {
   };
 
   const handleDelete = async () => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) return;
     if (!confirm('Are you sure you want to delete this prompt and all versions?')) return;
     setActionLoading('delete');

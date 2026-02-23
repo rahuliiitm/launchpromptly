@@ -1,5 +1,8 @@
 import { defineConfig } from '@playwright/test';
 
+const WEB_PORT = process.env.WEB_PORT ?? '3002';
+const API_PORT = process.env.API_PORT ?? '3001';
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -8,7 +11,7 @@ export default defineConfig({
   workers: 1,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.BASE_URL ?? `http://localhost:${WEB_PORT}`,
     trace: 'on-first-retry',
   },
   projects: [
@@ -19,14 +22,14 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run dev --workspace=apps/api',
-      url: 'http://localhost:3001/health',
+      command: `npm run dev --workspace=apps/api`,
+      url: `http://localhost:${API_PORT}/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 30000,
     },
     {
-      command: 'npm run dev --workspace=apps/web',
-      url: 'http://localhost:3000',
+      command: `npm run dev --workspace=apps/web -- -p ${WEB_PORT}`,
+      url: `http://localhost:${WEB_PORT}`,
       reuseExistingServer: !process.env.CI,
       timeout: 30000,
     },

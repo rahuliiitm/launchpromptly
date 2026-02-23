@@ -40,32 +40,33 @@ export default function ABTestsPage() {
     { versionId: '', percent: 50 },
   ]);
 
-  const token = getToken();
-  const projectId = getProjectId();
-
   const loadData = useCallback(() => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) {
       setLoading(false);
       return;
     }
-    apiFetch<ManagedPromptWithVersions>(
+    apiFetch<ManagedPromptWithVersions & { abTests?: ABTestWithResults[] }>(
       `/prompt/${projectId}/${promptId}`,
       { headers: { Authorization: `Bearer ${token}` } },
     )
       .then((p) => {
         setPrompt(p);
-        // Load all A/B tests from the prompt's tests
-        // For now we'll just display available tests. The tests
-        // are fetched individually to get results.
+        if (p.abTests) {
+          setTests(p.abTests);
+        }
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [token, projectId, promptId]);
+  }, [promptId]);
 
   useEffect(loadData, [loadData]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) return;
 
     const totalPercent = formVariants.reduce((s, v) => s + v.percent, 0);
@@ -105,6 +106,8 @@ export default function ABTestsPage() {
   };
 
   const handleStart = async (testId: string) => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) return;
     setActionLoading(`start-${testId}`);
     try {
@@ -121,6 +124,8 @@ export default function ABTestsPage() {
   };
 
   const handleStop = async (testId: string) => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) return;
     setActionLoading(`stop-${testId}`);
     try {
@@ -137,6 +142,8 @@ export default function ABTestsPage() {
   };
 
   const handleViewResults = async (testId: string) => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) return;
     setActionLoading(`results-${testId}`);
     try {

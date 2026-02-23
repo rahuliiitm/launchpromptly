@@ -101,6 +101,10 @@ export class PromptService {
       where: { id: promptId, projectId },
       include: {
         versions: { orderBy: { version: 'desc' } },
+        abTests: {
+          include: { variants: true },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 

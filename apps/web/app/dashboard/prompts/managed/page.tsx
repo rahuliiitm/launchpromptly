@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
 import type { ManagedPromptWithVersions } from '@aiecon/types';
@@ -14,10 +14,9 @@ export default function ManagedPromptsPage() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ slug: '', name: '', description: '', initialContent: '' });
 
-  const token = getToken();
-  const projectId = getProjectId();
-
-  const loadPrompts = () => {
+  const loadPrompts = useCallback(() => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) {
       setLoading(false);
       return;
@@ -29,12 +28,14 @@ export default function ManagedPromptsPage() {
       .then(setPrompts)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
-  useEffect(loadPrompts, []);
+  useEffect(loadPrompts, [loadPrompts]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) return;
     setCreating(true);
     try {

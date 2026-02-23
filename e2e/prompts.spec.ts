@@ -185,7 +185,7 @@ test.describe('Prompt Management', () => {
     await page.waitForTimeout(1000);
     await page.reload();
     // Check that the page still works after rollback
-    await expect(page.getByText('Rollback Test')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('heading', { name: 'Rollback Test' })).toBeVisible({ timeout: 5000 });
   });
 
   test('edit prompt metadata', async ({ page }) => {
@@ -214,7 +214,7 @@ test.describe('Prompt Management', () => {
 
     await page.getByRole('button', { name: 'Save' }).click();
 
-    await expect(page.getByText('Updated Name')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('heading', { name: 'Updated Name' })).toBeVisible({ timeout: 5000 });
   });
 
   test('delete a prompt', async ({ page }) => {
