@@ -4,6 +4,8 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
 import { selectVariant } from '@aiecon/calculators';
@@ -14,10 +16,16 @@ import type { CreateABTestDto } from './dto/create-ab-test.dto';
 
 @Injectable()
 export class PromptService {
+  private readonly anthropic: Anthropic;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly projectService: ProjectService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
+    this.anthropic = new Anthropic({ apiKey: apiKey ?? '' });
+  }
 
   async createPrompt(
     projectId: string,
@@ -668,5 +676,64 @@ export class PromptService {
       }));
 
     return timeSeries;
+  }
+
+  // ── Prompt Optimization ──
+
+  async generateOptimizedVersion(
+    projectId: string,
+    promptId: string,
+    versionId: string,
+    userId: string,
+  ) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const version = await this.prisma.promptVersion.findFirst({
+      where: { id: versionId, managedPromptId: promptId },
+    });
+    if (!version) {
+      throw new NotFoundException('Version not found');
+    }
+
+    const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
+    if (!apiKey) {
+      return {
+        message: 'AI optimization unavailable (ANTHROPIC_API_KEY not set)',
+        version: null,
+      };
+    }
+
+    const message = await this.anthropic.messages.create({
+      model: 'claude-3-5-haiku-latest',
+      max_tokens: 2048,
+      messages: [
+        {
+          role: 'user',
+          content: `Rewrite this system prompt to be more concise and effective while preserving all instructions and meaning. Reduce token count where possible. Return ONLY the optimized prompt, no explanations.\n\nOriginal prompt:\n${version.content}`,
+        },
+      ],
+    });
+
+    const textBlock = message.content.find((b) => b.type === 'text');
+    const optimizedContent =
+      textBlock && 'text' in textBlock ? textBlock.text : version.content;
+
+    // Auto-increment version
+    const maxVersion = await this.prisma.promptVersion.aggregate({
+      where: { managedPromptId: promptId },
+      _max: { version: true },
+    });
+    const nextVersion = (maxVersion._max.version ?? 0) + 1;
+
+    const newVersion = await this.prisma.promptVersion.create({
+      data: {
+        managedPromptId: promptId,
+        version: nextVersion,
+        content: optimizedContent,
+        status: 'draft',
+      },
+    });
+
+    return { message: 'Optimized version created', version: newVersion };
   }
 }

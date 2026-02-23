@@ -90,6 +90,22 @@ export class PromptController {
     return this.promptService.createVersion(projectId, promptId, user.userId, dto);
   }
 
+  @Post(':projectId/:promptId/versions/:versionId/optimize')
+  async optimize(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Param('versionId') versionId: string,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.generateOptimizedVersion(
+      projectId,
+      promptId,
+      versionId,
+      user.userId,
+    );
+  }
+
   @Post(':projectId/:promptId/versions/:versionId/deploy')
   @HttpCode(200)
   async deploy(
