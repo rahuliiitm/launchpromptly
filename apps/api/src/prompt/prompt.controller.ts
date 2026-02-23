@@ -15,6 +15,7 @@ import { PromptService } from './prompt.service';
 import { CreateManagedPromptDto } from './dto/create-managed-prompt.dto';
 import { UpdateManagedPromptDto } from './dto/update-managed-prompt.dto';
 import { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
+import { CreateABTestDto } from './dto/create-ab-test.dto';
 import type { Request } from 'express';
 
 interface AuthUser {
@@ -109,6 +110,54 @@ export class PromptController {
   ) {
     const user = req.user as AuthUser;
     return this.promptService.rollbackVersion(projectId, promptId, user.userId);
+  }
+
+  // ── A/B Testing ──
+
+  @Post(':projectId/:promptId/ab-tests')
+  async createABTest(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Body() dto: CreateABTestDto,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.createABTest(projectId, promptId, user.userId, dto);
+  }
+
+  @Post(':projectId/:promptId/ab-tests/:testId/start')
+  @HttpCode(200)
+  async startABTest(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Param('testId') testId: string,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.startABTest(projectId, promptId, testId, user.userId);
+  }
+
+  @Post(':projectId/:promptId/ab-tests/:testId/stop')
+  @HttpCode(200)
+  async stopABTest(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Param('testId') testId: string,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.stopABTest(projectId, promptId, testId, user.userId);
+  }
+
+  @Get(':projectId/:promptId/ab-tests/:testId')
+  async getABTestResults(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Param('testId') testId: string,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.getABTestResults(projectId, promptId, testId, user.userId);
   }
 
   @Post(':projectId/promote/:templateHash')

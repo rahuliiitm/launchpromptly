@@ -10,6 +10,7 @@ import { selectVariant } from '@aiecon/calculators';
 import type { CreateManagedPromptDto } from './dto/create-managed-prompt.dto';
 import type { UpdateManagedPromptDto } from './dto/update-managed-prompt.dto';
 import type { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
+import type { CreateABTestDto } from './dto/create-ab-test.dto';
 
 @Injectable()
 export class PromptService {
@@ -299,6 +300,193 @@ export class PromptService {
       }
       throw error;
     }
+  }
+
+  // ── A/B Testing ──
+
+  async createABTest(
+    projectId: string,
+    promptId: string,
+    userId: string,
+    dto: CreateABTestDto,
+  ) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const prompt = await this.prisma.managedPrompt.findFirst({
+      where: { id: promptId, projectId },
+    });
+    if (!prompt) {
+      throw new NotFoundException('Prompt not found');
+    }
+
+    // Validate traffic percentages sum to 100
+    const totalPercent = dto.variants.reduce((sum, v) => sum + v.trafficPercent, 0);
+    if (totalPercent !== 100) {
+      throw new BadRequestException(
+        `Traffic percentages must sum to 100, got ${totalPercent}`,
+      );
+    }
+
+    // Validate all referenced versions exist and belong to this prompt
+    for (const variant of dto.variants) {
+      const version = await this.prisma.promptVersion.findFirst({
+        where: { id: variant.promptVersionId, managedPromptId: promptId },
+      });
+      if (!version) {
+        throw new NotFoundException(
+          `Version ${variant.promptVersionId} not found for this prompt`,
+        );
+      }
+    }
+
+    // Check no other test is already running for this prompt
+    const runningTest = await this.prisma.aBTest.findFirst({
+      where: { managedPromptId: promptId, status: 'running' },
+    });
+    if (runningTest) {
+      throw new ConflictException(
+        'Another A/B test is already running for this prompt',
+      );
+    }
+
+    return this.prisma.aBTest.create({
+      data: {
+        managedPromptId: promptId,
+        name: dto.name,
+        status: 'draft',
+        variants: {
+          create: dto.variants.map((v) => ({
+            promptVersionId: v.promptVersionId,
+            trafficPercent: v.trafficPercent,
+          })),
+        },
+      },
+      include: { variants: true },
+    });
+  }
+
+  async startABTest(
+    projectId: string,
+    promptId: string,
+    testId: string,
+    userId: string,
+  ) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const test = await this.prisma.aBTest.findFirst({
+      where: { id: testId, managedPromptId: promptId },
+    });
+    if (!test) {
+      throw new NotFoundException('A/B test not found');
+    }
+    if (test.status !== 'draft') {
+      throw new BadRequestException(
+        `Cannot start test in "${test.status}" status — must be "draft"`,
+      );
+    }
+
+    // Check no other test is already running
+    const runningTest = await this.prisma.aBTest.findFirst({
+      where: {
+        managedPromptId: promptId,
+        status: 'running',
+        id: { not: testId },
+      },
+    });
+    if (runningTest) {
+      throw new ConflictException(
+        'Another A/B test is already running for this prompt',
+      );
+    }
+
+    return this.prisma.aBTest.update({
+      where: { id: testId },
+      data: { status: 'running', startedAt: new Date() },
+      include: { variants: true },
+    });
+  }
+
+  async stopABTest(
+    projectId: string,
+    promptId: string,
+    testId: string,
+    userId: string,
+  ) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const test = await this.prisma.aBTest.findFirst({
+      where: { id: testId, managedPromptId: promptId },
+    });
+    if (!test) {
+      throw new NotFoundException('A/B test not found');
+    }
+    if (test.status !== 'running') {
+      throw new BadRequestException(
+        `Cannot stop test in "${test.status}" status — must be "running"`,
+      );
+    }
+
+    return this.prisma.aBTest.update({
+      where: { id: testId },
+      data: { status: 'completed', completedAt: new Date() },
+      include: { variants: true },
+    });
+  }
+
+  async getABTestResults(
+    projectId: string,
+    promptId: string,
+    testId: string,
+    userId: string,
+  ) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const test = await this.prisma.aBTest.findFirst({
+      where: { id: testId, managedPromptId: promptId },
+      include: {
+        variants: {
+          include: { promptVersion: true },
+        },
+      },
+    });
+    if (!test) {
+      throw new NotFoundException('A/B test not found');
+    }
+
+    // Aggregate events per variant (by promptVersionId)
+    const variantResults = await Promise.all(
+      test.variants.map(async (variant) => {
+        const agg = await this.prisma.lLMEvent.aggregate({
+          where: {
+            projectId,
+            promptVersionId: variant.promptVersionId,
+            createdAt: {
+              ...(test.startedAt && { gte: test.startedAt }),
+              ...(test.completedAt && { lte: test.completedAt }),
+            },
+          },
+          _count: true,
+          _sum: { costUsd: true },
+          _avg: { latencyMs: true, costUsd: true },
+        });
+
+        return {
+          variantId: variant.id,
+          promptVersionId: variant.promptVersionId,
+          version: variant.promptVersion.version,
+          trafficPercent: variant.trafficPercent,
+          callCount: agg._count,
+          totalCostUsd: agg._sum.costUsd ?? 0,
+          avgLatencyMs: agg._avg.latencyMs ?? 0,
+          avgCostPerCall: agg._avg.costUsd ?? 0,
+        };
+      }),
+    );
+
+    return {
+      ...test,
+      results: variantResults,
+    };
   }
 
   async resolvePrompt(

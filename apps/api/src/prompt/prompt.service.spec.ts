@@ -30,6 +30,14 @@ describe('PromptService', () => {
     promptTemplate: {
       findUnique: jest.fn(),
     },
+    aBTest: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
+    lLMEvent: {
+      aggregate: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
@@ -441,6 +449,216 @@ describe('PromptService', () => {
 
       const result = await service.resolvePrompt('proj1', 'no-ab');
       expect(result.content).toBe('Latest active');
+    });
+  });
+
+  // ── createABTest ──
+
+  describe('createABTest', () => {
+    const validDto = {
+      name: 'Test A vs B',
+      variants: [
+        { promptVersionId: 'v1', trafficPercent: 50 },
+        { promptVersionId: 'v2', trafficPercent: 50 },
+      ],
+    };
+
+    it('should create A/B test with variants', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({ id: 'p1' });
+      mockPrisma.promptVersion.findFirst
+        .mockResolvedValueOnce({ id: 'v1', managedPromptId: 'p1' })
+        .mockResolvedValueOnce({ id: 'v2', managedPromptId: 'p1' });
+      mockPrisma.aBTest.findFirst.mockResolvedValue(null); // no running test
+      mockPrisma.aBTest.create.mockResolvedValue({
+        id: 'ab1',
+        name: 'Test A vs B',
+        status: 'draft',
+        variants: [
+          { id: 'var1', promptVersionId: 'v1', trafficPercent: 50 },
+          { id: 'var2', promptVersionId: 'v2', trafficPercent: 50 },
+        ],
+      });
+
+      const result = await service.createABTest('proj1', 'p1', 'user1', validDto as any);
+      expect(result.status).toBe('draft');
+      expect(result.variants).toHaveLength(2);
+    });
+
+    it('should reject when percentages do not sum to 100', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({ id: 'p1' });
+
+      const badDto = {
+        name: 'Bad split',
+        variants: [
+          { promptVersionId: 'v1', trafficPercent: 60 },
+          { promptVersionId: 'v2', trafficPercent: 60 },
+        ],
+      };
+
+      await expect(
+        service.createABTest('proj1', 'p1', 'user1', badDto as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject non-existent version reference', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({ id: 'p1' });
+      mockPrisma.promptVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createABTest('proj1', 'p1', 'user1', validDto as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should reject when another test is already running', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({ id: 'p1' });
+      mockPrisma.promptVersion.findFirst
+        .mockResolvedValueOnce({ id: 'v1', managedPromptId: 'p1' })
+        .mockResolvedValueOnce({ id: 'v2', managedPromptId: 'p1' });
+      mockPrisma.aBTest.findFirst.mockResolvedValue({ id: 'existing-test', status: 'running' });
+
+      await expect(
+        service.createABTest('proj1', 'p1', 'user1', validDto as any),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  // ── startABTest ──
+
+  describe('startABTest', () => {
+    it('should set status to running and startedAt', async () => {
+      mockPrisma.aBTest.findFirst
+        .mockResolvedValueOnce({ id: 'ab1', managedPromptId: 'p1', status: 'draft' })
+        .mockResolvedValueOnce(null); // no other running test
+      mockPrisma.aBTest.update.mockResolvedValue({
+        id: 'ab1',
+        status: 'running',
+        startedAt: new Date(),
+        variants: [],
+      });
+
+      const result = await service.startABTest('proj1', 'p1', 'ab1', 'user1');
+      expect(result.status).toBe('running');
+      expect(result.startedAt).toBeDefined();
+    });
+
+    it('should throw BadRequestException if test is not in draft status', async () => {
+      mockPrisma.aBTest.findFirst.mockResolvedValue({
+        id: 'ab1',
+        managedPromptId: 'p1',
+        status: 'completed',
+      });
+
+      await expect(
+        service.startABTest('proj1', 'p1', 'ab1', 'user1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── stopABTest ──
+
+  describe('stopABTest', () => {
+    it('should set status to completed and completedAt', async () => {
+      mockPrisma.aBTest.findFirst.mockResolvedValue({
+        id: 'ab1',
+        managedPromptId: 'p1',
+        status: 'running',
+      });
+      mockPrisma.aBTest.update.mockResolvedValue({
+        id: 'ab1',
+        status: 'completed',
+        completedAt: new Date(),
+        variants: [],
+      });
+
+      const result = await service.stopABTest('proj1', 'p1', 'ab1', 'user1');
+      expect(result.status).toBe('completed');
+      expect(result.completedAt).toBeDefined();
+    });
+
+    it('should throw BadRequestException if test is not running', async () => {
+      mockPrisma.aBTest.findFirst.mockResolvedValue({
+        id: 'ab1',
+        managedPromptId: 'p1',
+        status: 'draft',
+      });
+
+      await expect(
+        service.stopABTest('proj1', 'p1', 'ab1', 'user1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── getABTestResults ──
+
+  describe('getABTestResults', () => {
+    it('should aggregate events per variant', async () => {
+      mockPrisma.aBTest.findFirst.mockResolvedValue({
+        id: 'ab1',
+        managedPromptId: 'p1',
+        status: 'completed',
+        startedAt: new Date('2025-01-01'),
+        completedAt: new Date('2025-01-31'),
+        variants: [
+          {
+            id: 'var1',
+            promptVersionId: 'v1',
+            trafficPercent: 50,
+            promptVersion: { version: 1 },
+          },
+          {
+            id: 'var2',
+            promptVersionId: 'v2',
+            trafficPercent: 50,
+            promptVersion: { version: 2 },
+          },
+        ],
+      });
+      mockPrisma.lLMEvent.aggregate
+        .mockResolvedValueOnce({
+          _count: 100,
+          _sum: { costUsd: 5.0 },
+          _avg: { latencyMs: 200, costUsd: 0.05 },
+        })
+        .mockResolvedValueOnce({
+          _count: 80,
+          _sum: { costUsd: 3.0 },
+          _avg: { latencyMs: 150, costUsd: 0.0375 },
+        });
+
+      const result = await service.getABTestResults('proj1', 'p1', 'ab1', 'user1');
+      expect(result.results).toHaveLength(2);
+      expect(result.results[0].callCount).toBe(100);
+      expect(result.results[0].totalCostUsd).toBe(5.0);
+      expect(result.results[1].callCount).toBe(80);
+      expect(result.results[1].avgLatencyMs).toBe(150);
+    });
+
+    it('should return zero counts for variants with no events', async () => {
+      mockPrisma.aBTest.findFirst.mockResolvedValue({
+        id: 'ab1',
+        managedPromptId: 'p1',
+        status: 'running',
+        startedAt: new Date(),
+        completedAt: null,
+        variants: [
+          {
+            id: 'var1',
+            promptVersionId: 'v1',
+            trafficPercent: 100,
+            promptVersion: { version: 1 },
+          },
+        ],
+      });
+      mockPrisma.lLMEvent.aggregate.mockResolvedValue({
+        _count: 0,
+        _sum: { costUsd: null },
+        _avg: { latencyMs: null, costUsd: null },
+      });
+
+      const result = await service.getABTestResults('proj1', 'p1', 'ab1', 'user1');
+      expect(result.results[0].callCount).toBe(0);
+      expect(result.results[0].totalCostUsd).toBe(0);
+      expect(result.results[0].avgLatencyMs).toBe(0);
     });
   });
 
