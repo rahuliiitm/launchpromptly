@@ -13,9 +13,11 @@
     "test": "turbo run test",
     "db:migrate": "npx prisma migrate dev --schema=prisma/schema.prisma",
     "db:generate": "npx prisma generate --schema=prisma/schema.prisma",
-    "db:push": "npx prisma db push --schema=prisma/schema.prisma"
+    "db:push": "npx prisma db push --schema=prisma/schema.prisma",
+    "test:e2e": "npx playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "turbo": "^2.3.0",
     "typescript": "^5.7.0"
   },
