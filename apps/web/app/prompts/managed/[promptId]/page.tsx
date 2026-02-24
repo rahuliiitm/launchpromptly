@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
+import { TextDiff } from '@/components/text-diff';
 import type { ManagedPromptWithVersions, PromptVersion, PromptVersionAnalytics } from '@aiecon/types';
 
 const STATUS_BADGE: Record<string, string> = {
@@ -25,6 +26,8 @@ export default function PromptDetailPage() {
   const [showNewVersion, setShowNewVersion] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', slug: '', description: '' });
+  const [successBanner, setSuccessBanner] = useState('');
+  const [compareWith, setCompareWith] = useState<Record<string, string>>({}); // versionId -> compareToVersionId
 
   const loadPrompt = useCallback(() => {
     const token = getToken();
@@ -54,7 +57,15 @@ export default function PromptDetailPage() {
 
   useEffect(loadPrompt, [loadPrompt]);
 
-  const handleDeploy = async (versionId: string) => {
+  // Auto-dismiss success banner
+  useEffect(() => {
+    if (!successBanner) return;
+    const timer = setTimeout(() => setSuccessBanner(''), 5000);
+    return () => clearTimeout(timer);
+  }, [successBanner]);
+
+  const handleDeploy = async (versionId: string, versionNum: number) => {
+    if (!confirm(`Deploy v${versionNum} to production? SDK will immediately serve this version.`)) return;
     const token = getToken();
     const projectId = getProjectId();
     if (!token || !projectId) return;
@@ -64,6 +75,7 @@ export default function PromptDetailPage() {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
+      setSuccessBanner(`v${versionNum} is now live. Your SDK is serving this version.`);
       loadPrompt();
     } catch (err) {
       setError((err as Error).message);
@@ -73,6 +85,10 @@ export default function PromptDetailPage() {
   };
 
   const handleRollback = async () => {
+    const archivedVersions = prompt?.versions.filter((v: PromptVersion) => v.status === 'archived') ?? [];
+    const previousVersion = archivedVersions[0];
+    if (!previousVersion) return;
+    if (!confirm(`Rollback to v${previousVersion.version}? This will replace the active version.`)) return;
     const token = getToken();
     const projectId = getProjectId();
     if (!token || !projectId) return;
@@ -82,6 +98,7 @@ export default function PromptDetailPage() {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
+      setSuccessBanner(`Rolled back to v${previousVersion.version}.`);
       loadPrompt();
     } catch (err) {
       setError((err as Error).message);
@@ -180,6 +197,10 @@ export default function PromptDetailPage() {
     return <div className="py-20 text-center text-red-500">Prompt not found</div>;
   }
 
+  const hasActiveVersion = prompt.versions.some((v: PromptVersion) => v.status === 'active');
+  const archivedVersions = prompt.versions.filter((v: PromptVersion) => v.status === 'archived');
+  const rollbackTarget = archivedVersions.length > 0 ? archivedVersions[0] : null;
+
   return (
     <div>
       {/* Breadcrumb */}
@@ -190,6 +211,20 @@ export default function PromptDetailPage() {
         {' > '}
         <span className="text-gray-800">{prompt.name}</span>
       </div>
+
+      {/* Success banner */}
+      {successBanner && (
+        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          {successBanner}
+        </div>
+      )}
+
+      {/* No active version warning */}
+      {!hasActiveVersion && (
+        <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+          No active version. SDK calls for this prompt will fail until you deploy a version.
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-start justify-between">
@@ -254,10 +289,15 @@ export default function PromptDetailPage() {
           )}
           <button
             onClick={handleRollback}
-            disabled={actionLoading === 'rollback'}
+            disabled={actionLoading === 'rollback' || !rollbackTarget}
             className="rounded border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
+            title={rollbackTarget ? `Rollback to v${rollbackTarget.version}` : 'No previous version to rollback to'}
           >
-            {actionLoading === 'rollback' ? 'Rolling back...' : 'Rollback'}
+            {actionLoading === 'rollback'
+              ? 'Rolling back...'
+              : rollbackTarget
+                ? `Rollback to v${rollbackTarget.version}`
+                : 'Rollback'}
           </button>
           <Link
             href={`/prompts/managed/${promptId}/ab-tests`}
@@ -315,6 +355,11 @@ export default function PromptDetailPage() {
       <div className="mt-4 space-y-3">
         {prompt.versions.map((v: PromptVersion) => {
           const vAnalytics = getAnalyticsForVersion(v.id);
+          const compareTargetId = compareWith[v.id];
+          const compareTarget = compareTargetId
+            ? prompt.versions.find((other: PromptVersion) => other.id === compareTargetId)
+            : null;
+
           return (
             <div key={v.id} className="rounded-lg border bg-white p-4">
               <div className="flex items-center justify-between">
@@ -335,7 +380,7 @@ export default function PromptDetailPage() {
                 <div className="flex gap-2">
                   {v.status !== 'active' && (
                     <button
-                      onClick={() => handleDeploy(v.id)}
+                      onClick={() => handleDeploy(v.id, v.version)}
                       disabled={actionLoading === `deploy-${v.id}`}
                       className="rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
                     >
@@ -354,6 +399,45 @@ export default function PromptDetailPage() {
               <pre className="mt-2 max-h-40 overflow-auto rounded bg-gray-50 p-3 text-sm text-gray-700 whitespace-pre-wrap">
                 {v.content}
               </pre>
+
+              {/* Compare dropdown */}
+              {prompt.versions.length > 1 && (
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="text-xs text-gray-500">Compare with:</label>
+                  <select
+                    value={compareWith[v.id] ?? ''}
+                    onChange={(e) =>
+                      setCompareWith((prev) => ({
+                        ...prev,
+                        [v.id]: e.target.value,
+                      }))
+                    }
+                    className="rounded border px-2 py-1 text-xs"
+                  >
+                    <option value="">None</option>
+                    {prompt.versions
+                      .filter((other: PromptVersion) => other.id !== v.id)
+                      .map((other: PromptVersion) => (
+                        <option key={other.id} value={other.id}>
+                          v{other.version}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Diff view */}
+              {compareTarget && (
+                <div className="mt-2">
+                  <TextDiff
+                    oldText={compareTarget.content}
+                    newText={v.content}
+                    oldLabel={`v${compareTarget.version}`}
+                    newLabel={`v${v.version}`}
+                  />
+                </div>
+              )}
+
               <p className="mt-1 text-xs text-gray-400">
                 Created: {new Date(v.createdAt).toLocaleString()}
               </p>

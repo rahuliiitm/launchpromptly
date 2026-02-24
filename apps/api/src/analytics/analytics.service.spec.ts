@@ -1,4 +1,3 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -8,57 +7,46 @@ describe('AnalyticsService', () => {
   let service: AnalyticsService;
   let projectService: ProjectService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AnalyticsService,
-        {
-          provide: PrismaService,
-          useValue: {
-            lLMEvent: {
-              aggregate: jest.fn().mockResolvedValue({
-                _sum: { costUsd: 12.5 },
-                _count: { id: 100 },
-                _avg: { latencyMs: 250.7 },
-              }),
-              groupBy: jest.fn().mockResolvedValue([
-                {
-                  model: 'gpt-4o',
-                  customerId: 'cust-1',
-                  feature: 'chat',
-                  systemHash: 'hash-abc',
-                  _sum: { costUsd: 10 },
-                  _count: { id: 80 },
-                  _avg: { latencyMs: 200 },
-                },
-                {
-                  model: 'gpt-4o-mini',
-                  customerId: 'cust-2',
-                  feature: 'search',
-                  systemHash: 'hash-def',
-                  _sum: { costUsd: 2.5 },
-                  _count: { id: 20 },
-                  _avg: { latencyMs: 150 },
-                },
-              ]),
-            },
-            $queryRaw: jest.fn().mockResolvedValue([
-              { date: new Date('2026-02-20'), total_cost: 5.0, call_count: BigInt(50) },
-              { date: new Date('2026-02-21'), total_cost: 7.5, call_count: BigInt(50) },
-            ]),
+  beforeEach(() => {
+    const prisma = {
+      lLMEvent: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { costUsd: 12.5 },
+          _count: { id: 100 },
+          _avg: { latencyMs: 250.7 },
+        }),
+        groupBy: jest.fn().mockResolvedValue([
+          {
+            model: 'gpt-4o',
+            customerId: 'cust-1',
+            feature: 'chat',
+            systemHash: 'hash-abc',
+            _sum: { costUsd: 10 },
+            _count: { id: 80 },
+            _avg: { latencyMs: 200 },
           },
-        },
-        {
-          provide: ProjectService,
-          useValue: {
-            assertProjectAccess: jest.fn().mockResolvedValue(undefined),
+          {
+            model: 'gpt-4o-mini',
+            customerId: 'cust-2',
+            feature: 'search',
+            systemHash: 'hash-def',
+            _sum: { costUsd: 2.5 },
+            _count: { id: 20 },
+            _avg: { latencyMs: 150 },
           },
-        },
-      ],
-    }).compile();
+        ]),
+      },
+      $queryRaw: jest.fn().mockResolvedValue([
+        { date: new Date('2026-02-20'), total_cost: 5.0, call_count: BigInt(50) },
+        { date: new Date('2026-02-21'), total_cost: 7.5, call_count: BigInt(50) },
+      ]),
+    } as unknown as PrismaService;
 
-    service = module.get<AnalyticsService>(AnalyticsService);
-    projectService = module.get<ProjectService>(ProjectService);
+    projectService = {
+      assertProjectAccess: jest.fn().mockResolvedValue(undefined),
+    } as unknown as ProjectService;
+
+    service = new AnalyticsService(prisma, projectService);
   });
 
   it('should return overview with aggregated stats and model breakdown', async () => {

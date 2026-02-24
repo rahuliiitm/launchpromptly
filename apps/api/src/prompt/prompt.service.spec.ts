@@ -1,4 +1,3 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { PromptService } from './prompt.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -48,18 +47,13 @@ describe('PromptService', () => {
     get: jest.fn().mockReturnValue(undefined),
   };
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        PromptService,
-        { provide: PrismaService, useValue: mockPrisma },
-        { provide: ProjectService, useValue: mockProjectService },
-        { provide: ConfigService, useValue: mockConfigService },
-      ],
-    }).compile();
-
-    service = module.get<PromptService>(PromptService);
+  beforeEach(() => {
     jest.clearAllMocks();
+    service = new PromptService(
+      mockPrisma as unknown as PrismaService,
+      mockProjectService as unknown as ProjectService,
+      mockConfigService as unknown as ConfigService,
+    );
   });
 
   // ── createPrompt ──
@@ -751,17 +745,12 @@ describe('PromptService', () => {
     });
 
     it('should return fallback when ANTHROPIC_API_KEY not set', async () => {
-      // Recreate service with no API key
       mockConfigService.get.mockReturnValue(undefined);
-      const module = await Test.createTestingModule({
-        providers: [
-          PromptService,
-          { provide: PrismaService, useValue: mockPrisma },
-          { provide: ProjectService, useValue: mockProjectService },
-          { provide: ConfigService, useValue: mockConfigService },
-        ],
-      }).compile();
-      const svcNoKey = module.get<PromptService>(PromptService);
+      const svcNoKey = new PromptService(
+        mockPrisma as unknown as PrismaService,
+        mockProjectService as unknown as ProjectService,
+        mockConfigService as unknown as ConfigService,
+      );
 
       mockPrisma.promptVersion.findFirst.mockResolvedValue({
         id: 'v1',
@@ -777,15 +766,11 @@ describe('PromptService', () => {
 
     it('should auto-increment version number', async () => {
       mockConfigService.get.mockReturnValue(undefined);
-      const module = await Test.createTestingModule({
-        providers: [
-          PromptService,
-          { provide: PrismaService, useValue: mockPrisma },
-          { provide: ProjectService, useValue: mockProjectService },
-          { provide: ConfigService, useValue: mockConfigService },
-        ],
-      }).compile();
-      const svcNoKey = module.get<PromptService>(PromptService);
+      const svcNoKey = new PromptService(
+        mockPrisma as unknown as PrismaService,
+        mockProjectService as unknown as ProjectService,
+        mockConfigService as unknown as ConfigService,
+      );
 
       // Just verify the no-key path since we can't mock the Anthropic constructor easily
       mockPrisma.promptVersion.findFirst.mockResolvedValue({
@@ -824,15 +809,11 @@ describe('PromptService', () => {
   describe('analyzePrompt', () => {
     it('should estimate tokens and cost for a prompt', async () => {
       mockConfigService.get.mockReturnValue(undefined);
-      const module = await Test.createTestingModule({
-        providers: [
-          PromptService,
-          { provide: PrismaService, useValue: mockPrisma },
-          { provide: ProjectService, useValue: mockProjectService },
-          { provide: ConfigService, useValue: mockConfigService },
-        ],
-      }).compile();
-      const svc = module.get<PromptService>(PromptService);
+      const svc = new PromptService(
+        mockPrisma as unknown as PrismaService,
+        mockProjectService as unknown as ProjectService,
+        mockConfigService as unknown as ConfigService,
+      );
 
       const result = await svc.analyzePrompt('Hello world this is a test prompt');
       expect(result.originalTokenEstimate).toBeGreaterThan(0);
@@ -845,15 +826,11 @@ describe('PromptService', () => {
 
     it('should use specified model when valid', async () => {
       mockConfigService.get.mockReturnValue(undefined);
-      const module = await Test.createTestingModule({
-        providers: [
-          PromptService,
-          { provide: PrismaService, useValue: mockPrisma },
-          { provide: ProjectService, useValue: mockProjectService },
-          { provide: ConfigService, useValue: mockConfigService },
-        ],
-      }).compile();
-      const svc = module.get<PromptService>(PromptService);
+      const svc = new PromptService(
+        mockPrisma as unknown as PrismaService,
+        mockProjectService as unknown as ProjectService,
+        mockConfigService as unknown as ConfigService,
+      );
 
       const result = await svc.analyzePrompt('Test prompt content', 'gpt-4o-mini');
       expect(result.model).toBe('gpt-4o-mini');
@@ -861,15 +838,11 @@ describe('PromptService', () => {
 
     it('should fall back to gpt-4o for unknown model', async () => {
       mockConfigService.get.mockReturnValue(undefined);
-      const module = await Test.createTestingModule({
-        providers: [
-          PromptService,
-          { provide: PrismaService, useValue: mockPrisma },
-          { provide: ProjectService, useValue: mockProjectService },
-          { provide: ConfigService, useValue: mockConfigService },
-        ],
-      }).compile();
-      const svc = module.get<PromptService>(PromptService);
+      const svc = new PromptService(
+        mockPrisma as unknown as PrismaService,
+        mockProjectService as unknown as ProjectService,
+        mockConfigService as unknown as ConfigService,
+      );
 
       const result = await svc.analyzePrompt('Test prompt', 'invalid-model-xyz');
       expect(result.model).toBe('gpt-4o');
@@ -877,15 +850,11 @@ describe('PromptService', () => {
 
     it('should calculate token estimate using word count heuristic', async () => {
       mockConfigService.get.mockReturnValue(undefined);
-      const module = await Test.createTestingModule({
-        providers: [
-          PromptService,
-          { provide: PrismaService, useValue: mockPrisma },
-          { provide: ProjectService, useValue: mockProjectService },
-          { provide: ConfigService, useValue: mockConfigService },
-        ],
-      }).compile();
-      const svc = module.get<PromptService>(PromptService);
+      const svc = new PromptService(
+        mockPrisma as unknown as PrismaService,
+        mockProjectService as unknown as ProjectService,
+        mockConfigService as unknown as ConfigService,
+      );
 
       // 10 words → Math.ceil(10 / 0.75) = 14 tokens
       const result = await svc.analyzePrompt('one two three four five six seven eight nine ten');

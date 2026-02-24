@@ -1,4 +1,3 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AdvisoryService } from './advisory.service';
@@ -41,32 +40,21 @@ describe('AdvisoryService', () => {
   let service: AdvisoryService;
   let prisma: PrismaService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AdvisoryService,
-        {
-          provide: PrismaService,
-          useValue: {
-            scenario: {
-              findUnique: jest.fn().mockResolvedValue(mockScenario),
-            },
-          },
-        },
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn().mockImplementation((key: string) => {
-              if (key === 'ANTHROPIC_API_KEY') return 'test-api-key';
-              return undefined;
-            }),
-          },
-        },
-      ],
-    }).compile();
+  beforeEach(() => {
+    prisma = {
+      scenario: {
+        findUnique: jest.fn().mockResolvedValue(mockScenario),
+      },
+    } as unknown as PrismaService;
 
-    service = module.get<AdvisoryService>(AdvisoryService);
-    prisma = module.get<PrismaService>(PrismaService);
+    const configService = {
+      get: jest.fn().mockImplementation((key: string) => {
+        if (key === 'ANTHROPIC_API_KEY') return 'test-api-key';
+        return undefined;
+      }),
+    } as unknown as ConfigService;
+
+    service = new AdvisoryService(prisma, configService);
   });
 
   describe('generateInsight', () => {
@@ -131,27 +119,11 @@ describe('AdvisoryService', () => {
 
   describe('generateInsight without API key', () => {
     it('should throw when ANTHROPIC_API_KEY is not set', async () => {
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          AdvisoryService,
-          {
-            provide: PrismaService,
-            useValue: {
-              scenario: {
-                findUnique: jest.fn().mockResolvedValue(mockScenario),
-              },
-            },
-          },
-          {
-            provide: ConfigService,
-            useValue: {
-              get: jest.fn().mockReturnValue(undefined),
-            },
-          },
-        ],
-      }).compile();
+      const configNoKey = {
+        get: jest.fn().mockReturnValue(undefined),
+      } as unknown as ConfigService;
 
-      const serviceNoKey = module.get<AdvisoryService>(AdvisoryService);
+      const serviceNoKey = new AdvisoryService(prisma, configNoKey);
 
       await expect(serviceNoKey.generateInsight('scenario-123')).rejects.toThrow(
         'AI advisory is not configured',

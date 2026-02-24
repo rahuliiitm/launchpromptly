@@ -103,8 +103,7 @@ export default function PlaygroundPage() {
     }
   };
 
-  const handlePublish = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePublish = async (deploy: boolean) => {
     setError('');
     const token = getToken();
     const projectId = getProjectId();
@@ -116,7 +115,7 @@ export default function PlaygroundPage() {
     setPublishing(true);
     try {
       if (publishMode === 'new') {
-        const result = await apiFetch<{ id: string }>(`/prompt/${projectId}`, {
+        const result = await apiFetch<{ id: string; versions: { id: string }[] }>(`/prompt/${projectId}`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: JSON.stringify({
@@ -126,6 +125,12 @@ export default function PlaygroundPage() {
             initialContent: systemPrompt,
           }),
         });
+        if (deploy && result.versions?.[0]?.id) {
+          await apiFetch(`/prompt/${projectId}/${result.id}/versions/${result.versions[0].id}/deploy`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        }
         router.push(`/prompts/managed/${result.id}`);
       } else {
         if (!selectedPromptId) {
@@ -133,11 +138,17 @@ export default function PlaygroundPage() {
           setPublishing(false);
           return;
         }
-        await apiFetch(`/prompt/${projectId}/${selectedPromptId}/versions`, {
+        const version = await apiFetch<{ id: string }>(`/prompt/${projectId}/${selectedPromptId}/versions`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: JSON.stringify({ content: systemPrompt }),
         });
+        if (deploy && version.id) {
+          await apiFetch(`/prompt/${projectId}/${selectedPromptId}/versions/${version.id}/deploy`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        }
         router.push(`/prompts/managed/${selectedPromptId}`);
       }
     } catch (err) {
@@ -255,7 +266,7 @@ export default function PlaygroundPage() {
 
       {/* Publish panel — immediately after action buttons */}
       {showPublish && (
-        <form onSubmit={handlePublish} className="mt-4 rounded-lg border bg-white p-5">
+        <div className="mt-4 rounded-lg border bg-white p-5">
           <h2 className="mb-4 text-sm font-semibold uppercase text-gray-500">Publish to Managed</h2>
 
           <div className="mb-4 flex gap-4">
@@ -336,18 +347,29 @@ export default function PlaygroundPage() {
 
           <div className="mt-3 rounded border bg-gray-50 p-3">
             <p className="text-xs text-gray-500">
-              The system prompt will be saved as <strong>v1</strong> of the managed prompt.
+              <strong>Draft</strong> = only visible in dashboard. <strong>Deploy</strong> = your SDK serves this version.
             </p>
           </div>
 
-          <button
-            type="submit"
-            disabled={publishing}
-            className="mt-4 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {publishing ? 'Publishing...' : 'Publish'}
-          </button>
-        </form>
+          <div className="mt-4 flex gap-3">
+            <button
+              type="button"
+              disabled={publishing}
+              onClick={() => handlePublish(false)}
+              className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {publishing ? 'Saving...' : 'Save as Draft'}
+            </button>
+            <button
+              type="button"
+              disabled={publishing}
+              onClick={() => handlePublish(true)}
+              className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              {publishing ? 'Deploying...' : 'Save & Deploy'}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Results */}

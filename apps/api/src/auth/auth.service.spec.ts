@@ -1,4 +1,3 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import {
   NotFoundException,
@@ -57,38 +56,26 @@ describe('AuthService', () => {
     },
   };
 
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.clearAllMocks();
     (bcrypt.hash as jest.Mock).mockResolvedValue('$2b$10$hashedpassword');
     (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        {
-          provide: PrismaService,
-          useValue: {
-            user: {
-              findUnique: jest.fn().mockResolvedValue(null),
-              update: jest.fn().mockResolvedValue(mockUser),
-            },
-            $transaction: jest.fn().mockImplementation(
-              (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx),
-            ),
-          },
-        },
-        {
-          provide: JwtService,
-          useValue: {
-            sign: jest.fn().mockReturnValue('mock-jwt-token'),
-          },
-        },
-      ],
-    }).compile();
+    prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        update: jest.fn().mockResolvedValue(mockUser),
+      },
+      $transaction: jest.fn().mockImplementation(
+        (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx),
+      ),
+    } as unknown as PrismaService;
 
-    service = module.get<AuthService>(AuthService);
-    prisma = module.get<PrismaService>(PrismaService);
-    jwtService = module.get<JwtService>(JwtService);
+    jwtService = {
+      sign: jest.fn().mockReturnValue('mock-jwt-token'),
+    } as unknown as JwtService;
+
+    service = new AuthService(prisma, jwtService);
   });
 
   describe('register', () => {

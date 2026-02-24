@@ -6,8 +6,6 @@ import { RequireAuth } from '@/components/require-auth';
 
 const NAV_ITEMS = [
   { href: '/analytics', label: 'Overview' },
-  { href: '/analytics/customers', label: 'Customer Analytics' },
-  { href: '/analytics/optimizations', label: 'Optimizations' },
 ];
 
 export default function AnalyticsLayout({

@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import type { OverviewAnalytics, TimeSeriesPoint } from '@aiecon/types';
+import type { OverviewAnalytics, TimeSeriesPoint, PromptAnalyticsItem } from '@aiecon/types';
 import Link from 'next/link';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -22,6 +22,7 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 export default function AnalyticsOverview() {
   const [overview, setOverview] = useState<OverviewAnalytics | null>(null);
   const [timeseries, setTimeseries] = useState<TimeSeriesPoint[]>([]);
+  const [promptBreakdown, setPromptBreakdown] = useState<PromptAnalyticsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -38,10 +39,12 @@ export default function AnalyticsOverview() {
     Promise.all([
       apiFetch<OverviewAnalytics>(`/analytics/${projectId}/overview`, { headers }),
       apiFetch<TimeSeriesPoint[]>(`/analytics/${projectId}/timeseries`, { headers }),
+      apiFetch<PromptAnalyticsItem[]>(`/analytics/${projectId}/prompts`, { headers }).catch(() => [] as PromptAnalyticsItem[]),
     ])
-      .then(([ov, ts]) => {
+      .then(([ov, ts, pb]) => {
         setOverview(ov);
         setTimeseries(ts);
+        setPromptBreakdown(pb);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
@@ -151,6 +154,43 @@ export default function AnalyticsOverview() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Per-prompt breakdown */}
+      {promptBreakdown.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold">Cost by Prompt</h2>
+          <div className="mt-4 rounded-lg border bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-gray-500">
+                  <th className="px-4 py-3 font-medium">Prompt</th>
+                  <th className="px-4 py-3 font-medium text-right">Calls</th>
+                  <th className="px-4 py-3 font-medium text-right">Cost</th>
+                  <th className="px-4 py-3 font-medium text-right">Avg Latency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {promptBreakdown.map((p) => (
+                  <tr key={p.promptId} className="border-b last:border-0 hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/prompts/managed/${p.promptId}`}
+                        className="font-medium text-blue-600 hover:text-blue-800"
+                      >
+                        {p.promptName}
+                      </Link>
+                      <span className="ml-2 text-xs text-gray-400">{p.promptSlug}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">{p.callCount.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right">${p.totalCostUsd.toFixed(4)}</td>
+                    <td className="px-4 py-3 text-right">{p.avgLatencyMs}ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

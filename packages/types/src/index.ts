@@ -367,6 +367,16 @@ export interface PromptVersionAnalytics {
   avgCostPerCall: number;
 }
 
+// ── Platform: Prompt Analytics (per-prompt cost) ──
+export interface PromptAnalyticsItem {
+  promptId: string;
+  promptName: string;
+  promptSlug: string;
+  totalCostUsd: number;
+  callCount: number;
+  avgLatencyMs: number;
+}
+
 // ── Platform: Provider Keys ──
 export interface OrgProviderKey {
   id: string;

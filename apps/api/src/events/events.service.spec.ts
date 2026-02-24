@@ -1,4 +1,3 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { EventsService } from './events.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -6,23 +5,14 @@ describe('EventsService', () => {
   let service: EventsService;
   let prisma: PrismaService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        EventsService,
-        {
-          provide: PrismaService,
-          useValue: {
-            lLMEvent: {
-              createMany: jest.fn().mockResolvedValue({ count: 2 }),
-            },
-          },
-        },
-      ],
-    }).compile();
+  beforeEach(() => {
+    prisma = {
+      lLMEvent: {
+        createMany: jest.fn().mockResolvedValue({ count: 2 }),
+      },
+    } as unknown as PrismaService;
 
-    service = module.get<EventsService>(EventsService);
-    prisma = module.get<PrismaService>(PrismaService);
+    service = new EventsService(prisma);
   });
 
   const baseEvent = {

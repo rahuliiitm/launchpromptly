@@ -1,4 +1,3 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { OptimizationService } from './optimization.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
@@ -6,28 +5,18 @@ import { ProjectService } from '../project/project.service';
 describe('OptimizationService', () => {
   let service: OptimizationService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        OptimizationService,
-        {
-          provide: PrismaService,
-          useValue: {
-            lLMEvent: {
-              groupBy: jest.fn().mockResolvedValue([]),
-            },
-          },
-        },
-        {
-          provide: ProjectService,
-          useValue: {
-            assertProjectAccess: jest.fn().mockResolvedValue(undefined),
-          },
-        },
-      ],
-    }).compile();
+  beforeEach(() => {
+    const prisma = {
+      lLMEvent: {
+        groupBy: jest.fn().mockResolvedValue([]),
+      },
+    } as unknown as PrismaService;
 
-    service = module.get<OptimizationService>(OptimizationService);
+    const projectService = {
+      assertProjectAccess: jest.fn().mockResolvedValue(undefined),
+    } as unknown as ProjectService;
+
+    service = new OptimizationService(prisma, projectService);
   });
 
   it('should return model_downgrade recommendation for expensive models', async () => {

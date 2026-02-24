@@ -6,6 +6,7 @@ import type {
   CustomerAnalyticsItem,
   FeatureAnalyticsItem,
   TimeSeriesPoint,
+  PromptAnalyticsItem,
 } from '@aiecon/types';
 
 @Injectable()
@@ -129,6 +130,50 @@ export class AnalyticsService {
       date: r.date.toISOString().split('T')[0] ?? '',
       costUsd: Number(r.total_cost),
       callCount: Number(r.call_count),
+    }));
+  }
+
+  async getPromptBreakdown(
+    projectId: string,
+    userId: string,
+    days: number = 30,
+  ): Promise<PromptAnalyticsItem[]> {
+    await this.projectService.assertProjectAccess(projectId, userId);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        managed_prompt_id: string;
+        name: string;
+        slug: string;
+        total_cost: number;
+        call_count: bigint;
+        avg_latency: number;
+      }>
+    >`
+      SELECT
+        e."managedPromptId" AS managed_prompt_id,
+        p."name" AS name,
+        p."slug" AS slug,
+        SUM(e."costUsd") AS total_cost,
+        COUNT(*) AS call_count,
+        AVG(e."latencyMs") AS avg_latency
+      FROM "LLMEvent" e
+      JOIN "ManagedPrompt" p ON p."id" = e."managedPromptId"
+      WHERE e."projectId" = ${projectId}
+        AND e."createdAt" >= ${since}
+        AND e."managedPromptId" IS NOT NULL
+      GROUP BY e."managedPromptId", p."name", p."slug"
+      ORDER BY total_cost DESC
+    `;
+
+    return rows.map((r) => ({
+      promptId: r.managed_prompt_id,
+      promptName: r.name,
+      promptSlug: r.slug,
+      totalCostUsd: Number(r.total_cost),
+      callCount: Number(r.call_count),
+      avgLatencyMs: Math.round(Number(r.avg_latency)),
     }));
   }
 }

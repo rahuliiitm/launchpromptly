@@ -58,6 +58,16 @@ export class AnalyticsController {
     return this.analyticsService.getTimeSeries(projectId, user.userId, this.parseDays(days));
   }
 
+  @Get(':projectId/prompts')
+  async promptBreakdown(
+    @Param('projectId') projectId: string,
+    @Query('days') days: string,
+    @Req() req: Request,
+  ): Promise<unknown> {
+    const user = req.user as AuthUser;
+    return this.analyticsService.getPromptBreakdown(projectId, user.userId, this.parseDays(days));
+  }
+
   @Get(':projectId/optimizations')
   async optimizations(
     @Param('projectId') projectId: string,

@@ -10,7 +10,7 @@ export default function LoginPage() {
   const { isAuthenticated, isLoading, login, register } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') ?? '/analytics';
+  const redirect = searchParams.get('redirect') ?? '/';
 
   const [tab, setTab] = useState<Tab>('signin');
   const [email, setEmail] = useState('');

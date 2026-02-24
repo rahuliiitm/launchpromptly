@@ -1,4 +1,3 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { ProjectService } from './project.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,37 +24,28 @@ describe('ProjectService', () => {
     revokedAt: null,
   };
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ProjectService,
-        {
-          provide: PrismaService,
-          useValue: {
-            user: {
-              findUnique: jest.fn().mockResolvedValue({
-                id: 'user-123',
-                email: 'test@example.com',
-                organizationId: 'org-123',
-                organization: {
-                  id: 'org-123',
-                  projects: [mockProject],
-                },
-              }),
-            },
-            apiKey: {
-              findMany: jest.fn().mockResolvedValue([mockApiKey]),
-              findFirst: jest.fn().mockResolvedValue(mockApiKey),
-              create: jest.fn().mockResolvedValue(mockApiKey),
-              update: jest.fn().mockResolvedValue({ ...mockApiKey, revokedAt: new Date() }),
-            },
+  beforeEach(() => {
+    prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'user-123',
+          email: 'test@example.com',
+          organizationId: 'org-123',
+          organization: {
+            id: 'org-123',
+            projects: [mockProject],
           },
-        },
-      ],
-    }).compile();
+        }),
+      },
+      apiKey: {
+        findMany: jest.fn().mockResolvedValue([mockApiKey]),
+        findFirst: jest.fn().mockResolvedValue(mockApiKey),
+        create: jest.fn().mockResolvedValue(mockApiKey),
+        update: jest.fn().mockResolvedValue({ ...mockApiKey, revokedAt: new Date() }),
+      },
+    } as unknown as PrismaService;
 
-    service = module.get<ProjectService>(ProjectService);
-    prisma = module.get<PrismaService>(PrismaService);
+    service = new ProjectService(prisma);
   });
 
   describe('listProjects', () => {

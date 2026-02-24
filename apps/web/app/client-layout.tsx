@@ -6,9 +6,9 @@ import { useState, useRef, useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 
 const NAV_LINKS = [
-  { href: '/simulator', label: 'Simulator', requiresAuth: false },
-  { href: '/analytics', label: 'Analytics', requiresAuth: true },
   { href: '/prompts', label: 'Prompts', requiresAuth: true },
+  { href: '/analytics', label: 'Analytics', requiresAuth: true },
+  { href: '/simulator', label: 'Simulator', requiresAuth: false },
 ];
 
 function TopNav() {

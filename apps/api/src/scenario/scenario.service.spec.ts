@@ -1,4 +1,3 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { ScenarioService } from './scenario.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,24 +19,15 @@ describe('ScenarioService', () => {
   let service: ScenarioService;
   let prisma: PrismaService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ScenarioService,
-        {
-          provide: PrismaService,
-          useValue: {
-            scenario: {
-              create: jest.fn().mockResolvedValue(mockScenario),
-              findUnique: jest.fn().mockResolvedValue(mockScenario),
-            },
-          },
-        },
-      ],
-    }).compile();
+  beforeEach(() => {
+    prisma = {
+      scenario: {
+        create: jest.fn().mockResolvedValue(mockScenario),
+        findUnique: jest.fn().mockResolvedValue(mockScenario),
+      },
+    } as unknown as PrismaService;
 
-    service = module.get<ScenarioService>(ScenarioService);
-    prisma = module.get<PrismaService>(PrismaService);
+    service = new ScenarioService(prisma);
   });
 
   describe('create', () => {
