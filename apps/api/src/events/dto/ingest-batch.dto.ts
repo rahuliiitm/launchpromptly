@@ -104,6 +104,14 @@ export class IngestEventDto {
   @IsOptional()
   @IsString()
   responseText?: string;
+
+  @IsOptional()
+  @IsString()
+  traceId?: string;
+
+  @IsOptional()
+  @IsString()
+  spanName?: string;
 }
 
 export class IngestBatchDto {

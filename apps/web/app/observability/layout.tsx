@@ -6,6 +6,7 @@ import { RequireAuth } from '@/components/require-auth';
 
 const NAV_ITEMS = [
   { href: '/observability', label: 'Quality' },
+  { href: '/observability/flows', label: 'Flows' },
   { href: '/observability/traces', label: 'Traces' },
 ];
 

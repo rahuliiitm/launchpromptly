@@ -120,6 +120,8 @@ export interface IngestEventPayload {
   ragContextTokens?: number;
   ragChunks?: RagChunk[];
   responseText?: string;
+  traceId?: string;
+  spanName?: string;
 }
 
 export interface IngestBatchPayload {
@@ -210,6 +212,8 @@ export interface RagTimeSeriesPoint {
 
 export interface RagTraceListItem {
   id: string;
+  traceId: string | null;
+  spanName: string | null;
   ragPipelineId: string | null;
   ragQuery: string | null;
   ragRetrievalMs: number | null;
@@ -232,6 +236,57 @@ export interface RagTraceDetail extends RagTraceListItem {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  customerId: string | null;
+  feature: string | null;
+  evaluation: RagEvaluationResult | null;
+}
+
+// ── Platform: Observability Flows ──
+export interface FlowListItem {
+  traceId: string;
+  ragPipelineId: string | null;
+  ragQuery: string | null;
+  responsePreview: string | null;
+  spanCount: number;
+  totalCostUsd: number;
+  totalLatencyMs: number;
+  models: string[];
+  spanNames: string[];
+  createdAt: string;
+  faithfulnessScore: number | null;
+  relevanceScore: number | null;
+  contextRelevanceScore: number | null;
+}
+
+export interface FlowDetail {
+  traceId: string;
+  ragPipelineId: string | null;
+  spans: FlowSpan[];
+  totalCostUsd: number;
+  totalTokens: number;
+  evaluation: RagEvaluationResult | null;
+}
+
+export interface FlowSpan {
+  id: string;
+  spanName: string | null;
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  latencyMs: number;
+  createdAt: string;
+  ragQuery: string | null;
+  ragChunks: RagChunk[] | null;
+  ragRetrievalMs: number | null;
+  ragChunkCount: number | null;
+  ragContextTokens: number | null;
+  responseText: string | null;
+  promptPreview: string | null;
+  managedPromptId: string | null;
+  managedPromptName: string | null;
   customerId: string | null;
   feature: string | null;
   evaluation: RagEvaluationResult | null;

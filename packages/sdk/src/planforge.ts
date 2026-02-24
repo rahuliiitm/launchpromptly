@@ -112,6 +112,8 @@ export class PlanForge {
     const batcher = this.batcher;
     const customerFn = options.customer;
     const featureTag = options.feature;
+    const traceIdTag = options.traceId;
+    const spanNameTag = options.spanName;
     const resolvedPrompts = this.resolvedPrompts;
 
     return new Proxy(client, {
@@ -193,6 +195,8 @@ export class PlanForge {
                               statusCode: 200,
                               managedPromptId: promptMeta?.managedPromptId,
                               promptVersionId: promptMeta?.promptVersionId,
+                              traceId: traceIdTag,
+                              spanName: spanNameTag,
                             };
 
                             batcher.enqueue(event);

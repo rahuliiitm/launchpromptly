@@ -90,9 +90,19 @@ export default function TraceDetailPage() {
 
   return (
     <div>
-      <Link href="/observability/traces" className="text-sm text-blue-600 hover:text-blue-800">
-        &larr; Back to traces
-      </Link>
+      <div className="flex items-center gap-4">
+        <Link href="/observability/traces" className="text-sm text-blue-600 hover:text-blue-800">
+          &larr; Back to traces
+        </Link>
+        {(trace as RagTraceDetail & { traceId?: string }).traceId && (
+          <Link
+            href={`/observability/flows/${(trace as RagTraceDetail & { traceId?: string }).traceId}`}
+            className="text-sm text-blue-600 hover:text-blue-800"
+          >
+            &larr; Back to flow
+          </Link>
+        )}
+      </div>
 
       <div className="mt-4">
         <div className="flex items-center gap-3">

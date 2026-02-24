@@ -95,6 +95,8 @@ model LLMEvent {
   ragContextTokens Int?
   ragChunks        Json?
   responseText     String?
+  traceId          String?
+  spanName         String?
   createdAt        DateTime       @default(now())
   project          Project        @relation(fields: [projectId], references: [id])
   managedPrompt    ManagedPrompt? @relation(fields: [managedPromptId], references: [id])
@@ -108,6 +110,7 @@ model LLMEvent {
   @@index([projectId, model])
   @@index([projectId, managedPromptId])
   @@index([projectId, ragPipelineId])
+  @@index([projectId, traceId])
 }
 
 model RagEvaluation {

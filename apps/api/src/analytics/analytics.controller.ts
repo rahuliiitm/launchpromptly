@@ -133,6 +133,38 @@ export class AnalyticsController {
     return trace;
   }
 
+  // ── RAG Flows ──
+
+  @Get(':projectId/rag/flows')
+  async ragFlows(
+    @Param('projectId') projectId: string,
+    @Query('days') days: string,
+    @Query('pipeline') pipeline: string,
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+    @Req() req: Request,
+  ): Promise<unknown> {
+    const user = req.user as AuthUser;
+    return this.ragAnalyticsService.getFlows(projectId, user.userId, {
+      days: this.parseDays(days),
+      pipeline: pipeline || undefined,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+    });
+  }
+
+  @Get(':projectId/rag/flows/:traceId')
+  async ragFlowDetail(
+    @Param('projectId') projectId: string,
+    @Param('traceId') traceId: string,
+    @Req() req: Request,
+  ): Promise<unknown> {
+    const user = req.user as AuthUser;
+    const flow = await this.ragAnalyticsService.getFlowDetail(projectId, user.userId, traceId);
+    if (!flow) throw new NotFoundException('Flow not found');
+    return flow;
+  }
+
   // ── RAG Evaluation ──
 
   @Post(':projectId/rag/traces/:eventId/evaluate')

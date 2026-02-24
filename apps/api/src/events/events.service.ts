@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { IngestBatchDto } from './dto/ingest-batch.dto';
@@ -37,6 +38,8 @@ export class EventsService {
         ragContextTokens: e.ragContextTokens ?? null,
         ragChunks: (e.ragChunks as Prisma.InputJsonValue) ?? undefined,
         responseText: e.responseText ?? null,
+        traceId: e.traceId ?? randomUUID(),
+        spanName: e.spanName ?? null,
       })),
     });
 

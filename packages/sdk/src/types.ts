@@ -14,6 +14,8 @@ export interface PlanForgeOptions {
 export interface WrapOptions {
   customer?: () => CustomerContext | Promise<CustomerContext>;
   feature?: string;
+  traceId?: string;
+  spanName?: string;
 }
 
 export interface ChatMessage {

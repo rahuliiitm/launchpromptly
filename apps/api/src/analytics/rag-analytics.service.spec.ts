@@ -180,4 +180,140 @@ describe('RagAnalyticsService', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('getFlows', () => {
+    it('should return paginated flow list', async () => {
+      (prisma.$queryRaw as jest.Mock)
+        .mockResolvedValueOnce([{ count: BigInt(2) }]) // count query
+        .mockResolvedValueOnce([ // flow aggregates
+          {
+            traceId: 'trace-1',
+            span_count: BigInt(3),
+            total_cost_usd: 0.05,
+            total_latency_ms: BigInt(1200),
+            created_at: new Date('2026-02-20T10:00:00Z'),
+            rag_pipeline_id: 'support-bot',
+            models: ['gpt-4o', 'gpt-4o-mini'],
+            span_names: ['rerank', 'generate', 'guardrail'],
+          },
+        ])
+        .mockResolvedValueOnce([ // detail rows
+          {
+            traceId: 'trace-1',
+            ragQuery: 'How to reset password?',
+            response_preview: 'To reset your password...',
+            faithfulnessScore: 0.92,
+            relevanceScore: 0.88,
+            contextRelevanceScore: 0.85,
+          },
+        ]);
+
+      const result = await service.getFlows('proj-1', 'user-1', { days: 7, page: 1, limit: 20 });
+
+      expect(result.total).toBe(2);
+      expect(result.flows).toHaveLength(1);
+      expect(result.flows[0].traceId).toBe('trace-1');
+      expect(result.flows[0].spanCount).toBe(3);
+      expect(result.flows[0].ragQuery).toBe('How to reset password?');
+      expect(result.flows[0].models).toContain('gpt-4o');
+    });
+
+    it('should return empty when no flows found', async () => {
+      (prisma.$queryRaw as jest.Mock).mockResolvedValueOnce([{ count: BigInt(0) }]);
+
+      const result = await service.getFlows('proj-1', 'user-1', { days: 7 });
+
+      expect(result.flows).toHaveLength(0);
+      expect(result.total).toBe(0);
+    });
+  });
+
+  describe('getFlowDetail', () => {
+    it('should return flow with all spans', async () => {
+      (prisma.lLMEvent.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'ev-1',
+          spanName: 'rerank',
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          inputTokens: 200,
+          outputTokens: 50,
+          totalTokens: 250,
+          costUsd: 0.001,
+          latencyMs: 150,
+          createdAt: new Date('2026-02-20T10:00:00Z'),
+          ragPipelineId: 'support-bot',
+          ragQuery: null,
+          ragChunks: null,
+          ragRetrievalMs: null,
+          ragChunkCount: null,
+          ragContextTokens: null,
+          responseText: null,
+          promptPreview: null,
+          managedPromptId: null,
+          customerId: 'cust-1',
+          feature: 'support',
+          managedPrompt: null,
+          ragEvaluation: null,
+        },
+        {
+          id: 'ev-2',
+          spanName: 'generate',
+          provider: 'openai',
+          model: 'gpt-4o',
+          inputTokens: 800,
+          outputTokens: 300,
+          totalTokens: 1100,
+          costUsd: 0.04,
+          latencyMs: 900,
+          createdAt: new Date('2026-02-20T10:00:01Z'),
+          ragPipelineId: 'support-bot',
+          ragQuery: 'How to reset password?',
+          ragChunks: [{ content: 'Reset at...', source: 'doc-1', score: 0.9 }],
+          ragRetrievalMs: 45,
+          ragChunkCount: 1,
+          ragContextTokens: 150,
+          responseText: 'To reset your password...',
+          promptPreview: 'You are a support agent',
+          managedPromptId: 'mp-1',
+          customerId: 'cust-1',
+          feature: 'support',
+          managedPrompt: { name: 'customer-support' },
+          ragEvaluation: {
+            id: 'eval-1',
+            eventId: 'ev-2',
+            faithfulnessScore: 0.92,
+            faithfulnessReasoning: 'Good',
+            relevanceScore: 0.88,
+            relevanceReasoning: 'Relevant',
+            contextRelevanceScore: 0.85,
+            contextRelevanceReasoning: 'On topic',
+            chunkRelevanceScores: null,
+            createdAt: new Date('2026-02-20T10:01:00Z'),
+          },
+        },
+      ]);
+
+      const result = await service.getFlowDetail('proj-1', 'user-1', 'trace-1');
+
+      expect(result).not.toBeNull();
+      expect(result!.traceId).toBe('trace-1');
+      expect(result!.spans).toHaveLength(2);
+      expect(result!.spans[0].spanName).toBe('rerank');
+      expect(result!.spans[1].spanName).toBe('generate');
+      expect(result!.spans[1].managedPromptName).toBe('customer-support');
+      expect(result!.totalCostUsd).toBeCloseTo(0.041);
+      expect(result!.totalTokens).toBe(1350);
+      expect(result!.evaluation).not.toBeNull();
+      expect(result!.evaluation!.faithfulnessScore).toBe(0.92);
+    });
+
+    it('should return null for non-existent flow', async () => {
+      (prisma.lLMEvent.findMany as jest.Mock).mockResolvedValue([]);
+
+      const result = await service.getFlowDetail('proj-1', 'user-1', 'missing');
+
+      expect(result).toBeNull();
+    });
+  });
 });

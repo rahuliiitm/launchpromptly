@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import type { RagTraceListItem } from '@aiecon/types';
+import type { FlowListItem } from '@aiecon/types';
 
 function ScoreDot({ score }: { score: number | null }) {
   if (score === null) return null;
@@ -19,11 +19,11 @@ function ScoreDot({ score }: { score: number | null }) {
   );
 }
 
-export default function TracesPage() {
+export default function FlowsPage() {
   const searchParams = useSearchParams();
   const pipelineFilter = searchParams.get('pipeline') ?? '';
 
-  const [traces, setTraces] = useState<RagTraceListItem[]>([]);
+  const [flows, setFlows] = useState<FlowListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -46,12 +46,12 @@ export default function TracesPage() {
     });
     if (pipelineFilter) params.set('pipeline', pipelineFilter);
 
-    apiFetch<{ traces: RagTraceListItem[]; total: number }>(
-      `/analytics/${projectId}/rag/traces?${params}`,
+    apiFetch<{ flows: FlowListItem[]; total: number }>(
+      `/analytics/${projectId}/rag/flows?${params}`,
       { headers: { Authorization: `Bearer ${token}` } },
     )
       .then((res) => {
-        setTraces(res.traces);
+        setFlows(res.flows);
         setTotal(res.total);
       })
       .catch(() => {})
@@ -68,13 +68,16 @@ export default function TracesPage() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Traces</h1>
+          <h1 className="text-2xl font-bold">Flows</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Each flow groups all LLM calls for a single user query
+          </p>
           {pipelineFilter && (
             <div className="mt-1 flex items-center gap-2">
               <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
                 {pipelineFilter}
               </span>
-              <Link href="/observability/traces" className="text-xs text-gray-500 hover:text-gray-700">
+              <Link href="/observability/flows" className="text-xs text-gray-500 hover:text-gray-700">
                 Clear filter
               </Link>
             </div>
@@ -95,71 +98,80 @@ export default function TracesPage() {
         </div>
       </div>
 
-      {traces.length === 0 ? (
+      {flows.length === 0 ? (
         <div className="mt-8 rounded-lg border bg-white p-8 text-center">
-          <p className="text-sm text-gray-500">No RAG traces found for this period.</p>
+          <p className="text-sm text-gray-500">No flows found for this period.</p>
         </div>
       ) : (
         <>
           <div className="mt-4 text-sm text-gray-500">
-            {total.toLocaleString()} traces total
+            {total.toLocaleString()} flows total
           </div>
 
           <div className="mt-3 space-y-2">
-            {traces.map((trace) => {
-              const hasEval = trace.faithfulnessScore !== null || trace.relevanceScore !== null || trace.contextRelevanceScore !== null;
+            {flows.map((flow) => {
+              const hasEval =
+                flow.faithfulnessScore !== null ||
+                flow.relevanceScore !== null ||
+                flow.contextRelevanceScore !== null;
               return (
                 <Link
-                  key={trace.id}
-                  href={`/observability/traces/${trace.id}`}
+                  key={flow.traceId}
+                  href={`/observability/flows/${flow.traceId}`}
                   className="block rounded-lg border bg-white p-4 transition hover:border-blue-300"
                 >
                   <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        {trace.ragPipelineId && (
+                        {flow.ragPipelineId && (
                           <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                            {trace.ragPipelineId}
+                            {flow.ragPipelineId}
                           </span>
                         )}
-                        {trace.spanName && (
-                          <span className="rounded bg-purple-50 px-1.5 py-0.5 text-xs text-purple-600">
-                            {trace.spanName}
-                          </span>
-                        )}
-                        {trace.traceId && (
-                          <Link
-                            href={`/observability/flows/${trace.traceId}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="rounded bg-gray-50 px-1.5 py-0.5 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                          >
-                            flow &rarr;
-                          </Link>
+                        <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                          {flow.spanCount} span{flow.spanCount !== 1 ? 's' : ''}
+                        </span>
+                        {flow.spanNames.length > 0 && (
+                          <div className="flex gap-1">
+                            {flow.spanNames.map((name) => (
+                              <span
+                                key={name}
+                                className="rounded bg-purple-50 px-1.5 py-0.5 text-xs text-purple-600"
+                              >
+                                {name}
+                              </span>
+                            ))}
+                          </div>
                         )}
                         <span className="text-xs text-gray-400">
-                          {new Date(trace.createdAt).toLocaleString()}
+                          {new Date(flow.createdAt).toLocaleString()}
                         </span>
                       </div>
-                      {trace.ragQuery && (
+                      {flow.ragQuery && (
                         <p className="mt-1 truncate text-sm text-gray-700">
-                          {trace.ragQuery}
+                          {flow.ragQuery}
+                        </p>
+                      )}
+                      {flow.responsePreview && (
+                        <p className="mt-0.5 truncate text-xs text-gray-400">
+                          {flow.responsePreview}
                         </p>
                       )}
                       {hasEval && (
                         <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                          {trace.faithfulnessScore !== null && (
+                          {flow.faithfulnessScore !== null && (
                             <span className="flex items-center gap-1">
-                              Faith: <ScoreDot score={trace.faithfulnessScore} />
+                              Faith: <ScoreDot score={flow.faithfulnessScore} />
                             </span>
                           )}
-                          {trace.relevanceScore !== null && (
+                          {flow.relevanceScore !== null && (
                             <span className="flex items-center gap-1">
-                              Answer: <ScoreDot score={trace.relevanceScore} />
+                              Answer: <ScoreDot score={flow.relevanceScore} />
                             </span>
                           )}
-                          {trace.contextRelevanceScore !== null && (
+                          {flow.contextRelevanceScore !== null && (
                             <span className="flex items-center gap-1">
-                              Context: <ScoreDot score={trace.contextRelevanceScore} />
+                              Context: <ScoreDot score={flow.contextRelevanceScore} />
                             </span>
                           )}
                         </div>
@@ -169,17 +181,15 @@ export default function TracesPage() {
                       )}
                     </div>
                     <div className="ml-4 flex shrink-0 items-center gap-4 text-xs text-gray-500">
-                      {trace.ragRetrievalMs != null && (
-                        <span>{trace.ragRetrievalMs}ms retrieval</span>
-                      )}
-                      {trace.ragChunkCount != null && (
-                        <span>{trace.ragChunkCount} chunks</span>
-                      )}
-                      <span>{trace.latencyMs}ms total</span>
-                      <span>${trace.costUsd.toFixed(4)}</span>
-                      <span className="rounded bg-gray-100 px-2 py-0.5 text-xs">
-                        {trace.model}
-                      </span>
+                      <span>{flow.totalLatencyMs}ms</span>
+                      <span>${flow.totalCostUsd.toFixed(4)}</span>
+                      <div className="flex gap-1">
+                        {flow.models.map((m) => (
+                          <span key={m} className="rounded bg-gray-100 px-2 py-0.5 text-xs">
+                            {m}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </Link>

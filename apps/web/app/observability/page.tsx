@@ -273,10 +273,10 @@ export default function QualityDashboard() {
               Pipeline Comparison
             </h2>
             <Link
-              href="/observability/traces"
+              href="/observability/flows"
               className="text-xs font-medium text-blue-600 hover:text-blue-800"
             >
-              View all traces &rarr;
+              View all flows &rarr;
             </Link>
           </div>
           <table className="mt-3 w-full text-sm">
@@ -294,7 +294,7 @@ export default function QualityDashboard() {
                 <tr key={p.pipelineId} className="border-b last:border-0">
                   <td className="py-2">
                     <Link
-                      href={`/observability/traces?pipeline=${encodeURIComponent(p.pipelineId)}`}
+                      href={`/observability/flows?pipeline=${encodeURIComponent(p.pipelineId)}`}
                       className="font-medium text-blue-600 hover:text-blue-800"
                     >
                       {p.pipelineId}
@@ -318,8 +318,8 @@ export default function QualityDashboard() {
           <p className="mt-2 text-sm text-gray-500">
             Click &ldquo;Evaluate Recent&rdquo; above to run LLM-as-judge quality scoring on your RAG traces,
             or evaluate individual traces from the{' '}
-            <Link href="/observability/traces" className="text-blue-600 underline">
-              Traces
+            <Link href="/observability/flows" className="text-blue-600 underline">
+              Flows
             </Link>{' '}
             page.
           </p>
