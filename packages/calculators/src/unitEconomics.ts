@@ -1,4 +1,7 @@
-import type { ModelPricing, RiskLevel, LLMProvider } from '@aiecon/types';
+import type { LLMProvider } from '@aiecon/types';
+
+interface ModelPricing { input: number; output: number }
+type RiskLevel = 'Low' | 'Medium' | 'High';
 
 /**
  * Centralized model pricing configuration.

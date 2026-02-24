@@ -40,6 +40,12 @@ packages/*/*.config.d.ts.map
 *.config.js.map
 *.config.d.ts.map
 
+# Compiled scripts
+scripts/**/*.js
+scripts/**/*.js.map
+scripts/**/*.d.ts
+scripts/**/*.d.ts.map
+
 # E2E compiled artifacts
 e2e/**/*.js
 e2e/**/*.js.map
@@ -56,6 +62,9 @@ test-results/
 .env
 .env.local
 .env.*.local
+
+# Claude Code
+.claude/
 
 # IDE
 .vscode/
