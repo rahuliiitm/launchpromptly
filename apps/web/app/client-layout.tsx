@@ -5,10 +5,14 @@ import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 
-const NAV_LINKS = [
-  { href: '/prompts', label: 'Prompts', requiresAuth: true, adminOnly: false },
-  { href: '/observability', label: 'Observability', requiresAuth: true, adminOnly: false },
-  { href: '/admin', label: 'Admin', requiresAuth: true, adminOnly: true },
+const PUBLIC_LINKS = [
+  { href: '/pricing', label: 'Pricing' },
+];
+
+const AUTH_LINKS = [
+  { href: '/prompts', label: 'Prompts', adminOnly: false },
+  { href: '/observability', label: 'Observability', adminOnly: false },
+  { href: '/admin', label: 'Admin', adminOnly: true },
 ];
 
 function TopNav() {
@@ -40,29 +44,38 @@ function TopNav() {
         </Link>
 
         <nav className="flex gap-4 text-sm font-medium">
-          {NAV_LINKS.map((link) => {
-            if (link.adminOnly && !isAdmin) return null;
-
-            const active = isActive(link.href);
-            const href =
-              link.requiresAuth && !isAuthenticated
-                ? `/login?redirect=${encodeURIComponent(link.href)}`
-                : link.href;
-
-            return (
-              <Link
-                key={link.href}
-                href={href}
-                className={`transition-colors ${
-                  active
-                    ? 'text-blue-600'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
+          {isAuthenticated ? (
+            AUTH_LINKS.map((link) => {
+              if (link.adminOnly && !isAdmin) return null;
+              const active = isActive(link.href);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`transition-colors ${
+                    active ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })
+          ) : (
+            PUBLIC_LINKS.map((link) => {
+              const active = isActive(link.href);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`transition-colors ${
+                    active ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })
+          )}
         </nav>
 
         <div className="ml-auto">

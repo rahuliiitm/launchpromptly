@@ -109,6 +109,65 @@ describe('PlanForge', () => {
     pf.destroy();
   });
 
+  it('should include traceId and spanName in event payload', async () => {
+    const pf = new PlanForge({
+      apiKey: 'pf_live_test',
+      endpoint: 'http://localhost:3001',
+      flushAt: 1,
+    });
+    const client = createMockClient();
+    const wrapped = pf.wrap(client, {
+      traceId: 'req-abc-123',
+      spanName: 'generate',
+      feature: 'knowledge-base',
+    });
+
+    await wrapped.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    const batchCall = fetchSpy.mock.calls.find((c) =>
+      (c[0] as string).includes('/v1/events/batch'),
+    );
+    expect(batchCall).toBeDefined();
+    const body = JSON.parse(batchCall![1]!.body as string);
+    expect(body.events[0].traceId).toBe('req-abc-123');
+    expect(body.events[0].spanName).toBe('generate');
+    expect(body.events[0].feature).toBe('knowledge-base');
+
+    pf.destroy();
+  });
+
+  it('should omit traceId and spanName when not provided', async () => {
+    const pf = new PlanForge({
+      apiKey: 'pf_live_test',
+      endpoint: 'http://localhost:3001',
+      flushAt: 1,
+    });
+    const client = createMockClient();
+    const wrapped = pf.wrap(client);
+
+    await wrapped.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    const batchCall = fetchSpy.mock.calls.find((c) =>
+      (c[0] as string).includes('/v1/events/batch'),
+    );
+    expect(batchCall).toBeDefined();
+    const body = JSON.parse(batchCall![1]!.body as string);
+    expect(body.events[0].traceId).toBeUndefined();
+    expect(body.events[0].spanName).toBeUndefined();
+
+    pf.destroy();
+  });
+
   it('should not throw if the original create throws', async () => {
     const pf = new PlanForge({
       apiKey: 'pf_live_test',

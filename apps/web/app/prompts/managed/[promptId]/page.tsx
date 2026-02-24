@@ -107,22 +107,8 @@ export default function PromptDetailPage() {
     }
   };
 
-  const handleOptimize = async (versionId: string) => {
-    const token = getToken();
-    const projectId = getProjectId();
-    if (!token || !projectId) return;
-    setActionLoading(`optimize-${versionId}`);
-    try {
-      await apiFetch(`/prompt/${projectId}/${promptId}/versions/${versionId}/optimize`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      loadPrompt();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setActionLoading(null);
-    }
+  const handleOptimize = (versionId: string) => {
+    router.push(`/prompts?edit=${promptId}&version=${versionId}`);
   };
 
   const handleCreateVersion = async (e: React.FormEvent) => {
@@ -389,10 +375,9 @@ export default function PromptDetailPage() {
                   )}
                   <button
                     onClick={() => handleOptimize(v.id)}
-                    disabled={actionLoading === `optimize-${v.id}`}
-                    className="rounded border px-3 py-1 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
+                    className="rounded border px-3 py-1 text-xs font-medium hover:bg-gray-50"
                   >
-                    {actionLoading === `optimize-${v.id}` ? 'Optimizing...' : 'Optimize'}
+                    Edit in Playground
                   </button>
                 </div>
               </div>

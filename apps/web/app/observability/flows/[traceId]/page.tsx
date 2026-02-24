@@ -246,18 +246,74 @@ export default function FlowDetailPage() {
           )}
         </div>
         {evaluation && evaluation.status === 'completed' ? (
-          <div className="mt-3 grid grid-cols-3 gap-4 text-center">
-            <div>
-              <ScoreBadge score={evaluation.faithfulnessScore} size="lg" />
-              <div className="mt-1 text-xs text-gray-500">Faithfulness</div>
+          <div className="mt-3">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <ScoreBadge score={evaluation.faithfulnessScore} size="lg" />
+                <div className="mt-1 text-xs text-gray-500">Faithfulness</div>
+              </div>
+              <div>
+                <ScoreBadge score={evaluation.relevanceScore} size="lg" />
+                <div className="mt-1 text-xs text-gray-500">Answer Relevance</div>
+              </div>
+              <div>
+                <ScoreBadge score={evaluation.contextRelevanceScore} size="lg" />
+                <div className="mt-1 text-xs text-gray-500">Context Relevance</div>
+              </div>
             </div>
-            <div>
-              <ScoreBadge score={evaluation.relevanceScore} size="lg" />
-              <div className="mt-1 text-xs text-gray-500">Answer Relevance</div>
+
+            <div className="mt-4 space-y-3">
+              {evaluation.faithfulnessReasoning && (
+                <div className="rounded bg-gray-50 p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs font-medium text-gray-500">Faithfulness</div>
+                    <ScoreBadge score={evaluation.faithfulnessScore} size="sm" />
+                  </div>
+                  <p className="mt-1 text-sm text-gray-700">{evaluation.faithfulnessReasoning}</p>
+                </div>
+              )}
+              {evaluation.relevanceReasoning && (
+                <div className="rounded bg-gray-50 p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs font-medium text-gray-500">Answer Relevance</div>
+                    <ScoreBadge score={evaluation.relevanceScore} size="sm" />
+                  </div>
+                  <p className="mt-1 text-sm text-gray-700">{evaluation.relevanceReasoning}</p>
+                </div>
+              )}
+              {evaluation.contextRelevanceReasoning && (
+                <div className="rounded bg-gray-50 p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs font-medium text-gray-500">Context Relevance</div>
+                    <ScoreBadge score={evaluation.contextRelevanceScore} size="sm" />
+                  </div>
+                  <p className="mt-1 text-sm text-gray-700">{evaluation.contextRelevanceReasoning}</p>
+                </div>
+              )}
             </div>
-            <div>
-              <ScoreBadge score={evaluation.contextRelevanceScore} size="lg" />
-              <div className="mt-1 text-xs text-gray-500">Context Relevance</div>
+
+            {evaluation.chunkRelevanceScores && evaluation.chunkRelevanceScores.length > 0 && (
+              <div className="mt-4">
+                <div className="text-xs font-medium text-gray-500">Chunk Relevance</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {evaluation.chunkRelevanceScores.map((chunk) => (
+                    <span
+                      key={chunk.index}
+                      className={`rounded px-2 py-1 text-xs font-medium ${
+                        chunk.relevant
+                          ? 'bg-green-50 text-green-700'
+                          : 'bg-red-50 text-red-700'
+                      }`}
+                    >
+                      Chunk {chunk.index + 1}: {chunk.score.toFixed(2)} {chunk.relevant ? '✓' : '✗'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3 text-right text-xs text-gray-400">
+              Evaluated by {evaluation.evaluationModel} &middot; ${evaluation.evaluationCostUsd.toFixed(4)}
             </div>
           </div>
         ) : (

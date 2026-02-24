@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
@@ -23,6 +23,10 @@ function estimateCost(model: string, tokens: number): number {
 
 export default function PlaygroundPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editPromptId = searchParams.get('edit');
+  const editVersionId = searchParams.get('version');
+
   const [systemPrompt, setSystemPrompt] = useState('');
   const [userMessage, setUserMessage] = useState('');
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -30,6 +34,7 @@ export default function PlaygroundPage() {
   const [testing, setTesting] = useState(false);
   const [results, setResults] = useState<PlaygroundModelResult[]>([]);
   const [error, setError] = useState('');
+  const [editingPromptName, setEditingPromptName] = useState('');
 
   // Publish state
   const [showPublish, setShowPublish] = useState(false);
@@ -67,6 +72,32 @@ export default function PlaygroundPage() {
   }, []);
 
   useEffect(loadExistingPrompts, [loadExistingPrompts]);
+
+  // Pre-fill from managed prompt when editing via URL params
+  useEffect(() => {
+    if (!editPromptId) return;
+    const token = getToken();
+    const projectId = getProjectId();
+    if (!token || !projectId) return;
+
+    apiFetch<ManagedPromptWithVersions>(
+      `/prompt/${projectId}/${editPromptId}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    )
+      .then((prompt) => {
+        const version = editVersionId
+          ? prompt.versions.find((v) => v.id === editVersionId)
+          : prompt.versions.find((v) => v.status === 'active') ?? prompt.versions[0];
+        if (version) {
+          setSystemPrompt(version.content);
+        }
+        setEditingPromptName(prompt.name);
+        setSelectedPromptId(editPromptId);
+        setPublishMode('version');
+        setShowPublish(true);
+      })
+      .catch(() => {});
+  }, [editPromptId, editVersionId]);
 
   const toggleModel = (model: string) => {
     setSelectedModels((prev) => {
@@ -173,6 +204,20 @@ export default function PlaygroundPage() {
           Test your prompts against multiple models side by side.
         </p>
       </div>
+
+      {editPromptId && editingPromptName && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-3">
+          <div className="text-sm text-blue-800">
+            Editing <span className="font-semibold">{editingPromptName}</span> &mdash; modify the prompt below, test it, then save as a new version.
+          </div>
+          <Link
+            href={`/prompts/managed/${editPromptId}`}
+            className="text-xs font-medium text-blue-600 hover:text-blue-800"
+          >
+            Back to prompt &rarr;
+          </Link>
+        </div>
+      )}
 
       {/* System Prompt */}
       <div>

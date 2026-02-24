@@ -18,14 +18,19 @@ model User {
 }
 
 model Organization {
-  id           String           @id @default(uuid())
-  name         String
-  plan         String           @default("free")
-  createdAt    DateTime         @default(now())
-  users        User[]
-  projects     Project[]
-  providerKeys OrgProviderKey[]
-  invitations  Invitation[]
+  id                    String           @id @default(uuid())
+  name                  String
+  plan                  String           @default("free")
+  lsCustomerId          String?
+  lsSubscriptionId      String?
+  lsSubscriptionStatus  String?
+  lsVariantId           String?
+  planExpiresAt         DateTime?
+  createdAt             DateTime         @default(now())
+  users                 User[]
+  projects              Project[]
+  providerKeys          OrgProviderKey[]
+  invitations           Invitation[]
 }
 
 model OrgProviderKey {

@@ -20,11 +20,21 @@ import Link from 'next/link';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+interface BillingInfo {
+  plan: string;
+  subscriptionStatus: string | null;
+  planExpiresAt: string | null;
+  hasSubscription: boolean;
+  portalUrl: string | null;
+  checkoutUrls: { pro: string; team: string };
+}
+
 export default function BillingPage() {
   const { user } = useAuth();
   const [overview, setOverview] = useState<OverviewAnalytics | null>(null);
   const [timeseries, setTimeseries] = useState<TimeSeriesPoint[]>([]);
   const [promptBreakdown, setPromptBreakdown] = useState<PromptAnalyticsItem[]>([]);
+  const [billing, setBilling] = useState<BillingInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -42,11 +52,13 @@ export default function BillingPage() {
       apiFetch<OverviewAnalytics>(`/analytics/${projectId}/overview`, { headers }),
       apiFetch<TimeSeriesPoint[]>(`/analytics/${projectId}/timeseries`, { headers }),
       apiFetch<PromptAnalyticsItem[]>(`/analytics/${projectId}/prompts`, { headers }).catch(() => [] as PromptAnalyticsItem[]),
+      apiFetch<BillingInfo>('/billing/info', { headers }).catch(() => null),
     ])
-      .then(([ov, ts, pb]) => {
+      .then(([ov, ts, pb, bi]) => {
         setOverview(ov);
         setTimeseries(ts);
         setPromptBreakdown(pb);
+        if (bi) setBilling(bi);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
@@ -60,8 +72,9 @@ export default function BillingPage() {
     return <div className="py-20 text-center text-red-500">Error: {error}</div>;
   }
 
-  const planLabel = user?.plan === 'business' ? 'Business' : user?.plan === 'pro' ? 'Pro' : 'Free';
-  const planColor = user?.plan === 'business' ? 'bg-purple-100 text-purple-700' : user?.plan === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700';
+  const currentPlan = billing?.plan ?? user?.plan ?? 'free';
+  const planLabel = currentPlan === 'business' ? 'Team' : currentPlan === 'pro' ? 'Pro' : 'Free';
+  const planColor = currentPlan === 'business' ? 'bg-purple-100 text-purple-700' : currentPlan === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700';
 
   return (
     <div>
@@ -75,16 +88,57 @@ export default function BillingPage() {
           <span className={`rounded px-3 py-1 text-sm font-medium ${planColor}`}>
             {planLabel}
           </span>
-          <span className="text-sm text-gray-500">
-            During beta, all features are available.
-          </span>
+          {billing?.subscriptionStatus && (
+            <span className={`rounded px-2 py-0.5 text-xs font-medium ${
+              billing.subscriptionStatus === 'active' ? 'bg-green-100 text-green-700'
+                : billing.subscriptionStatus === 'cancelled' ? 'bg-yellow-100 text-yellow-700'
+                  : 'bg-gray-100 text-gray-600'
+            }`}>
+              {billing.subscriptionStatus}
+            </span>
+          )}
+          {billing?.planExpiresAt && billing.subscriptionStatus === 'cancelled' && (
+            <span className="text-xs text-gray-500">
+              Active until {new Date(billing.planExpiresAt).toLocaleDateString()}
+            </span>
+          )}
         </div>
-        <button
-          disabled
-          className="mt-3 rounded border px-4 py-2 text-sm text-gray-400 cursor-not-allowed"
-        >
-          Upgrade — Coming soon
-        </button>
+        <div className="mt-3 flex gap-3">
+          {currentPlan === 'free' && billing?.checkoutUrls?.pro && (
+            <a
+              href={billing.checkoutUrls.pro}
+              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Upgrade to Pro &mdash; $19/mo
+            </a>
+          )}
+          {(currentPlan === 'free' || currentPlan === 'pro') && billing?.checkoutUrls?.team && (
+            <a
+              href={billing.checkoutUrls.team}
+              className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              {currentPlan === 'free' ? 'Upgrade to Team — $49/mo' : 'Upgrade to Team'}
+            </a>
+          )}
+          {billing?.hasSubscription && billing?.portalUrl && (
+            <a
+              href={billing.portalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Manage Subscription
+            </a>
+          )}
+          {!billing?.hasSubscription && !billing?.checkoutUrls?.pro && (
+            <Link
+              href="/pricing"
+              className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              View Pricing
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Usage Stats */}
