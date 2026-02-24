@@ -20,9 +20,34 @@ apps/*/app/**/*.d.ts.map
 apps/*/test/**/*.d.ts
 apps/*/test/**/*.d.ts.map
 apps/*/test/**/*.js.map
+packages/*/src/**/*.js
 packages/*/src/**/*.js.map
 packages/*/src/**/*.d.ts
 packages/*/src/**/*.d.ts.map
+apps/*/test/**/*.js
+
+# Compiled config files (jest.config, tailwind.config, playwright.config, etc.)
+apps/*/*.config.js
+apps/*/*.config.js.map
+apps/*/*.config.d.ts
+apps/*/*.config.d.ts.map
+packages/*/*.config.js
+packages/*/*.config.js.map
+packages/*/*.config.d.ts
+packages/*/*.config.d.ts.map
+*.config.js
+*.config.d.ts
+*.config.js.map
+*.config.d.ts.map
+
+# E2E compiled artifacts
+e2e/**/*.js
+e2e/**/*.js.map
+e2e/**/*.d.ts
+e2e/**/*.d.ts.map
+
+# Test results
+test-results/
 
 # Turbo
 .turbo/
