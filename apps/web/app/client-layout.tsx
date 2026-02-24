@@ -81,9 +81,14 @@ function TopNav() {
 
               {menuOpen && (
                 <div className="absolute right-0 mt-2 w-48 rounded-lg border bg-white py-1 shadow-lg">
-                  <div className="border-b px-4 py-2">
+                  <div className="border-b px-4 py-2 flex items-center gap-2">
                     <span className="inline-block rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
                       {user.plan === 'free' ? 'Free' : user.plan === 'pro' ? 'Pro' : 'Business'}
+                    </span>
+                    <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
+                      user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {user.role === 'admin' ? 'Admin' : 'Member'}
                     </span>
                   </div>
                   <Link

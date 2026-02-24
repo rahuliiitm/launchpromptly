@@ -7,6 +7,7 @@ import { RequireAuth } from '@/components/require-auth';
 const NAV_ITEMS = [
   { href: '/settings', label: 'API Keys' },
   { href: '/settings/providers', label: 'LLM Providers' },
+  { href: '/settings/team', label: 'Team' },
   { href: '/settings/sdk', label: 'SDK Setup' },
 ];
 

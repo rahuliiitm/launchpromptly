@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth, useIsAdmin } from '@/lib/auth-context';
 import type { ApiKey } from '@aiecon/types';
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const isAdmin = useIsAdmin();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [newKey, setNewKey] = useState('');
   const [loading, setLoading] = useState(true);
@@ -91,12 +92,14 @@ export default function SettingsPage() {
           Use these keys to authenticate the PlanForge SDK.
         </p>
 
-        <button
-          onClick={handleGenerate}
-          className="mt-4 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          Generate New Key
-        </button>
+        {isAdmin && (
+          <button
+            onClick={handleGenerate}
+            className="mt-4 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Generate New Key
+          </button>
+        )}
 
         {newKey && (
           <div className="mt-4 rounded border border-yellow-300 bg-yellow-50 p-4">
@@ -119,12 +122,14 @@ export default function SettingsPage() {
                 <span className="font-mono text-sm">{key.keyPrefix}...</span>
                 <span className="ml-2 text-sm text-gray-500">{key.name}</span>
               </div>
-              <button
-                onClick={() => handleRevoke(key.id)}
-                className="text-sm text-red-600 hover:text-red-800"
-              >
-                Revoke
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => handleRevoke(key.id)}
+                  className="text-sm text-red-600 hover:text-red-800"
+                >
+                  Revoke
+                </button>
+              )}
             </div>
           ))}
           {keys.length === 0 && (

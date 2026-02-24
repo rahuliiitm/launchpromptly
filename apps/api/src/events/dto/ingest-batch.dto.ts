@@ -73,6 +73,33 @@ export class IngestEventDto {
   @IsOptional()
   @IsString()
   promptVersionId?: string;
+
+  @IsOptional()
+  @IsString()
+  ragPipelineId?: string;
+
+  @IsOptional()
+  @IsString()
+  ragQuery?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  ragRetrievalMs?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  ragChunkCount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  ragContextTokens?: number;
+
+  @IsOptional()
+  @IsArray()
+  ragChunks?: Array<{ content: string; source: string; score: number; metadata?: Record<string, unknown> }>;
 }
 
 export class IngestBatchDto {

@@ -15,6 +15,7 @@ import {
   saveAuth,
   saveProjectId,
   savePlan,
+  saveRole,
   clearAuth,
 } from './auth';
 
@@ -22,6 +23,7 @@ interface UserState {
   id: string;
   email: string;
   plan: string;
+  role: string;
   projectId: string | null;
 }
 
@@ -53,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: string;
       email: string;
       plan: string;
+      role: string;
       projectId: string | null;
     }>('/auth/me', {
       headers: { Authorization: `Bearer ${token}` },
@@ -62,10 +65,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: profile.id,
           email: profile.email,
           plan: profile.plan,
+          role: profile.role ?? 'admin',
           projectId: profile.projectId,
         });
         if (profile.projectId) saveProjectId(profile.projectId);
         savePlan(profile.plan);
+        saveRole(profile.role ?? 'admin');
       })
       .catch(() => {
         // Token invalid — clear it
@@ -80,6 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         accessToken: string;
         userId: string;
         plan: string;
+        role: string;
       }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
@@ -87,12 +93,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       saveAuth(res.accessToken, res.userId);
       savePlan(res.plan);
+      saveRole(res.role ?? 'admin');
 
       // Fetch profile to get projectId
       const profile = await apiFetch<{
         id: string;
         email: string;
         plan: string;
+        role: string;
         projectId: string | null;
       }>('/auth/me', {
         headers: { Authorization: `Bearer ${res.accessToken}` },
@@ -104,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: profile.id,
         email: profile.email,
         plan: profile.plan,
+        role: profile.role ?? 'admin',
         projectId: profile.projectId,
       });
     },
@@ -116,6 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         accessToken: string;
         userId: string;
         plan: string;
+        role: string;
       }>('/auth/register', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
@@ -123,12 +133,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       saveAuth(res.accessToken, res.userId);
       savePlan(res.plan);
+      saveRole(res.role ?? 'admin');
 
       // Fetch profile to get projectId
       const profile = await apiFetch<{
         id: string;
         email: string;
         plan: string;
+        role: string;
         projectId: string | null;
       }>('/auth/me', {
         headers: { Authorization: `Bearer ${res.accessToken}` },
@@ -140,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: profile.id,
         email: profile.email,
         plan: profile.plan,
+        role: profile.role ?? 'admin',
         projectId: profile.projectId,
       });
     },
@@ -175,4 +188,9 @@ export function useAuth(): AuthContextType {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return ctx;
+}
+
+export function useIsAdmin(): boolean {
+  const { user } = useAuth();
+  return user?.role === 'admin';
 }

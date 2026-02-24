@@ -2,6 +2,7 @@ const TOKEN_KEY = 'pf_token';
 const USER_ID_KEY = 'pf_user_id';
 const PROJECT_ID_KEY = 'pf_project_id';
 const PLAN_KEY = 'pf_plan';
+const ROLE_KEY = 'pf_role';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -41,10 +42,21 @@ export function getPlan(): string {
   return localStorage.getItem(PLAN_KEY) ?? 'free';
 }
 
+export function saveRole(role: string): void {
+  if (!isBrowser) return;
+  localStorage.setItem(ROLE_KEY, role);
+}
+
+export function getRole(): string {
+  if (!isBrowser) return 'admin';
+  return localStorage.getItem(ROLE_KEY) ?? 'admin';
+}
+
 export function clearAuth(): void {
   if (!isBrowser) return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_ID_KEY);
   localStorage.removeItem(PROJECT_ID_KEY);
   localStorage.removeItem(PLAN_KEY);
+  localStorage.removeItem(ROLE_KEY);
 }

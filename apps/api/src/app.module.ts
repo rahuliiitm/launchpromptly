@@ -12,6 +12,7 @@ import { PromptModule } from './prompt/prompt.module';
 import { CryptoModule } from './crypto/crypto.module';
 import { ProviderKeyModule } from './provider-key/provider-key.module';
 import { PlaygroundModule } from './playground/playground.module';
+import { InvitationModule } from './invitation/invitation.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -29,6 +30,7 @@ import { AppController } from './app.controller';
     PromptModule,
     ProviderKeyModule,
     PlaygroundModule,
+    InvitationModule,
   ],
   controllers: [AppController],
 })

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { IngestBatchDto } from './dto/ingest-batch.dto';
 
@@ -29,6 +30,12 @@ export class EventsService {
         statusCode: e.statusCode ?? 200,
         managedPromptId: e.managedPromptId ?? null,
         promptVersionId: e.promptVersionId ?? null,
+        ragPipelineId: e.ragPipelineId ?? null,
+        ragQuery: e.ragQuery ?? null,
+        ragRetrievalMs: e.ragRetrievalMs ?? null,
+        ragChunkCount: e.ragChunkCount ?? null,
+        ragContextTokens: e.ragContextTokens ?? null,
+        ragChunks: (e.ragChunks as Prisma.InputJsonValue) ?? undefined,
       })),
     });
 

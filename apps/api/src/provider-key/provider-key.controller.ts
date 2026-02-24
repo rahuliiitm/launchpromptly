@@ -10,6 +10,8 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProviderKeyService } from './provider-key.service';
 import { SetProviderKeyDto } from './dto/set-provider-key.dto';
@@ -45,6 +47,8 @@ export class ProviderKeyController {
   }
 
   @Put(':provider')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   async set(
     @Param('provider') provider: LLMProvider,
     @Body() dto: SetProviderKeyDto,
@@ -56,6 +60,8 @@ export class ProviderKeyController {
   }
 
   @Delete(':provider')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   async remove(
     @Param('provider') provider: LLMProvider,
     @Req() req: Request,

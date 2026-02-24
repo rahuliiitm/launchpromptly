@@ -6,6 +6,7 @@ import { RequireAuth } from '@/components/require-auth';
 
 const NAV_ITEMS = [
   { href: '/analytics', label: 'Overview' },
+  { href: '/analytics/rag', label: 'RAG Quality' },
 ];
 
 export default function AnalyticsLayout({
@@ -28,7 +29,7 @@ export default function AnalyticsLayout({
                 key={item.href}
                 href={item.href}
                 className={`block rounded px-3 py-2 text-sm font-medium transition-colors ${
-                  pathname === item.href
+                  pathname === item.href || (item.href !== '/analytics' && pathname.startsWith(item.href))
                     ? 'bg-blue-50 text-blue-700'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}

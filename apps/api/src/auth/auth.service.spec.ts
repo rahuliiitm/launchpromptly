@@ -35,6 +35,7 @@ describe('AuthService', () => {
     email: 'test@example.com',
     passwordHash: '$2b$10$hashedpassword',
     organizationId: 'org-123',
+    role: 'admin',
     createdAt: new Date(),
     organization: mockOrg,
   };
@@ -124,6 +125,7 @@ describe('AuthService', () => {
         email: 'test@example.com',
         organizationId: 'org-123',
         plan: 'free',
+        role: 'admin',
       });
     });
   });
@@ -184,6 +186,7 @@ describe('AuthService', () => {
         organizationId: 'org-123',
         plan: 'free',
         projectId: 'project-123',
+        role: 'admin',
       });
     });
 

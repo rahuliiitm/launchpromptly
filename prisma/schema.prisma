@@ -12,6 +12,7 @@ model User {
   email          String        @unique
   passwordHash   String?
   organizationId String?
+  role           String        @default("admin")
   createdAt      DateTime      @default(now())
   scenarios      Scenario[]
   organization   Organization? @relation(fields: [organizationId], references: [id])
@@ -25,6 +26,7 @@ model Organization {
   users        User[]
   projects     Project[]
   providerKeys OrgProviderKey[]
+  invitations  Invitation[]
 }
 
 model OrgProviderKey {
@@ -85,12 +87,18 @@ model LLMEvent {
   fullHash        String?
   promptPreview   String?
   statusCode      Int            @default(200)
-  managedPromptId String?
-  promptVersionId String?
-  createdAt       DateTime       @default(now())
-  project         Project        @relation(fields: [projectId], references: [id])
-  managedPrompt   ManagedPrompt? @relation(fields: [managedPromptId], references: [id])
-  promptVersion   PromptVersion? @relation("VersionEvents", fields: [promptVersionId], references: [id])
+  managedPromptId  String?
+  promptVersionId  String?
+  ragPipelineId    String?
+  ragQuery         String?
+  ragRetrievalMs   Int?
+  ragChunkCount    Int?
+  ragContextTokens Int?
+  ragChunks        Json?
+  createdAt        DateTime       @default(now())
+  project          Project        @relation(fields: [projectId], references: [id])
+  managedPrompt    ManagedPrompt? @relation(fields: [managedPromptId], references: [id])
+  promptVersion    PromptVersion? @relation("VersionEvents", fields: [promptVersionId], references: [id])
 
   @@index([projectId, createdAt])
   @@index([projectId, customerId])
@@ -98,6 +106,7 @@ model LLMEvent {
   @@index([projectId, feature])
   @@index([projectId, model])
   @@index([projectId, managedPromptId])
+  @@index([projectId, ragPipelineId])
 }
 
 model ManagedPrompt {
@@ -156,6 +165,22 @@ model ABTestVariant {
   promptVersion   PromptVersion @relation(fields: [promptVersionId], references: [id])
 
   @@unique([abTestId, promptVersionId])
+}
+
+model Invitation {
+  id             String       @id @default(uuid())
+  organizationId String
+  email          String
+  role           String       @default("member")
+  token          String       @unique
+  invitedById    String
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
 }
 
 model Scenario {

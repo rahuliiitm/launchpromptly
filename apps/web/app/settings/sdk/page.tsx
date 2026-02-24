@@ -4,6 +4,33 @@ import { useState } from 'react';
 
 const INSTALL_CMD = 'npm install @planforge/node';
 
+const RAG_CODE = `// Track your RAG pipeline with retrieval context
+const startTime = performance.now();
+const chunks = await vectorStore.search(userQuery, { topK: 5 });
+const retrievalMs = Math.round(performance.now() - startTime);
+
+const response = await openai.chat.completions.create({
+  model: 'gpt-4o',
+  messages: [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: buildRAGPrompt(userQuery, chunks) },
+  ],
+});
+
+// Attach RAG context to the tracked event
+pf.attachContext({
+  ragPipelineId: 'support-bot',
+  ragQuery: userQuery,
+  ragRetrievalMs: retrievalMs,
+  ragChunkCount: chunks.length,
+  ragContextTokens: countTokens(chunks),
+  ragChunks: chunks.map(c => ({
+    content: c.text,
+    source: c.metadata.docId,
+    score: c.score,
+  })),
+});`;
+
 const USAGE_CODE = `import { PlanForge } from '@planforge/node';
 import OpenAI from 'openai';
 
@@ -87,15 +114,38 @@ export default function SDKSetupPage() {
         </div>
       </div>
 
-      {/* Step 4 */}
+      {/* Step 4 — RAG */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold">4. Check Analytics</h2>
+        <h2 className="text-lg font-semibold">4. Track RAG Pipelines (Optional)</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          If you have a RAG pipeline, attach retrieval context to get quality metrics.
+        </p>
+        <div className="relative mt-2">
+          <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-green-400">
+            {RAG_CODE}
+          </pre>
+          <button
+            onClick={() => copyToClipboard(RAG_CODE, 'rag')}
+            className="absolute right-2 top-2 rounded bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
+          >
+            {copied === 'rag' ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+      </div>
+
+      {/* Step 5 */}
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold">5. Check Analytics</h2>
         <p className="mt-1 text-sm text-gray-500">
           Once events are flowing, go to the{' '}
           <a href="/analytics" className="text-blue-600 underline">
             Analytics Overview
           </a>{' '}
-          page to see your costs in real time.
+          to see your costs, or{' '}
+          <a href="/analytics/rag" className="text-blue-600 underline">
+            RAG Quality
+          </a>{' '}
+          to inspect retrieval traces.
         </p>
       </div>
     </div>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth, useIsAdmin } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
 
@@ -20,6 +20,7 @@ interface DashboardStats {
 
 export default function HomePage() {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const isAdmin = useIsAdmin();
   const router = useRouter();
   const [checklist, setChecklist] = useState<ChecklistState>({
     providerKey: false,
@@ -70,7 +71,7 @@ export default function HomePage() {
     return <div className="py-20 text-center text-gray-400">Loading...</div>;
   }
 
-  const allComplete = checklist.providerKey && checklist.prompt && checklist.apiKey;
+  const allComplete = !isAdmin || (checklist.providerKey && checklist.prompt && checklist.apiKey);
 
   const steps = [
     {

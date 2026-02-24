@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken } from '@/lib/auth';
+import { useIsAdmin } from '@/lib/auth-context';
 import type { OrgProviderKey, LLMProvider } from '@aiecon/types';
 
 const PROVIDERS: { id: LLMProvider; name: string; placeholder: string }[] = [
@@ -11,6 +12,7 @@ const PROVIDERS: { id: LLMProvider; name: string; placeholder: string }[] = [
 ];
 
 export default function ProvidersPage() {
+  const isAdmin = useIsAdmin();
   const [keys, setKeys] = useState<OrgProviderKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -108,7 +110,7 @@ export default function ProvidersPage() {
                     </span>
                   )}
                 </div>
-                {isConfigured && (
+                {isConfigured && isAdmin && (
                   <button
                     onClick={() => handleRemove(provider.id)}
                     className="text-sm text-red-600 hover:text-red-800"
@@ -125,28 +127,30 @@ export default function ProvidersPage() {
                 </p>
               )}
 
-              <div className="mt-3 flex gap-2">
-                <input
-                  type="password"
-                  value={inputs[provider.id] ?? ''}
-                  onChange={(e) =>
-                    setInputs((prev) => ({ ...prev, [provider.id]: e.target.value }))
-                  }
-                  placeholder={provider.placeholder}
-                  className="flex-1 rounded border px-3 py-2 text-sm"
-                />
-                <button
-                  onClick={() => handleSave(provider.id)}
-                  disabled={saving === provider.id || !inputs[provider.id]?.trim()}
-                  className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {saving === provider.id
-                    ? 'Saving...'
-                    : isConfigured
-                      ? 'Update'
-                      : 'Add Key'}
-                </button>
-              </div>
+              {isAdmin && (
+                <div className="mt-3 flex gap-2">
+                  <input
+                    type="password"
+                    value={inputs[provider.id] ?? ''}
+                    onChange={(e) =>
+                      setInputs((prev) => ({ ...prev, [provider.id]: e.target.value }))
+                    }
+                    placeholder={provider.placeholder}
+                    className="flex-1 rounded border px-3 py-2 text-sm"
+                  />
+                  <button
+                    onClick={() => handleSave(provider.id)}
+                    disabled={saving === provider.id || !inputs[provider.id]?.trim()}
+                    className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {saving === provider.id
+                      ? 'Saving...'
+                      : isConfigured
+                        ? 'Update'
+                        : 'Add Key'}
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}

@@ -1,10 +1,14 @@
 // ── Billing ──
 export type PlanTier = 'free' | 'pro' | 'business';
 
+// ── Roles ──
+export type UserRole = 'admin' | 'member';
+
 // ── User ──
 export interface User {
   id: string;
   email: string;
+  role: UserRole;
   createdAt: Date;
 }
 
@@ -14,12 +18,35 @@ export interface UserProfile {
   organizationId: string | null;
   plan: PlanTier;
   projectId: string | null;
+  role: UserRole;
 }
 
 export interface AuthResponse {
   accessToken: string;
   userId: string;
   plan: PlanTier;
+}
+
+// ── Team & Invitations ──
+export interface TeamMember {
+  id: string;
+  email: string;
+  role: UserRole;
+  createdAt: Date;
+}
+
+export interface InvitationInfo {
+  id: string;
+  email: string;
+  role: UserRole;
+  createdAt: Date;
+  expiresAt: Date;
+  acceptedAt: Date | null;
+}
+
+export interface CreateInvitationInput {
+  email: string;
+  role?: UserRole;
 }
 
 // ── Scenario ──
@@ -232,6 +259,12 @@ export interface IngestEventPayload {
   statusCode?: number;
   managedPromptId?: string;
   promptVersionId?: string;
+  ragPipelineId?: string;
+  ragQuery?: string;
+  ragRetrievalMs?: number;
+  ragChunkCount?: number;
+  ragContextTokens?: number;
+  ragChunks?: RagChunk[];
 }
 
 export interface IngestBatchPayload {
@@ -284,6 +317,64 @@ export interface OptimizationRecommendation {
   affectedTemplateHash: string | null;
   currentModel: string | null;
   suggestedModel: string | null;
+}
+
+// ── Platform: RAG Observability ──
+export interface RagChunk {
+  content: string;
+  source: string;
+  score: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RagOverview {
+  totalRagCalls: number;
+  avgRetrievalMs: number;
+  avgChunkCount: number;
+  avgContextTokens: number;
+  totalCostUsd: number;
+  periodDays: number;
+  pipelineBreakdown: RagPipelineStats[];
+}
+
+export interface RagPipelineStats {
+  pipelineId: string;
+  callCount: number;
+  avgRetrievalMs: number;
+  avgChunkCount: number;
+  totalCostUsd: number;
+}
+
+export interface RagTimeSeriesPoint {
+  date: string;
+  ragCalls: number;
+  avgRetrievalMs: number;
+  avgChunkCount: number;
+  costUsd: number;
+}
+
+export interface RagTraceListItem {
+  id: string;
+  ragPipelineId: string | null;
+  ragQuery: string | null;
+  ragRetrievalMs: number | null;
+  ragChunkCount: number | null;
+  ragContextTokens: number | null;
+  model: string;
+  provider: string;
+  costUsd: number;
+  latencyMs: number;
+  createdAt: string;
+}
+
+export interface RagTraceDetail extends RagTraceListItem {
+  ragChunks: RagChunk[] | null;
+  promptPreview: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  customerId: string | null;
+  feature: string | null;
 }
 
 // ── Platform: Prompt Management ──

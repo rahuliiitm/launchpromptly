@@ -3,11 +3,12 @@ import { ProjectModule } from '../project/project.module';
 import { AnalyticsController } from './analytics.controller';
 import { AnalyticsService } from './analytics.service';
 import { OptimizationService } from './optimization.service';
+import { RagAnalyticsService } from './rag-analytics.service';
 
 @Module({
   imports: [ProjectModule],
   controllers: [AnalyticsController],
-  providers: [AnalyticsService, OptimizationService],
-  exports: [AnalyticsService],
+  providers: [AnalyticsService, OptimizationService, RagAnalyticsService],
+  exports: [AnalyticsService, RagAnalyticsService],
 })
 export class AnalyticsModule {}
