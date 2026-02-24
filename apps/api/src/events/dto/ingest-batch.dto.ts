@@ -100,6 +100,10 @@ export class IngestEventDto {
   @IsOptional()
   @IsArray()
   ragChunks?: Array<{ content: string; source: string; score: number; metadata?: Record<string, unknown> }>;
+
+  @IsOptional()
+  @IsString()
+  responseText?: string;
 }
 
 export class IngestBatchDto {

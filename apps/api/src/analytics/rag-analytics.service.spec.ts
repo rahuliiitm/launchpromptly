@@ -111,6 +111,7 @@ describe('RagAnalyticsService', () => {
           costUsd: 0.02,
           latencyMs: 800,
           createdAt: new Date('2026-02-20T10:00:00Z'),
+          ragEvaluation: null,
         },
       ];
       (prisma.lLMEvent.findMany as jest.Mock).mockResolvedValue(mockTraces);
@@ -148,6 +149,7 @@ describe('RagAnalyticsService', () => {
         ragChunkCount: 1,
         ragContextTokens: 150,
         ragChunks: chunks,
+        responseText: 'To reset your password, go to...',
         model: 'gpt-4o',
         provider: 'openai',
         costUsd: 0.02,
@@ -159,6 +161,7 @@ describe('RagAnalyticsService', () => {
         customerId: 'cust-1',
         feature: 'support-chat',
         createdAt: new Date('2026-02-20T10:00:00Z'),
+        ragEvaluation: null,
       });
 
       const result = await service.getRagTraceDetail('proj-1', 'user-1', 'ev-1');

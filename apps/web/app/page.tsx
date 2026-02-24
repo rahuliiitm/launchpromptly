@@ -78,7 +78,7 @@ export default function HomePage() {
       key: 'providerKey',
       title: 'Add an LLM provider key',
       description: 'Connect your OpenAI or Anthropic API key so you can test prompts.',
-      href: '/settings/providers',
+      href: '/admin/providers',
       linkText: 'Go to LLM Providers',
       done: checklist.providerKey,
     },
@@ -94,8 +94,8 @@ export default function HomePage() {
       key: 'apiKey',
       title: 'Generate an SDK API key',
       description: 'Create an API key to integrate PlanForge into your application.',
-      href: '/settings',
-      linkText: 'Go to Settings',
+      href: '/admin/api-keys',
+      linkText: 'Go to API Keys',
       done: checklist.apiKey,
     },
   ];
@@ -122,11 +122,11 @@ export default function HomePage() {
               <div className="mt-1 text-sm text-gray-500">Managed Prompts</div>
             </Link>
             <Link
-              href="/analytics"
+              href="/observability"
               className="rounded-lg border bg-white p-5 transition hover:border-blue-300"
             >
               <div className="text-2xl font-bold text-gray-400">—</div>
-              <div className="mt-1 text-sm text-gray-500">View Analytics</div>
+              <div className="mt-1 text-sm text-gray-500">Observability</div>
             </Link>
           </div>
 

@@ -1,9 +1,10 @@
-import { Controller, Get, Param, Query, Req, UseGuards, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, Req, UseGuards, NotFoundException } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AnalyticsService } from './analytics.service';
 import { OptimizationService } from './optimization.service';
 import { RagAnalyticsService } from './rag-analytics.service';
+import { RagEvaluationService } from './rag-evaluation.service';
 import type { AuthUser } from '../auth/jwt.strategy';
 
 @Controller('analytics')
@@ -13,6 +14,7 @@ export class AnalyticsController {
     private readonly analyticsService: AnalyticsService,
     private readonly optimizationService: OptimizationService,
     private readonly ragAnalyticsService: RagAnalyticsService,
+    private readonly ragEvaluationService: RagEvaluationService,
   ) {}
 
   private parseDays(days?: string): number {
@@ -79,6 +81,8 @@ export class AnalyticsController {
     return this.optimizationService.getRecommendations(projectId, user.userId);
   }
 
+  // ── RAG Operational ──
+
   @Get(':projectId/rag/overview')
   async ragOverview(
     @Param('projectId') projectId: string,
@@ -127,5 +131,48 @@ export class AnalyticsController {
     const trace = await this.ragAnalyticsService.getRagTraceDetail(projectId, user.userId, eventId);
     if (!trace) throw new NotFoundException('RAG trace not found');
     return trace;
+  }
+
+  // ── RAG Evaluation ──
+
+  @Post(':projectId/rag/traces/:eventId/evaluate')
+  async evaluateTrace(
+    @Param('projectId') projectId: string,
+    @Param('eventId') eventId: string,
+    @Req() req: Request,
+  ): Promise<unknown> {
+    const user = req.user as AuthUser;
+    return this.ragEvaluationService.evaluateTrace(projectId, user.userId, eventId);
+  }
+
+  @Post(':projectId/rag/evaluate-batch')
+  async evaluateBatch(
+    @Param('projectId') projectId: string,
+    @Query('limit') limit: string,
+    @Req() req: Request,
+  ): Promise<unknown> {
+    const user = req.user as AuthUser;
+    const parsedLimit = limit ? Math.min(parseInt(limit, 10), 50) : 20;
+    return this.ragEvaluationService.evaluateBatch(projectId, user.userId, parsedLimit);
+  }
+
+  @Get(':projectId/rag/quality')
+  async qualityOverview(
+    @Param('projectId') projectId: string,
+    @Query('days') days: string,
+    @Req() req: Request,
+  ): Promise<unknown> {
+    const user = req.user as AuthUser;
+    return this.ragEvaluationService.getQualityOverview(projectId, user.userId, this.parseDays(days));
+  }
+
+  @Get(':projectId/rag/quality/timeseries')
+  async qualityTimeseries(
+    @Param('projectId') projectId: string,
+    @Query('days') days: string,
+    @Req() req: Request,
+  ): Promise<unknown> {
+    const user = req.user as AuthUser;
+    return this.ragEvaluationService.getQualityTimeSeries(projectId, user.userId, this.parseDays(days));
   }
 }

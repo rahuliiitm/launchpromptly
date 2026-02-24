@@ -36,6 +36,7 @@ export class EventsService {
         ragChunkCount: e.ragChunkCount ?? null,
         ragContextTokens: e.ragContextTokens ?? null,
         ragChunks: (e.ragChunks as Prisma.InputJsonValue) ?? undefined,
+        responseText: e.responseText ?? null,
       })),
     });
 

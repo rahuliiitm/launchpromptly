@@ -3,10 +3,10 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function SdkRedirect() {
+export default function TracesRedirect() {
   const router = useRouter();
   useEffect(() => {
-    router.replace('/admin/sdk');
+    router.replace('/observability/traces');
   }, [router]);
   return <div className="py-20 text-center text-gray-400">Redirecting...</div>;
 }

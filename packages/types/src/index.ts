@@ -49,152 +49,6 @@ export interface CreateInvitationInput {
   role?: UserRole;
 }
 
-// ── Scenario ──
-export interface Scenario {
-  id: string;
-  userId: string;
-  name: string;
-  model: string;
-  avgInputTokens: number;
-  avgOutputTokens: number;
-  requestsPerUser: number;
-  projectedUsers: number;
-  subscriptionPrice: number;
-  createdAt: Date;
-}
-
-export interface CreateScenarioInput {
-  name: string;
-  model: string;
-  avgInputTokens: number;
-  avgOutputTokens: number;
-  requestsPerUser: number;
-  projectedUsers: number;
-  subscriptionPrice: number;
-}
-
-// ── Financial Calculations ──
-export type RiskLevel = 'Low' | 'Medium' | 'High';
-
-export interface ModelPricing {
-  input: number;
-  output: number;
-}
-
-export interface FinancialResult {
-  costPerRequest: number;
-  costPerUser: number;
-  monthlyCost: number;
-  grossMargin: number;
-  riskLevel: RiskLevel;
-}
-
-// ── Architecture Simulation ──
-export interface SimulationResult {
-  architectureName: string;
-  costPerUser: number;
-  monthlyCost: number;
-  grossMargin: number;
-  riskLevel: RiskLevel;
-}
-
-export interface SimulationInput {
-  avgInputTokens: number;
-  avgOutputTokens: number;
-  requestsPerUser: number;
-  projectedUsers: number;
-  subscriptionPrice: number;
-}
-
-// ── Scenario with computed results ──
-export interface ScenarioWithResults extends Scenario {
-  financialResult: FinancialResult;
-}
-
-// ── Sensitivity Analysis ──
-export type SensitivityParameter =
-  | 'projectedUsers'
-  | 'subscriptionPrice'
-  | 'requestsPerUser'
-  | 'avgInputTokens'
-  | 'avgOutputTokens';
-
-export interface SensitivityInput {
-  baseScenario: SimulationInput;
-  model: string;
-  parameter: SensitivityParameter;
-  steps: number;
-  rangeMin: number;
-  rangeMax: number;
-}
-
-export interface SensitivityDataPoint {
-  parameterValue: number;
-  costPerRequest: number;
-  costPerUser: number;
-  monthlyCost: number;
-  grossMargin: number;
-  riskLevel: RiskLevel;
-}
-
-export interface SensitivityResult {
-  parameter: SensitivityParameter;
-  dataPoints: SensitivityDataPoint[];
-}
-
-// ── Pricing Recommendation ──
-export interface PricingRecommendationInput {
-  model: string;
-  avgInputTokens: number;
-  avgOutputTokens: number;
-  requestsPerUser: number;
-  targetMargins: number[];
-}
-
-export interface PricingTier {
-  targetMargin: number;
-  recommendedPrice: number;
-  costPerUser: number;
-  riskLevel: RiskLevel;
-}
-
-export interface PricingRecommendationResult {
-  costPerUser: number;
-  tiers: PricingTier[];
-}
-
-// ── Snapshot ──
-export interface Snapshot {
-  id: string;
-  scenarioId: string;
-  label: string;
-  model: string;
-  avgInputTokens: number;
-  avgOutputTokens: number;
-  requestsPerUser: number;
-  projectedUsers: number;
-  subscriptionPrice: number;
-  createdAt: Date;
-}
-
-export interface CreateSnapshotInput {
-  label: string;
-}
-
-export interface SnapshotWithFinancials extends Snapshot {
-  financialResult: FinancialResult;
-}
-
-export interface SnapshotComparison {
-  snapshots: SnapshotWithFinancials[];
-}
-
-// ── AI Advisory ──
-export interface AdvisoryResponse {
-  insight: string;
-  generatedAt: Date;
-}
-
 // ── Platform: Providers ──
 export type LLMProvider = 'openai' | 'anthropic';
 
@@ -265,6 +119,7 @@ export interface IngestEventPayload {
   ragChunkCount?: number;
   ragContextTokens?: number;
   ragChunks?: RagChunk[];
+  responseText?: string;
 }
 
 export interface IngestBatchPayload {
@@ -365,16 +220,76 @@ export interface RagTraceListItem {
   costUsd: number;
   latencyMs: number;
   createdAt: string;
+  faithfulnessScore: number | null;
+  relevanceScore: number | null;
+  contextRelevanceScore: number | null;
 }
 
 export interface RagTraceDetail extends RagTraceListItem {
   ragChunks: RagChunk[] | null;
+  responseText: string | null;
   promptPreview: string | null;
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
   customerId: string | null;
   feature: string | null;
+  evaluation: RagEvaluationResult | null;
+}
+
+// ── Platform: RAG Evaluation ──
+export interface ChunkRelevanceScore {
+  index: number;
+  score: number;
+  relevant: boolean;
+}
+
+export interface RagEvaluationResult {
+  id: string;
+  eventId: string;
+  faithfulnessScore: number | null;
+  faithfulnessReasoning: string | null;
+  relevanceScore: number | null;
+  relevanceReasoning: string | null;
+  contextRelevanceScore: number | null;
+  contextRelevanceReasoning: string | null;
+  chunkRelevanceScores: ChunkRelevanceScore[] | null;
+  evaluationModel: string;
+  evaluationCostUsd: number;
+  status: string;
+  error: string | null;
+  createdAt: string;
+}
+
+export interface RagQualityOverview {
+  totalEvaluated: number;
+  totalUnevaluated: number;
+  avgFaithfulness: number | null;
+  avgRelevance: number | null;
+  avgContextRelevance: number | null;
+  periodDays: number;
+  pipelineBreakdown: RagQualityPipelineStats[];
+  scoreDistribution: {
+    good: number;   // > 0.8
+    fair: number;   // 0.5–0.8
+    poor: number;   // < 0.5
+  };
+}
+
+export interface RagQualityPipelineStats {
+  pipelineId: string;
+  evaluatedCount: number;
+  avgFaithfulness: number | null;
+  avgRelevance: number | null;
+  avgContextRelevance: number | null;
+}
+
+export interface RagQualityTimeSeriesPoint {
+  date: string;
+  evaluatedCount: number;
+  avgFaithfulness: number | null;
+  avgRelevance: number | null;
+  avgContextRelevance: number | null;
 }
 
 // ── Platform: Prompt Management ──

@@ -11,12 +11,6 @@ export {
   assessRisk,
 } from './unitEconomics';
 
-export { simulateArchitectures } from './architectureSimulator';
-
-export { runSensitivityAnalysis } from './sensitivityAnalysis';
-
-export { recommendPricing } from './pricingRecommendation';
-
 export { calculateEventCost } from './costFromEvent';
 
 export {

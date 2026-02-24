@@ -6,9 +6,9 @@ import { useState, useRef, useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 
 const NAV_LINKS = [
-  { href: '/prompts', label: 'Prompts', requiresAuth: true },
-  { href: '/analytics', label: 'Analytics', requiresAuth: true },
-  { href: '/simulator', label: 'Simulator', requiresAuth: false },
+  { href: '/prompts', label: 'Prompts', requiresAuth: true, adminOnly: false },
+  { href: '/observability', label: 'Observability', requiresAuth: true, adminOnly: false },
+  { href: '/admin', label: 'Admin', requiresAuth: true, adminOnly: true },
 ];
 
 function TopNav() {
@@ -30,6 +30,8 @@ function TopNav() {
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/');
 
+  const isAdmin = user?.role === 'admin';
+
   return (
     <header className="border-b bg-white px-6 py-4">
       <div className="mx-auto flex max-w-7xl items-center gap-8">
@@ -39,6 +41,8 @@ function TopNav() {
 
         <nav className="flex gap-4 text-sm font-medium">
           {NAV_LINKS.map((link) => {
+            if (link.adminOnly && !isAdmin) return null;
+
             const active = isActive(link.href);
             const href =
               link.requiresAuth && !isAuthenticated
@@ -91,13 +95,6 @@ function TopNav() {
                       {user.role === 'admin' ? 'Admin' : 'Member'}
                     </span>
                   </div>
-                  <Link
-                    href="/settings"
-                    onClick={() => setMenuOpen(false)}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    Settings
-                  </Link>
                   <button
                     onClick={() => { setMenuOpen(false); logout(); }}
                     className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"

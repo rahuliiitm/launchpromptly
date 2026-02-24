@@ -209,10 +209,10 @@ export default function PlaygroundPage() {
         {availableModels.length === 0 ? (
           <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
             No models available. Please{' '}
-            <Link href="/settings/providers" className="font-medium underline">
+            <Link href="/admin/providers" className="font-medium underline">
               add your LLM provider keys
             </Link>{' '}
-            in Settings to get started.
+            in Admin to get started.
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">

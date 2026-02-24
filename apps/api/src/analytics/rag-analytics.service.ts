@@ -6,6 +6,7 @@ import type {
   RagTimeSeriesPoint,
   RagTraceListItem,
   RagTraceDetail,
+  ChunkRelevanceScore,
 } from '@aiecon/types';
 
 @Injectable()
@@ -138,6 +139,13 @@ export class RagAnalyticsService {
           costUsd: true,
           latencyMs: true,
           createdAt: true,
+          ragEvaluation: {
+            select: {
+              faithfulnessScore: true,
+              relevanceScore: true,
+              contextRelevanceScore: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -147,10 +155,16 @@ export class RagAnalyticsService {
     ]);
 
     return {
-      traces: traces.map((t) => ({
-        ...t,
-        createdAt: t.createdAt.toISOString(),
-      })),
+      traces: traces.map((t) => {
+        const { ragEvaluation, ...rest } = t;
+        return {
+          ...rest,
+          faithfulnessScore: ragEvaluation?.faithfulnessScore ?? null,
+          relevanceScore: ragEvaluation?.relevanceScore ?? null,
+          contextRelevanceScore: ragEvaluation?.contextRelevanceScore ?? null,
+          createdAt: t.createdAt.toISOString(),
+        };
+      }),
       total,
     };
   }
@@ -172,6 +186,7 @@ export class RagAnalyticsService {
         ragChunkCount: true,
         ragContextTokens: true,
         ragChunks: true,
+        responseText: true,
         model: true,
         provider: true,
         costUsd: true,
@@ -183,14 +198,28 @@ export class RagAnalyticsService {
         customerId: true,
         feature: true,
         createdAt: true,
+        ragEvaluation: true,
       },
     });
 
     if (!event) return null;
 
+    const { ragEvaluation, ...rest } = event;
+
     return {
-      ...event,
+      ...rest,
       ragChunks: event.ragChunks as RagTraceDetail['ragChunks'],
+      responseText: event.responseText,
+      faithfulnessScore: ragEvaluation?.faithfulnessScore ?? null,
+      relevanceScore: ragEvaluation?.relevanceScore ?? null,
+      contextRelevanceScore: ragEvaluation?.contextRelevanceScore ?? null,
+      evaluation: ragEvaluation
+        ? {
+            ...ragEvaluation,
+            chunkRelevanceScores: ragEvaluation.chunkRelevanceScores as ChunkRelevanceScore[] | null,
+            createdAt: ragEvaluation.createdAt.toISOString(),
+          }
+        : null,
       createdAt: event.createdAt.toISOString(),
     };
   }

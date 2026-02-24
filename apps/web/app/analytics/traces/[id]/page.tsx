@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
-export default function RagTraceDetailRedirect() {
+export default function TraceDetailRedirect() {
   const router = useRouter();
   const params = useParams();
   useEffect(() => {
