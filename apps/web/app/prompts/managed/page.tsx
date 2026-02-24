@@ -71,7 +71,7 @@ export default function ManagedPromptsPage() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Prompts</h1>
+          <h1 className="text-2xl font-bold">Managed Prompts</h1>
           <p className="mt-1 text-sm text-gray-500">
             Create, version, and deploy your AI prompts.
           </p>
@@ -84,19 +84,6 @@ export default function ManagedPromptsPage() {
             {showCreate ? 'Cancel' : 'Create Prompt'}
           </button>
         )}
-      </div>
-
-      {/* Tabs */}
-      <div className="mt-4 flex gap-1 border-b">
-        <Link
-          href="/dashboard/prompts"
-          className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700"
-        >
-          Discovered
-        </Link>
-        <span className="border-b-2 border-blue-600 px-4 py-2 text-sm font-medium text-blue-600">
-          Managed
-        </span>
       </div>
 
       {/* Create Form */}
@@ -165,9 +152,8 @@ export default function ManagedPromptsPage() {
         <div className="mt-12 text-center">
           <p className="text-gray-400">Not authenticated.</p>
           <p className="mt-1 text-sm text-gray-400">
-            Run a scenario from the{' '}
-            <Link href="/" className="text-blue-600 hover:underline">Simulator</Link>
-            {' '}to register, or integrate the SDK to start sending events.
+            <Link href="/login" className="text-blue-600 hover:underline">Sign in</Link>
+            {' '}to manage your prompts.
           </p>
         </div>
       )}
@@ -197,7 +183,7 @@ export default function ManagedPromptsPage() {
                   <tr key={p.id} className="border-b hover:bg-gray-50">
                     <td className="py-3">
                       <Link
-                        href={`/dashboard/prompts/managed/${p.id}`}
+                        href={`/prompts/managed/${p.id}`}
                         className="font-medium text-blue-600 hover:underline"
                       >
                         {p.name}

@@ -1,4 +1,4 @@
-import type { ModelPricing, RiskLevel } from '@aiecon/types';
+import type { ModelPricing, RiskLevel, LLMProvider } from '@aiecon/types';
 
 /**
  * Centralized model pricing configuration.
@@ -26,6 +26,30 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'claude-3-5-haiku-latest': { input: 0.0008, output: 0.004 },
   'claude-3-haiku-20240307': { input: 0.00025, output: 0.00125 },
 };
+
+export const MODEL_PROVIDER: Record<string, LLMProvider> = {
+  'gpt-4o': 'openai',
+  'gpt-4o-mini': 'openai',
+  'gpt-4': 'openai',
+  'gpt-4-mini': 'openai',
+  'gpt-4-turbo': 'openai',
+  'gpt-3.5-turbo': 'openai',
+  'o1': 'openai',
+  'o1-mini': 'openai',
+  'o3-mini': 'openai',
+  'claude-3-opus-20240229': 'anthropic',
+  'claude-3-5-sonnet-20241022': 'anthropic',
+  'claude-3-5-haiku-latest': 'anthropic',
+  'claude-3-haiku-20240307': 'anthropic',
+};
+
+export function getModelProvider(model: string): LLMProvider {
+  const provider = MODEL_PROVIDER[model];
+  if (!provider) {
+    throw new Error(`Unknown model: ${model}. Supported models: ${getSupportedModels().join(', ')}`);
+  }
+  return provider;
+}
 
 export function getSupportedModels(): string[] {
   return Object.keys(MODEL_PRICING);

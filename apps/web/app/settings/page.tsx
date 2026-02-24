@@ -3,17 +3,18 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
+import { useAuth } from '@/lib/auth-context';
 import type { ApiKey } from '@aiecon/types';
 
 export default function SettingsPage() {
+  const { user } = useAuth();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [newKey, setNewKey] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const token = typeof window !== 'undefined' ? getToken() : null;
-  const projectId = typeof window !== 'undefined' ? getProjectId() : null;
-
   useEffect(() => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) {
       setLoading(false);
       return;
@@ -24,9 +25,11 @@ export default function SettingsPage() {
       .then(setKeys)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [token, projectId]);
+  }, []);
 
   const handleGenerate = async () => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) return;
     const result = await apiFetch<{ apiKey: ApiKey; rawKey: string }>(
       `/project/${projectId}/api-keys`,
@@ -41,6 +44,8 @@ export default function SettingsPage() {
   };
 
   const handleRevoke = async (keyId: string) => {
+    const token = getToken();
+    const projectId = getProjectId();
     if (!token || !projectId) return;
     await apiFetch(`/project/${projectId}/api-keys/${keyId}`, {
       method: 'DELETE',
@@ -53,11 +58,34 @@ export default function SettingsPage() {
     return <div className="py-20 text-center text-gray-400">Loading...</div>;
   }
 
+  const planLabel = user?.plan === 'business' ? 'Business' : user?.plan === 'pro' ? 'Pro' : 'Free';
+  const planColor = user?.plan === 'business' ? 'bg-purple-100 text-purple-700' : user?.plan === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700';
+
   return (
     <div>
       <h1 className="text-2xl font-bold">Settings</h1>
 
-      <div className="mt-6">
+      {/* Plan Section */}
+      <div className="mt-6 rounded-lg border bg-white p-4">
+        <h2 className="text-lg font-semibold">Plan</h2>
+        <div className="mt-2 flex items-center gap-3">
+          <span className={`rounded px-3 py-1 text-sm font-medium ${planColor}`}>
+            {planLabel}
+          </span>
+          <span className="text-sm text-gray-500">
+            During beta, all features are available.
+          </span>
+        </div>
+        <button
+          disabled
+          className="mt-3 rounded border px-4 py-2 text-sm text-gray-400 cursor-not-allowed"
+        >
+          Upgrade — Coming soon
+        </button>
+      </div>
+
+      {/* API Keys Section */}
+      <div className="mt-8">
         <h2 className="text-lg font-semibold">API Keys</h2>
         <p className="mt-1 text-sm text-gray-500">
           Use these keys to authenticate the PlanForge SDK.

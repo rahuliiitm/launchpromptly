@@ -10,6 +10,7 @@ datasource db {
 model User {
   id             String        @id @default(uuid())
   email          String        @unique
+  passwordHash   String?
   organizationId String?
   createdAt      DateTime      @default(now())
   scenarios      Scenario[]
@@ -17,11 +18,28 @@ model User {
 }
 
 model Organization {
-  id        String    @id @default(uuid())
-  name      String
-  createdAt DateTime  @default(now())
-  users     User[]
-  projects  Project[]
+  id           String           @id @default(uuid())
+  name         String
+  plan         String           @default("free")
+  createdAt    DateTime         @default(now())
+  users        User[]
+  projects     Project[]
+  providerKeys OrgProviderKey[]
+}
+
+model OrgProviderKey {
+  id             String       @id @default(uuid())
+  organizationId String
+  provider       String
+  encryptedKey   String
+  iv             String
+  authTag        String
+  label          String       @default("Default")
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
 }
 
 model Project {
@@ -32,7 +50,6 @@ model Project {
   organization    Organization     @relation(fields: [organizationId], references: [id])
   apiKeys         ApiKey[]
   events          LLMEvent[]
-  promptTemplates PromptTemplate[]
   managedPrompts  ManagedPrompt[]
 
   @@index([organizationId])
@@ -83,25 +100,12 @@ model LLMEvent {
   @@index([projectId, managedPromptId])
 }
 
-model PromptTemplate {
-  id                String   @id @default(uuid())
-  projectId         String
-  systemHash        String
-  normalizedContent String
-  firstSeenAt       DateTime @default(now())
-  lastSeenAt        DateTime @default(now())
-  project           Project  @relation(fields: [projectId], references: [id])
-
-  @@unique([projectId, systemHash])
-}
-
 model ManagedPrompt {
   id               String          @id @default(uuid())
   projectId        String
   slug             String
   name             String
   description      String          @default("")
-  sourceTemplateId String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   project          Project         @relation(fields: [projectId], references: [id])

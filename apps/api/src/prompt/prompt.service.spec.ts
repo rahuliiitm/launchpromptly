@@ -28,9 +28,6 @@ describe('PromptService', () => {
       update: jest.fn(),
       aggregate: jest.fn(),
     },
-    promptTemplate: {
-      findUnique: jest.fn(),
-    },
     aBTest: {
       create: jest.fn(),
       findFirst: jest.fn(),
@@ -346,51 +343,6 @@ describe('PromptService', () => {
       await expect(service.rollbackVersion('proj1', 'p1', 'user1')).rejects.toThrow(
         BadRequestException,
       );
-    });
-  });
-
-  // ── promoteTemplate ──
-
-  describe('promoteTemplate', () => {
-    it('should create ManagedPrompt + v1 from PromptTemplate', async () => {
-      mockPrisma.promptTemplate.findUnique.mockResolvedValue({
-        id: 't1',
-        normalizedContent: 'You are helpful',
-      });
-
-      const prompt = { id: 'p1', slug: 'helper', name: 'Helper' };
-      const version = { id: 'v1', version: 1, content: 'You are helpful', status: 'draft' };
-
-      mockPrisma.$transaction.mockImplementation(async (fn: any) => {
-        const tx = {
-          managedPrompt: { create: jest.fn().mockResolvedValue(prompt) },
-          promptVersion: { create: jest.fn().mockResolvedValue(version) },
-        };
-        return fn(tx);
-      });
-
-      const result = await service.promoteTemplate('proj1', 'hash123', 'user1', 'helper', 'Helper');
-      expect(result).toEqual({ ...prompt, versions: [version] });
-    });
-
-    it('should throw NotFoundException for missing template hash', async () => {
-      mockPrisma.promptTemplate.findUnique.mockResolvedValue(null);
-
-      await expect(
-        service.promoteTemplate('proj1', 'bad-hash', 'user1', 'slug', 'Name'),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw ConflictException for duplicate slug', async () => {
-      mockPrisma.promptTemplate.findUnique.mockResolvedValue({
-        id: 't1',
-        normalizedContent: 'content',
-      });
-      mockPrisma.$transaction.mockRejectedValue({ code: 'P2002' });
-
-      await expect(
-        service.promoteTemplate('proj1', 'hash1', 'user1', 'taken', 'Name'),
-      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -864,6 +816,80 @@ describe('PromptService', () => {
         // expected
       }
       expect(mockProjectService.assertProjectAccess).toHaveBeenCalledWith('proj1', 'user1');
+    });
+  });
+
+  // ── analyzePrompt ──
+
+  describe('analyzePrompt', () => {
+    it('should estimate tokens and cost for a prompt', async () => {
+      mockConfigService.get.mockReturnValue(undefined);
+      const module = await Test.createTestingModule({
+        providers: [
+          PromptService,
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: ProjectService, useValue: mockProjectService },
+          { provide: ConfigService, useValue: mockConfigService },
+        ],
+      }).compile();
+      const svc = module.get<PromptService>(PromptService);
+
+      const result = await svc.analyzePrompt('Hello world this is a test prompt');
+      expect(result.originalTokenEstimate).toBeGreaterThan(0);
+      expect(result.originalCostPerCall).toBeGreaterThan(0);
+      expect(result.model).toBe('gpt-4o');
+      // No API key → no optimization
+      expect(result.optimizedContent).toBeNull();
+      expect(result.analysis).toBeNull();
+    });
+
+    it('should use specified model when valid', async () => {
+      mockConfigService.get.mockReturnValue(undefined);
+      const module = await Test.createTestingModule({
+        providers: [
+          PromptService,
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: ProjectService, useValue: mockProjectService },
+          { provide: ConfigService, useValue: mockConfigService },
+        ],
+      }).compile();
+      const svc = module.get<PromptService>(PromptService);
+
+      const result = await svc.analyzePrompt('Test prompt content', 'gpt-4o-mini');
+      expect(result.model).toBe('gpt-4o-mini');
+    });
+
+    it('should fall back to gpt-4o for unknown model', async () => {
+      mockConfigService.get.mockReturnValue(undefined);
+      const module = await Test.createTestingModule({
+        providers: [
+          PromptService,
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: ProjectService, useValue: mockProjectService },
+          { provide: ConfigService, useValue: mockConfigService },
+        ],
+      }).compile();
+      const svc = module.get<PromptService>(PromptService);
+
+      const result = await svc.analyzePrompt('Test prompt', 'invalid-model-xyz');
+      expect(result.model).toBe('gpt-4o');
+    });
+
+    it('should calculate token estimate using word count heuristic', async () => {
+      mockConfigService.get.mockReturnValue(undefined);
+      const module = await Test.createTestingModule({
+        providers: [
+          PromptService,
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: ProjectService, useValue: mockProjectService },
+          { provide: ConfigService, useValue: mockConfigService },
+        ],
+      }).compile();
+      const svc = module.get<PromptService>(PromptService);
+
+      // 10 words → Math.ceil(10 / 0.75) = 14 tokens
+      const result = await svc.analyzePrompt('one two three four five six seven eight nine ten');
+      expect(result.originalTokenEstimate).toBe(14);
     });
   });
 

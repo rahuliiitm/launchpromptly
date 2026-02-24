@@ -1,6 +1,8 @@
 export {
   MODEL_PRICING,
+  MODEL_PROVIDER,
   getSupportedModels,
+  getModelProvider,
   calculatePerRequestCost,
   calculateMonthlyCost,
   calculateCostPerUser,

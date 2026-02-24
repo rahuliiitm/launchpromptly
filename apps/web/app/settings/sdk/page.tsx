@@ -26,7 +26,7 @@ const response = await openai.chat.completions.create({
 // On server shutdown
 await pf.flush();`;
 
-export default function OnboardingPage() {
+export default function SDKSetupPage() {
   const [copied, setCopied] = useState('');
 
   const copyToClipboard = (text: string, label: string) => {
@@ -48,8 +48,8 @@ export default function OnboardingPage() {
         <h2 className="text-lg font-semibold">1. Generate an API Key</h2>
         <p className="mt-1 text-sm text-gray-500">
           Go to{' '}
-          <a href="/dashboard/settings" className="text-blue-600 underline">
-            Settings
+          <a href="/settings" className="text-blue-600 underline">
+            API Keys
           </a>{' '}
           and generate a new API key.
         </p>
@@ -89,11 +89,11 @@ export default function OnboardingPage() {
 
       {/* Step 4 */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold">4. Check the Dashboard</h2>
+        <h2 className="text-lg font-semibold">4. Check Analytics</h2>
         <p className="mt-1 text-sm text-gray-500">
           Once events are flowing, go to the{' '}
-          <a href="/dashboard" className="text-blue-600 underline">
-            Overview
+          <a href="/analytics" className="text-blue-600 underline">
+            Analytics Overview
           </a>{' '}
           page to see your costs in real time.
         </p>

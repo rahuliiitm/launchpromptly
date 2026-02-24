@@ -14,11 +14,13 @@ export interface TestAuth {
 export async function createTestAuth(): Promise<TestAuth> {
   const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
 
+  const password = 'testpassword123';
+
   // Register user — auto-provisions org + project
   const regRes = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, password }),
   });
   if (!regRes.ok) throw new Error(`Registration failed: ${regRes.status}`);
   const { accessToken: token, userId } = await regRes.json();

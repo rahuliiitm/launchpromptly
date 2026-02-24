@@ -5,7 +5,6 @@ import type {
   OverviewAnalytics,
   CustomerAnalyticsItem,
   FeatureAnalyticsItem,
-  TemplateAnalyticsItem,
   TimeSeriesPoint,
 } from '@aiecon/types';
 
@@ -102,46 +101,6 @@ export class AnalyticsService {
         totalCostUsd: g._sum.costUsd ?? 0,
         callCount: g._count.id,
       }));
-  }
-
-  async getTemplateBreakdown(
-    projectId: string,
-    userId: string,
-    days: number = 30,
-  ): Promise<TemplateAnalyticsItem[]> {
-    await this.projectService.assertProjectAccess(projectId, userId);
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-
-    const groups = await this.prisma.lLMEvent.groupBy({
-      by: ['systemHash'],
-      where: { projectId, createdAt: { gte: since }, systemHash: { not: null } },
-      _sum: { costUsd: true },
-      _count: { id: true },
-      orderBy: { _sum: { costUsd: 'desc' } },
-    });
-
-    const hashes = groups
-      .map((g) => g.systemHash)
-      .filter((h): h is string => h !== null);
-
-    const templates = await this.prisma.promptTemplate.findMany({
-      where: { projectId, systemHash: { in: hashes } },
-    });
-    const templateMap = new Map(templates.map((t) => [t.systemHash, t]));
-
-    return groups
-      .filter((g): g is typeof g & { systemHash: string } => g.systemHash !== null)
-      .map((g) => {
-        const tmpl = templateMap.get(g.systemHash);
-        return {
-          systemHash: g.systemHash,
-          normalizedContent: tmpl?.normalizedContent ?? '',
-          callCount: g._count.id,
-          totalCostUsd: g._sum.costUsd ?? 0,
-          avgCostPerCall: g._count.id > 0 ? (g._sum.costUsd ?? 0) / g._count.id : 0,
-          lastSeenAt: tmpl?.lastSeenAt ?? new Date(),
-        };
-      });
   }
 
   async getTimeSeries(

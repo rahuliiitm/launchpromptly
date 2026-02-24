@@ -1,28 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
 import { OptimizationService } from './optimization.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
-
-const mockAnalysisResponse = {
-  content: [
-    {
-      type: 'text' as const,
-      text: 'Consider removing redundant instructions and combining similar directives.',
-    },
-  ],
-};
-
-jest.mock('@anthropic-ai/sdk', () => {
-  return {
-    __esModule: true,
-    default: jest.fn().mockImplementation(() => ({
-      messages: {
-        create: jest.fn().mockResolvedValue(mockAnalysisResponse),
-      },
-    })),
-  };
-});
 
 describe('OptimizationService', () => {
   let service: OptimizationService;
@@ -37,28 +16,12 @@ describe('OptimizationService', () => {
             lLMEvent: {
               groupBy: jest.fn().mockResolvedValue([]),
             },
-            promptTemplate: {
-              findUnique: jest.fn().mockResolvedValue({
-                projectId: 'proj-1',
-                systemHash: 'hash-abc',
-                normalizedContent: 'You are a helpful assistant that answers questions.',
-              }),
-            },
           },
         },
         {
           provide: ProjectService,
           useValue: {
             assertProjectAccess: jest.fn().mockResolvedValue(undefined),
-          },
-        },
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn().mockImplementation((key: string) => {
-              if (key === 'ANTHROPIC_API_KEY') return 'test-api-key';
-              return undefined;
-            }),
           },
         },
       ],
@@ -157,41 +120,4 @@ describe('OptimizationService', () => {
     }
   });
 
-  it('should analyze template with Claude and return analysis text', async () => {
-    const result = await service.analyzeTemplateWithClaude('proj-1', 'user-1', 'hash-abc');
-    expect(result).toContain('removing redundant');
-  });
-
-  it('should return fallback when ANTHROPIC_API_KEY is not set', async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        OptimizationService,
-        {
-          provide: PrismaService,
-          useValue: {
-            lLMEvent: { groupBy: jest.fn() },
-            promptTemplate: {
-              findUnique: jest.fn().mockResolvedValue({
-                projectId: 'proj-1',
-                systemHash: 'hash-abc',
-                normalizedContent: 'Test content',
-              }),
-            },
-          },
-        },
-        {
-          provide: ProjectService,
-          useValue: { assertProjectAccess: jest.fn().mockResolvedValue(undefined) },
-        },
-        {
-          provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue(undefined) },
-        },
-      ],
-    }).compile();
-
-    const svc = module.get<OptimizationService>(OptimizationService);
-    const result = await svc.analyzeTemplateWithClaude('proj-1', 'user-1', 'hash-abc');
-    expect(result).toContain('unavailable');
-  });
 });

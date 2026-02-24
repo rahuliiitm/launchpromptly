@@ -4,12 +4,13 @@ const API_BASE = process.env.API_URL ?? 'http://localhost:3001';
 
 async function registerAndLogin(page: Page): Promise<{ token: string; projectId: string }> {
   const email = `pw-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
+  const password = 'testpassword123';
 
   // Register via API
   const regRes = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, password }),
   });
   const { accessToken: token, userId } = await regRes.json();
 
@@ -27,6 +28,7 @@ async function registerAndLogin(page: Page): Promise<{ token: string; projectId:
       localStorage.setItem('pf_token', token);
       localStorage.setItem('pf_user_id', userId);
       localStorage.setItem('pf_project_id', projectId);
+      localStorage.setItem('pf_plan', 'free');
     },
     { token, userId, projectId },
   );
@@ -45,12 +47,12 @@ test.describe('Prompt Management', () => {
   });
 
   test('navigate to prompts page and see empty state', async ({ page }) => {
-    await page.goto('/dashboard/prompts/managed');
+    await page.goto('/prompts/managed');
     await expect(page.getByText('No managed prompts yet')).toBeVisible();
   });
 
   test('create a new prompt via form', async ({ page }) => {
-    await page.goto('/dashboard/prompts/managed');
+    await page.goto('/prompts/managed');
 
     // Create Prompt button should be visible when authenticated
     await expect(page.getByRole('button', { name: 'Create Prompt' })).toBeVisible({ timeout: 5000 });
@@ -73,21 +75,19 @@ test.describe('Prompt Management', () => {
     await expect(page.getByText('1')).toBeVisible();
   });
 
-  test('create prompt without auth shows error', async ({ page }) => {
+  test('unauthenticated user is redirected to login', async ({ page }) => {
     // Navigate to managed page without any auth in localStorage
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.removeItem('pf_token');
       localStorage.removeItem('pf_user_id');
       localStorage.removeItem('pf_project_id');
+      localStorage.removeItem('pf_plan');
     });
-    await page.goto('/dashboard/prompts/managed');
+    await page.goto('/prompts/managed');
 
-    // Create Prompt button should NOT be visible when not authenticated
-    await expect(page.getByRole('button', { name: 'Create Prompt' })).not.toBeVisible({ timeout: 3000 });
-
-    // Should show not-authenticated message
-    await expect(page.getByText('Not authenticated')).toBeVisible();
+    // Should redirect to login page
+    await expect(page).toHaveURL(/\/login/, { timeout: 5000 });
   });
 
   test('click prompt to see detail page', async ({ page }) => {
@@ -105,7 +105,7 @@ test.describe('Prompt Management', () => {
       }),
     });
 
-    await page.goto('/dashboard/prompts/managed');
+    await page.goto('/prompts/managed');
     await page.getByText('Detail Test').click();
 
     // Should see detail page with version
@@ -129,7 +129,7 @@ test.describe('Prompt Management', () => {
     });
     const { id: promptId } = await res.json();
 
-    await page.goto(`/dashboard/prompts/managed/${promptId}`);
+    await page.goto(`/prompts/managed/${promptId}`);
     await page.getByRole('button', { name: 'New Version' }).click();
     await page.locator('textarea').fill('Version 2 content');
     await page.getByRole('button', { name: 'Create Version' }).click();
@@ -153,7 +153,7 @@ test.describe('Prompt Management', () => {
     });
     const { id: promptId } = await res.json();
 
-    await page.goto(`/dashboard/prompts/managed/${promptId}`);
+    await page.goto(`/prompts/managed/${promptId}`);
 
     // v1 should be draft initially
     await expect(page.getByText('draft')).toBeVisible({ timeout: 5000 });
@@ -203,7 +203,7 @@ test.describe('Prompt Management', () => {
       { method: 'POST', headers: { Authorization: `Bearer ${token}` } },
     );
 
-    await page.goto(`/dashboard/prompts/managed/${promptId}`);
+    await page.goto(`/prompts/managed/${promptId}`);
 
     // Click Rollback
     await page.getByRole('button', { name: 'Rollback' }).click();
@@ -230,7 +230,7 @@ test.describe('Prompt Management', () => {
     });
     const { id: promptId } = await res.json();
 
-    await page.goto(`/dashboard/prompts/managed/${promptId}`);
+    await page.goto(`/prompts/managed/${promptId}`);
 
     await page.getByRole('button', { name: 'Edit' }).click();
 
@@ -259,7 +259,7 @@ test.describe('Prompt Management', () => {
     });
     await res.json();
 
-    await page.goto('/dashboard/prompts/managed');
+    await page.goto('/prompts/managed');
     await page.getByText('Delete Me').click();
 
     // Accept the confirmation dialog
@@ -267,15 +267,26 @@ test.describe('Prompt Management', () => {
     await page.getByRole('button', { name: 'Delete' }).click();
 
     // Should redirect to managed list
-    await expect(page).toHaveURL('/dashboard/prompts/managed', { timeout: 5000 });
+    await expect(page).toHaveURL('/prompts/managed', { timeout: 5000 });
   });
 
-  test('tab navigation between Discovered and Managed', async ({ page }) => {
-    await page.goto('/dashboard/prompts');
-    await expect(page.getByText('Discovered')).toBeVisible();
-    await expect(page.getByText('Managed')).toBeVisible();
+  test('sidebar navigation between Playground and Managed', async ({ page }) => {
+    await page.goto('/prompts');
+    await expect(page.getByRole('link', { name: 'Playground' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Managed' })).toBeVisible();
 
-    await page.getByText('Managed').click();
-    await expect(page).toHaveURL('/dashboard/prompts/managed');
+    await page.getByRole('link', { name: 'Managed' }).click();
+    await expect(page).toHaveURL('/prompts/managed');
+  });
+
+  test('Playground page shows dual textareas', async ({ page }) => {
+    await page.goto('/prompts');
+    await expect(page.getByText('Prompt Playground')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByPlaceholder('You are a helpful assistant...')).toBeVisible();
+    await expect(page.getByPlaceholder('What is the capital of France?')).toBeVisible();
+
+    // Type a system prompt and verify token estimate updates
+    await page.getByPlaceholder('You are a helpful assistant...').fill('You are a helpful assistant that answers questions about our product.');
+    await expect(page.getByText('tokens')).toBeVisible();
   });
 });

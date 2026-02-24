@@ -16,9 +16,6 @@ describe('EventsService', () => {
             lLMEvent: {
               createMany: jest.fn().mockResolvedValue({ count: 2 }),
             },
-            promptTemplate: {
-              upsert: jest.fn().mockResolvedValue({}),
-            },
           },
         },
       ],
@@ -50,32 +47,6 @@ describe('EventsService', () => {
         expect.objectContaining({ projectId: 'project-123', model: 'gpt-4o-mini' }),
       ]),
     });
-  });
-
-  it('should upsert prompt template for events with systemHash', async () => {
-    await service.ingestBatch('project-123', {
-      events: [{ ...baseEvent, systemHash: 'abc123', promptPreview: 'Hello' }],
-    });
-
-    expect(prisma.promptTemplate.upsert).toHaveBeenCalledWith({
-      where: {
-        projectId_systemHash: { projectId: 'project-123', systemHash: 'abc123' },
-      },
-      update: { lastSeenAt: expect.any(Date) },
-      create: expect.objectContaining({
-        projectId: 'project-123',
-        systemHash: 'abc123',
-        normalizedContent: 'Hello',
-      }),
-    });
-  });
-
-  it('should skip template upsert for events without systemHash', async () => {
-    await service.ingestBatch('project-123', {
-      events: [baseEvent],
-    });
-
-    expect(prisma.promptTemplate.upsert).not.toHaveBeenCalled();
   });
 
   it('should set null for optional fields when not provided', async () => {

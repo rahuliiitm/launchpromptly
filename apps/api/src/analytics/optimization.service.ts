@@ -1,6 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
 import type { OptimizationRecommendation } from '@aiecon/types';
@@ -17,16 +15,10 @@ const EXPENSIVE_MODELS: Record<string, string> = {
 
 @Injectable()
 export class OptimizationService {
-  private readonly client: Anthropic;
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly projectService: ProjectService,
-    private readonly configService: ConfigService,
-  ) {
-    const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
-    this.client = new Anthropic({ apiKey: apiKey ?? '' });
-  }
+  ) {}
 
   async getRecommendations(
     projectId: string,
@@ -120,36 +112,5 @@ export class OptimizationService {
     }
 
     return recommendations.sort((a, b) => b.estimatedSavingsUsd - a.estimatedSavingsUsd);
-  }
-
-  async analyzeTemplateWithClaude(
-    projectId: string,
-    userId: string,
-    systemHash: string,
-  ): Promise<string> {
-    await this.projectService.assertProjectAccess(projectId, userId);
-
-    const template = await this.prisma.promptTemplate.findUnique({
-      where: { projectId_systemHash: { projectId, systemHash } },
-    });
-
-    if (!template) return 'Template not found.';
-
-    const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
-    if (!apiKey) return 'AI analysis unavailable (ANTHROPIC_API_KEY not set).';
-
-    const message = await this.client.messages.create({
-      model: 'claude-3-5-haiku-latest',
-      max_tokens: 512,
-      messages: [
-        {
-          role: 'user',
-          content: `Analyze this system prompt template and suggest specific ways to reduce token count while preserving meaning. Be concrete and brief (under 200 words).\n\nTemplate:\n${template.normalizedContent}`,
-        },
-      ],
-    });
-
-    const textBlock = message.content.find((b) => b.type === 'text');
-    return textBlock && 'text' in textBlock ? textBlock.text : 'Unable to analyze.';
   }
 }

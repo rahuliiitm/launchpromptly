@@ -9,12 +9,16 @@ import { SnapshotModule } from './snapshot/snapshot.module';
 import { AdvisoryModule } from './advisory/advisory.module';
 import { ScenarioModule } from './scenario/scenario.module';
 import { PromptModule } from './prompt/prompt.module';
+import { CryptoModule } from './crypto/crypto.module';
+import { ProviderKeyModule } from './provider-key/provider-key.module';
+import { PlaygroundModule } from './playground/playground.module';
 import { AppController } from './app.controller';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    CryptoModule,
     AuthModule,
     ProjectModule,
     EventsModule,
@@ -23,6 +27,8 @@ import { AppController } from './app.controller';
     AdvisoryModule,
     ScenarioModule,
     PromptModule,
+    ProviderKeyModule,
+    PlaygroundModule,
   ],
   controllers: [AppController],
 })

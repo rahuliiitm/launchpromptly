@@ -11,24 +11,6 @@ export class EventsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async ingestBatch(projectId: string, dto: IngestBatchDto): Promise<IngestResult> {
-    const systemHashEvents = dto.events.filter((e) => e.systemHash);
-    for (const event of systemHashEvents) {
-      if (!event.systemHash) continue;
-      await this.prisma.promptTemplate.upsert({
-        where: {
-          projectId_systemHash: { projectId, systemHash: event.systemHash },
-        },
-        update: { lastSeenAt: new Date() },
-        create: {
-          projectId,
-          systemHash: event.systemHash,
-          normalizedContent: event.promptPreview ?? '',
-          firstSeenAt: new Date(),
-          lastSeenAt: new Date(),
-        },
-      });
-    }
-
     await this.prisma.lLMEvent.createMany({
       data: dto.events.map((e) => ({
         projectId,

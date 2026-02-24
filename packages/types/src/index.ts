@@ -1,8 +1,25 @@
+// ── Billing ──
+export type PlanTier = 'free' | 'pro' | 'business';
+
 // ── User ──
 export interface User {
   id: string;
   email: string;
   createdAt: Date;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  organizationId: string | null;
+  plan: PlanTier;
+  projectId: string | null;
+}
+
+export interface AuthResponse {
+  accessToken: string;
+  userId: string;
+  plan: PlanTier;
 }
 
 // ── Scenario ──
@@ -198,15 +215,6 @@ export interface LLMEvent {
   createdAt: Date;
 }
 
-export interface PromptTemplate {
-  id: string;
-  projectId: string;
-  systemHash: string;
-  normalizedContent: string;
-  firstSeenAt: Date;
-  lastSeenAt: Date;
-}
-
 // ── Platform: SDK Event Payloads ──
 export interface IngestEventPayload {
   provider: LLMProvider;
@@ -259,15 +267,6 @@ export interface FeatureAnalyticsItem {
   callCount: number;
 }
 
-export interface TemplateAnalyticsItem {
-  systemHash: string;
-  normalizedContent: string;
-  callCount: number;
-  totalCostUsd: number;
-  avgCostPerCall: number;
-  lastSeenAt: Date;
-}
-
 export interface TimeSeriesPoint {
   date: string;
   costUsd: number;
@@ -297,7 +296,6 @@ export interface ManagedPrompt {
   slug: string;
   name: string;
   description: string;
-  sourceTemplateId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -367,4 +365,49 @@ export interface PromptVersionAnalytics {
   totalCostUsd: number;
   avgLatencyMs: number;
   avgCostPerCall: number;
+}
+
+// ── Platform: Provider Keys ──
+export interface OrgProviderKey {
+  id: string;
+  organizationId: string;
+  provider: LLMProvider;
+  label: string;
+  createdAt: Date;
+}
+
+// ── Platform: Playground ──
+export interface PlaygroundRequest {
+  systemPrompt: string;
+  userMessage: string;
+  models: string[];
+}
+
+export interface PlaygroundModelResult {
+  model: string;
+  provider: LLMProvider;
+  response: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  latencyMs: number;
+  error?: string;
+}
+
+export interface PlaygroundResponse {
+  results: PlaygroundModelResult[];
+}
+
+// ── Platform: Prompt Analysis ──
+export interface PromptAnalysis {
+  originalTokenEstimate: number;
+  originalCostPerCall: number;
+  optimizedContent: string | null;
+  analysis: string | null;
+  optimizedTokenEstimate: number | null;
+  optimizedCostPerCall: number | null;
+  tokenSavings: number | null;
+  costSavings: number | null;
+  model: string;
 }

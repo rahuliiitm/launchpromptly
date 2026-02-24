@@ -42,15 +42,6 @@ describe('AnalyticsService', () => {
                 },
               ]),
             },
-            promptTemplate: {
-              findMany: jest.fn().mockResolvedValue([
-                {
-                  systemHash: 'hash-abc',
-                  normalizedContent: 'You are a helpful bot',
-                  lastSeenAt: new Date('2026-02-20'),
-                },
-              ]),
-            },
             $queryRaw: jest.fn().mockResolvedValue([
               { date: new Date('2026-02-20'), total_cost: 5.0, call_count: BigInt(50) },
               { date: new Date('2026-02-21'), total_cost: 7.5, call_count: BigInt(50) },
@@ -91,13 +82,6 @@ describe('AnalyticsService', () => {
     const result = await service.getFeatureBreakdown('proj-1', 'user-1');
     expect(result).toHaveLength(2);
     expect(result[0]?.feature).toBe('chat');
-  });
-
-  it('should return template breakdown with normalized content', async () => {
-    const result = await service.getTemplateBreakdown('proj-1', 'user-1');
-    expect(result).toHaveLength(2);
-    expect(result[0]?.normalizedContent).toBe('You are a helpful bot');
-    expect(result[1]?.normalizedContent).toBe('');
   });
 
   it('should return timeseries with date strings', async () => {

@@ -4,11 +4,12 @@ const API_BASE = process.env.API_URL ?? 'http://localhost:3001';
 
 async function registerAndLogin(page: Page): Promise<{ token: string; projectId: string }> {
   const email = `pw-ab-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
+  const password = 'testpassword123';
 
   const regRes = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, password }),
   });
   const { accessToken: token, userId } = await regRes.json();
 
@@ -24,6 +25,7 @@ async function registerAndLogin(page: Page): Promise<{ token: string; projectId:
       localStorage.setItem('pf_token', token);
       localStorage.setItem('pf_user_id', userId);
       localStorage.setItem('pf_project_id', projectId);
+      localStorage.setItem('pf_plan', 'free');
     },
     { token, userId, projectId },
   );
@@ -78,7 +80,7 @@ test.describe('A/B Testing', () => {
   test('create an A/B test with two versions', async ({ page }) => {
     const { promptId, v1Id, v2Id } = await seedPromptWithVersions(token, projectId);
 
-    await page.goto(`/dashboard/prompts/managed/${promptId}/ab-tests`);
+    await page.goto(`/prompts/managed/${promptId}/ab-tests`);
 
     await page.getByRole('button', { name: 'New A/B Test' }).click();
     await page.locator('input[placeholder*="Concise"]').fill('A vs B test');
@@ -117,7 +119,7 @@ test.describe('A/B Testing', () => {
     );
     const { id: testId } = await createRes.json();
 
-    await page.goto(`/dashboard/prompts/managed/${promptId}/ab-tests`);
+    await page.goto(`/prompts/managed/${promptId}/ab-tests`);
 
     // The test list should include our test (loaded from API via getABTestResults or similar)
     // For now we just check the page loads and has the button
@@ -155,7 +157,7 @@ test.describe('A/B Testing', () => {
       { method: 'POST', headers: { Authorization: `Bearer ${token}` } },
     );
 
-    await page.goto(`/dashboard/prompts/managed/${promptId}/ab-tests`);
+    await page.goto(`/prompts/managed/${promptId}/ab-tests`);
     await page.getByRole('button', { name: 'View Results' }).click();
 
     // Results table should appear (even if empty)
@@ -190,7 +192,7 @@ test.describe('A/B Testing', () => {
       { method: 'POST', headers: { Authorization: `Bearer ${token}` } },
     );
 
-    await page.goto(`/dashboard/prompts/managed/${promptId}/ab-tests`);
+    await page.goto(`/prompts/managed/${promptId}/ab-tests`);
     await page.getByRole('button', { name: 'Stop' }).click();
 
     await expect(page.getByText('completed', { exact: true })).toBeVisible({ timeout: 5000 });

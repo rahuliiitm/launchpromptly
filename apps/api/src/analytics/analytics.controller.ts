@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AnalyticsService } from './analytics.service';
@@ -48,16 +48,6 @@ export class AnalyticsController {
     return this.analyticsService.getFeatureBreakdown(projectId, user.userId, this.parseDays(days));
   }
 
-  @Get(':projectId/templates')
-  async templates(
-    @Param('projectId') projectId: string,
-    @Query('days') days: string,
-    @Req() req: Request,
-  ): Promise<unknown> {
-    const user = req.user as AuthUser;
-    return this.analyticsService.getTemplateBreakdown(projectId, user.userId, this.parseDays(days));
-  }
-
   @Get(':projectId/timeseries')
   async timeseries(
     @Param('projectId') projectId: string,
@@ -77,18 +67,4 @@ export class AnalyticsController {
     return this.optimizationService.getRecommendations(projectId, user.userId);
   }
 
-  @Post(':projectId/templates/:hash/analyze')
-  async analyzeTemplate(
-    @Param('projectId') projectId: string,
-    @Param('hash') hash: string,
-    @Req() req: Request,
-  ): Promise<{ analysis: string }> {
-    const user = req.user as AuthUser;
-    const analysis = await this.optimizationService.analyzeTemplateWithClaude(
-      projectId,
-      user.userId,
-      hash,
-    );
-    return { analysis };
-  }
 }

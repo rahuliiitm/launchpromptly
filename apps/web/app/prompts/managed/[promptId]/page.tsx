@@ -162,7 +162,7 @@ export default function PromptDetailPage() {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      router.push('/dashboard/prompts/managed');
+      router.push('/prompts/managed');
     } catch (err) {
       setError((err as Error).message);
       setActionLoading(null);
@@ -184,7 +184,7 @@ export default function PromptDetailPage() {
     <div>
       {/* Breadcrumb */}
       <div className="mb-4 text-sm text-gray-500">
-        <Link href="/dashboard/prompts/managed" className="hover:text-gray-700">
+        <Link href="/prompts/managed" className="hover:text-gray-700">
           Managed Prompts
         </Link>
         {' > '}
@@ -260,7 +260,7 @@ export default function PromptDetailPage() {
             {actionLoading === 'rollback' ? 'Rolling back...' : 'Rollback'}
           </button>
           <Link
-            href={`/dashboard/prompts/managed/${promptId}/ab-tests`}
+            href={`/prompts/managed/${promptId}/ab-tests`}
             className="rounded border px-3 py-1.5 text-xs font-medium hover:bg-gray-50"
           >
             A/B Tests

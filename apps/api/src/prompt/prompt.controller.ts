@@ -17,6 +17,7 @@ import { CreateManagedPromptDto } from './dto/create-managed-prompt.dto';
 import { UpdateManagedPromptDto } from './dto/update-managed-prompt.dto';
 import { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
 import { CreateABTestDto } from './dto/create-ab-test.dto';
+import { AnalyzePromptDto } from './dto/analyze-prompt.dto';
 import type { Request } from 'express';
 
 interface AuthUser {
@@ -28,6 +29,12 @@ interface AuthUser {
 @UseGuards(JwtAuthGuard)
 export class PromptController {
   constructor(private readonly promptService: PromptService) {}
+
+  // Must be before :projectId routes to prevent "analyze" matching as a projectId
+  @Post('analyze')
+  async analyze(@Body() dto: AnalyzePromptDto) {
+    return this.promptService.analyzePrompt(dto.content, dto.model);
+  }
 
   @Post(':projectId')
   async create(
@@ -211,20 +218,4 @@ export class PromptController {
     );
   }
 
-  @Post(':projectId/promote/:templateHash')
-  async promote(
-    @Param('projectId') projectId: string,
-    @Param('templateHash') templateHash: string,
-    @Body() body: { slug: string; name: string },
-    @Req() req: Request,
-  ) {
-    const user = req.user as AuthUser;
-    return this.promptService.promoteTemplate(
-      projectId,
-      templateHash,
-      user.userId,
-      body.slug,
-      body.name,
-    );
-  }
 }

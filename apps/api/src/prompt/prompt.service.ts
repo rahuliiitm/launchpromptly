@@ -8,11 +8,12 @@ import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
-import { selectVariant } from '@aiecon/calculators';
+import { selectVariant, MODEL_PRICING, calculatePerRequestCost } from '@aiecon/calculators';
 import type { CreateManagedPromptDto } from './dto/create-managed-prompt.dto';
 import type { UpdateManagedPromptDto } from './dto/update-managed-prompt.dto';
 import type { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
 import type { CreateABTestDto } from './dto/create-ab-test.dto';
+import type { PromptAnalysis } from '@aiecon/types';
 
 @Injectable()
 export class PromptService {
@@ -263,55 +264,6 @@ export class PromptService {
         data: { status: 'active' },
       });
     });
-  }
-
-  async promoteTemplate(
-    projectId: string,
-    templateHash: string,
-    userId: string,
-    slug: string,
-    name: string,
-  ) {
-    await this.projectService.assertProjectAccess(projectId, userId);
-
-    const template = await this.prisma.promptTemplate.findUnique({
-      where: { projectId_systemHash: { projectId, systemHash: templateHash } },
-    });
-    if (!template) {
-      throw new NotFoundException('Template not found');
-    }
-
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const prompt = await tx.managedPrompt.create({
-          data: {
-            projectId,
-            slug,
-            name,
-            sourceTemplateId: template.id,
-          },
-        });
-        const version = await tx.promptVersion.create({
-          data: {
-            managedPromptId: prompt.id,
-            version: 1,
-            content: template.normalizedContent,
-            status: 'draft',
-          },
-        });
-        return { ...prompt, versions: [version] };
-      });
-    } catch (error: unknown) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        (error as { code: string }).code === 'P2002'
-      ) {
-        throw new ConflictException(`Slug "${slug}" already exists in this project`);
-      }
-      throw error;
-    }
   }
 
   // ── A/B Testing ──
@@ -739,5 +691,102 @@ export class PromptService {
     });
 
     return { message: 'Optimized version created', version: newVersion };
+  }
+
+  // ── Standalone Prompt Analysis ──
+
+  async analyzePrompt(content: string, model?: string): Promise<PromptAnalysis> {
+    const targetModel = model && MODEL_PRICING[model] ? model : 'gpt-4o';
+    const words = content.split(/\s+/).filter(Boolean).length;
+    const originalTokenEstimate = Math.ceil(words / 0.75);
+
+    // Estimate cost: assume output is ~half of input for a typical call
+    const originalCostPerCall = calculatePerRequestCost(
+      targetModel,
+      originalTokenEstimate,
+      Math.ceil(originalTokenEstimate / 2),
+    );
+
+    const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
+    if (!apiKey) {
+      return {
+        originalTokenEstimate,
+        originalCostPerCall,
+        optimizedContent: null,
+        analysis: null,
+        optimizedTokenEstimate: null,
+        optimizedCostPerCall: null,
+        tokenSavings: null,
+        costSavings: null,
+        model: targetModel,
+      };
+    }
+
+    const message = await this.anthropic.messages.create({
+      model: 'claude-3-5-haiku-latest',
+      max_tokens: 4096,
+      messages: [
+        {
+          role: 'user',
+          content: `You are a prompt engineering expert. Analyze and optimize this prompt.
+
+1. First, rewrite it to be more concise and effective while preserving ALL instructions and meaning. Reduce token count.
+2. Then provide a brief analysis (2-3 sentences) of what you changed and why.
+
+Return your response in this exact format:
+---OPTIMIZED---
+[the optimized prompt here]
+---ANALYSIS---
+[your analysis here]
+
+Original prompt:
+${content}`,
+        },
+      ],
+    });
+
+    const textBlock = message.content.find((b) => b.type === 'text');
+    const responseText = textBlock && 'text' in textBlock ? textBlock.text : null;
+
+    if (!responseText) {
+      return {
+        originalTokenEstimate,
+        originalCostPerCall,
+        optimizedContent: null,
+        analysis: null,
+        optimizedTokenEstimate: null,
+        optimizedCostPerCall: null,
+        tokenSavings: null,
+        costSavings: null,
+        model: targetModel,
+      };
+    }
+
+    // Parse structured response
+    const optimizedMatch = responseText.match(/---OPTIMIZED---\s*([\s\S]*?)\s*---ANALYSIS---/);
+    const analysisMatch = responseText.match(/---ANALYSIS---\s*([\s\S]*)/);
+
+    const optimizedContent = optimizedMatch?.[1]?.trim() ?? responseText;
+    const analysis = analysisMatch?.[1]?.trim() ?? null;
+
+    const optimizedWords = optimizedContent.split(/\s+/).filter(Boolean).length;
+    const optimizedTokenEstimate = Math.ceil(optimizedWords / 0.75);
+    const optimizedCostPerCall = calculatePerRequestCost(
+      targetModel,
+      optimizedTokenEstimate,
+      Math.ceil(optimizedTokenEstimate / 2),
+    );
+
+    return {
+      originalTokenEstimate,
+      originalCostPerCall,
+      optimizedContent,
+      analysis,
+      optimizedTokenEstimate,
+      optimizedCostPerCall,
+      tokenSavings: originalTokenEstimate - optimizedTokenEstimate,
+      costSavings: originalCostPerCall - optimizedCostPerCall,
+      model: targetModel,
+    };
   }
 }

@@ -48,33 +48,32 @@ describe('AIEcon API (e2e)', () => {
   // ── Auth ──
   describe('Auth endpoints', () => {
     const testEmail = `e2e-test-${Date.now()}@example.com`;
+    const testPassword = 'testpassword123';
 
     describe('POST /auth/register', () => {
       it('should register a new user and return JWT', async () => {
         const res = await request(app.getHttpServer())
           .post('/auth/register')
-          .send({ email: testEmail })
+          .send({ email: testEmail, password: testPassword })
           .expect(201);
 
         expect(res.body.accessToken).toBeDefined();
         expect(typeof res.body.accessToken).toBe('string');
         expect(res.body.userId).toBeDefined();
+        expect(res.body.plan).toBe('free');
       });
 
-      it('should return same user on duplicate registration', async () => {
-        const res = await request(app.getHttpServer())
+      it('should reject duplicate registration with password', async () => {
+        await request(app.getHttpServer())
           .post('/auth/register')
-          .send({ email: testEmail })
-          .expect(201);
-
-        expect(res.body.accessToken).toBeDefined();
-        expect(res.body.userId).toBeDefined();
+          .send({ email: testEmail, password: testPassword })
+          .expect(409);
       });
 
       it('should reject invalid email', async () => {
         await request(app.getHttpServer())
           .post('/auth/register')
-          .send({ email: 'not-an-email' })
+          .send({ email: 'not-an-email', password: testPassword })
           .expect(400);
       });
 
@@ -84,23 +83,62 @@ describe('AIEcon API (e2e)', () => {
           .send({})
           .expect(400);
       });
+
+      it('should reject short password', async () => {
+        await request(app.getHttpServer())
+          .post('/auth/register')
+          .send({ email: 'short@example.com', password: '123' })
+          .expect(400);
+      });
     });
 
     describe('POST /auth/login', () => {
-      it('should login existing user', async () => {
+      it('should login existing user with correct password', async () => {
         const res = await request(app.getHttpServer())
           .post('/auth/login')
-          .send({ email: testEmail })
+          .send({ email: testEmail, password: testPassword })
           .expect(201);
 
         expect(res.body.accessToken).toBeDefined();
+        expect(res.body.plan).toBe('free');
+      });
+
+      it('should reject wrong password', async () => {
+        await request(app.getHttpServer())
+          .post('/auth/login')
+          .send({ email: testEmail, password: 'wrongpassword' })
+          .expect(401);
       });
 
       it('should return 404 for non-existent user', async () => {
         await request(app.getHttpServer())
           .post('/auth/login')
-          .send({ email: 'nonexistent@example.com' })
+          .send({ email: 'nonexistent@example.com', password: testPassword })
           .expect(404);
+      });
+    });
+
+    describe('GET /auth/me', () => {
+      it('should return user profile with valid token', async () => {
+        const loginRes = await request(app.getHttpServer())
+          .post('/auth/login')
+          .send({ email: testEmail, password: testPassword });
+
+        const res = await request(app.getHttpServer())
+          .get('/auth/me')
+          .set('Authorization', `Bearer ${loginRes.body.accessToken}`)
+          .expect(200);
+
+        expect(res.body.id).toBeDefined();
+        expect(res.body.email).toBe(testEmail);
+        expect(res.body.plan).toBe('free');
+        expect(res.body.projectId).toBeDefined();
+      });
+
+      it('should return 401 without token', async () => {
+        await request(app.getHttpServer())
+          .get('/auth/me')
+          .expect(401);
       });
     });
   });
@@ -110,11 +148,12 @@ describe('AIEcon API (e2e)', () => {
     let accessToken: string;
     let scenarioId: string;
     const scenarioEmail = `e2e-scenario-${Date.now()}@example.com`;
+    const scenarioPassword = 'testpassword123';
 
     beforeAll(async () => {
       const res = await request(app.getHttpServer())
         .post('/auth/register')
-        .send({ email: scenarioEmail });
+        .send({ email: scenarioEmail, password: scenarioPassword });
       accessToken = res.body.accessToken;
     });
 

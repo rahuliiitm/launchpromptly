@@ -171,11 +171,11 @@ export default function ABTestsPage() {
     <div>
       {/* Breadcrumb */}
       <div className="mb-4 text-sm text-gray-500">
-        <Link href="/dashboard/prompts/managed" className="hover:text-gray-700">
+        <Link href="/prompts/managed" className="hover:text-gray-700">
           Managed Prompts
         </Link>
         {' > '}
-        <Link href={`/dashboard/prompts/managed/${promptId}`} className="hover:text-gray-700">
+        <Link href={`/prompts/managed/${promptId}`} className="hover:text-gray-700">
           {prompt.name}
         </Link>
         {' > '}

@@ -15,7 +15,7 @@ import type { CustomerAnalyticsItem } from '@aiecon/types';
 
 const DAYS_OPTIONS = [7, 30, 90];
 
-export default function CustomersPage() {
+export default function CustomerAnalyticsPage() {
   const [customers, setCustomers] = useState<CustomerAnalyticsItem[]>([]);
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(true);
@@ -78,9 +78,9 @@ export default function CustomersPage() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Customers</h1>
+          <h1 className="text-2xl font-bold">Customer Analytics</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Cost breakdown by customer ID
+            Per-customer cost breakdown and usage analytics
           </p>
         </div>
         <select

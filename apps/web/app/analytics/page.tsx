@@ -19,7 +19,7 @@ import Link from 'next/link';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-export default function DashboardOverview() {
+export default function AnalyticsOverview() {
   const [overview, setOverview] = useState<OverviewAnalytics | null>(null);
   const [timeseries, setTimeseries] = useState<TimeSeriesPoint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,23 +47,6 @@ export default function DashboardOverview() {
       .finally(() => setLoading(false));
   }, []);
 
-  const token = typeof window !== 'undefined' ? getToken() : null;
-
-  if (!token) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <h2 className="text-xl font-semibold text-gray-700">Not logged in</h2>
-        <p className="mt-2 text-gray-500">
-          Go to the{' '}
-          <Link href="/" className="text-blue-600 underline">
-            Simulator
-          </Link>{' '}
-          and register to access the dashboard.
-        </p>
-      </div>
-    );
-  }
-
   if (loading) {
     return <div className="py-20 text-center text-gray-400">Loading analytics...</div>;
   }
@@ -78,7 +61,7 @@ export default function DashboardOverview() {
         <h2 className="text-xl font-semibold text-gray-700">No data yet</h2>
         <p className="mt-2 text-gray-500">
           Set up your SDK to start tracking AI costs.{' '}
-          <Link href="/dashboard/onboarding" className="text-blue-600 underline">
+          <Link href="/settings/sdk" className="text-blue-600 underline">
             Get started
           </Link>
         </p>
