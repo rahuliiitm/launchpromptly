@@ -17,6 +17,7 @@ import { AuthService } from '../auth/auth.service';
 import { PromptService } from '../prompt/prompt.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
+import { TeamService } from '../team/team.service';
 import { EnvironmentService } from '../environment/environment.service';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -547,6 +548,11 @@ describe('PromptService — Security & i18n', () => {
     assertProjectAccess: jest.fn(),
   };
 
+  const mockTeamService = {
+    assertTeamRole: jest.fn().mockResolvedValue(undefined),
+    assertPromptTeamAccess: jest.fn().mockResolvedValue(undefined),
+  };
+
   const mockConfigService = {
     get: jest.fn().mockReturnValue(undefined),
   };
@@ -556,6 +562,7 @@ describe('PromptService — Security & i18n', () => {
     service = new PromptService(
       mockPrisma as unknown as PrismaService,
       mockProjectService as unknown as ProjectService,
+      mockTeamService as unknown as TeamService,
       mockConfigService as unknown as ConfigService,
     );
   });

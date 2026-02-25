@@ -20,4 +20,8 @@ export class CreateManagedPromptDto {
   @IsOptional()
   @IsString()
   initialContent?: string;
+
+  @IsOptional()
+  @IsString()
+  teamId?: string;
 }

@@ -10,7 +10,10 @@ export class CryptoService {
     const hex = this.configService.get<string>('ENCRYPTION_KEY');
     if (!hex || hex.length !== 64) {
       throw new Error(
-        'ENCRYPTION_KEY must be a 64-character hex string (32 bytes for AES-256)',
+        'ENCRYPTION_KEY is missing or invalid. ' +
+        'It must be a 64-character hex string (32 bytes for AES-256).\n' +
+        '  → Generate one: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
+        '  → Then add to .env: ENCRYPTION_KEY="<generated-key>"',
       );
     }
     this.key = Buffer.from(hex, 'hex');

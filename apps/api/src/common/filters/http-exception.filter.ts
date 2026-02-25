@@ -21,19 +21,34 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message =
+    const rawMessage =
       exception instanceof HttpException
         ? exception.getResponse()
         : 'Internal server error';
+
+    const message = typeof rawMessage === 'string'
+      ? rawMessage
+      : (rawMessage as Record<string, unknown>)['message'] ?? rawMessage;
 
     this.logger.error(
       `HTTP ${status} error`,
       exception instanceof Error ? exception.stack : undefined,
     );
 
+    // Add helpful hints for common error codes
+    let hint: string | undefined;
+    if (status === 401) {
+      hint = 'Check your Authorization header. JWT tokens: "Bearer <jwt>". API keys: "Bearer pf_live_<key>".';
+    } else if (status === 403) {
+      hint = 'You do not have permission for this action. Check your role (admin vs member) in Settings → Team.';
+    } else if (status === HttpStatus.INTERNAL_SERVER_ERROR && !(exception instanceof HttpException)) {
+      hint = 'An unexpected error occurred. Check the server logs for details. If this persists, please report it.';
+    }
+
     response.status(status).json({
       statusCode: status,
-      message: typeof message === 'string' ? message : (message as Record<string, unknown>)['message'] ?? message,
+      message,
+      ...(hint && { hint }),
       timestamp: new Date().toISOString(),
     });
   }

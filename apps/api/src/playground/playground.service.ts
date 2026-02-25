@@ -20,12 +20,17 @@ export class PlaygroundService {
     models: string[],
   ): Promise<PlaygroundResponse> {
     if (models.length === 0 || models.length > 3) {
-      throw new BadRequestException('Select between 1 and 3 models');
+      throw new BadRequestException(
+        'Select between 1 and 3 models. Available models depend on which provider API keys you have configured in Settings.',
+      );
     }
 
     for (const m of models) {
       if (!MODEL_PRICING[m]) {
-        throw new BadRequestException(`Unknown model: ${m}`);
+        throw new BadRequestException(
+          `Unknown model "${m}". Check the model name matches exactly (e.g., "gpt-4o", "claude-3-5-sonnet-latest"). ` +
+          'See Settings > LLM Providers for available models.',
+        );
       }
     }
 
@@ -49,7 +54,9 @@ export class PlaygroundService {
       const key = await this.providerKeyService.getDecryptedKey(orgId, provider);
       if (!key) {
         throw new BadRequestException(
-          `No API key configured for ${provider}. Add one in Settings > LLM Providers.`,
+          `No API key configured for "${provider}". ` +
+          `Go to Settings → LLM Providers and add your ${provider === 'openai' ? 'OpenAI' : 'Anthropic'} API key. ` +
+          `Get one at ${provider === 'openai' ? 'https://platform.openai.com/api-keys' : 'https://console.anthropic.com/settings/keys'}`,
         );
       }
       providerKeys.set(provider, key);

@@ -11,6 +11,11 @@ export interface PlanForgeOptions {
   promptCacheTtl?: number;
 }
 
+export interface PromptOptions {
+  customerId?: string;
+  variables?: Record<string, string>;
+}
+
 export interface WrapOptions {
   customer?: () => CustomerContext | Promise<CustomerContext>;
   feature?: string;

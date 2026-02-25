@@ -8,6 +8,22 @@ import { getToken, getProjectId } from '@/lib/auth';
 import { MODEL_PRICING, calculatePerRequestCost } from '@aiecon/calculators';
 import type { PlaygroundModelResult, PlaygroundResponse, ManagedPromptWithVersions } from '@aiecon/types';
 
+function extractVariables(content: string): string[] {
+  const vars = new Set<string>();
+  const pattern = /\{\{(\w+)\}\}/g;
+  let match;
+  while ((match = pattern.exec(content)) !== null) {
+    vars.add(match[1]);
+  }
+  return [...vars];
+}
+
+function interpolate(template: string, variables: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (match, name) => {
+    return name in variables && variables[name] ? variables[name] : match;
+  });
+}
+
 function estimateTokens(text: string): number {
   const words = text.split(/\s+/).filter(Boolean).length;
   return Math.ceil(words / 0.75);
@@ -36,6 +52,10 @@ export default function PlaygroundPage() {
   const [error, setError] = useState('');
   const [editingPromptName, setEditingPromptName] = useState('');
 
+  // Template variables
+  const [templateVars, setTemplateVars] = useState<Record<string, string>>({});
+  const detectedVars = extractVariables(systemPrompt);
+
   // Publish state
   const [showPublish, setShowPublish] = useState(false);
   const [publishMode, setPublishMode] = useState<'new' | 'version'>('new');
@@ -44,8 +64,11 @@ export default function PlaygroundPage() {
   const [selectedPromptId, setSelectedPromptId] = useState('');
   const [publishing, setPublishing] = useState(false);
 
-  // Real-time stats
-  const tokens = estimateTokens(systemPrompt);
+  // Real-time stats — estimate on the interpolated prompt
+  const resolvedForEstimate = detectedVars.length > 0
+    ? interpolate(systemPrompt, templateVars)
+    : systemPrompt;
+  const tokens = estimateTokens(resolvedForEstimate);
 
   // Load available models (based on org's configured provider keys)
   useEffect(() => {
@@ -121,10 +144,15 @@ export default function PlaygroundPage() {
     }
 
     try {
+      // Interpolate template variables before sending to LLM
+      const resolvedPrompt = detectedVars.length > 0
+        ? interpolate(systemPrompt, templateVars)
+        : systemPrompt;
+
       const res = await apiFetch<PlaygroundResponse>('/playground/test', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ systemPrompt, userMessage, models: selectedModels }),
+        body: JSON.stringify({ systemPrompt: resolvedPrompt, userMessage, models: selectedModels }),
       });
       setResults(res.results);
     } catch (err) {
@@ -233,6 +261,38 @@ export default function PlaygroundPage() {
           ~{tokens.toLocaleString()} tokens
         </div>
       </div>
+
+      {/* Template Variables */}
+      {detectedVars.length > 0 && (
+        <div className="mt-3 rounded-lg border border-purple-200 bg-purple-50 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <span className="text-sm font-medium text-purple-800">Template Variables</span>
+              <span className="ml-2 text-xs text-purple-600">
+                Fill in values before testing. Variables left empty will appear as {'{{name}}'} in the prompt.
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {detectedVars.map((v) => (
+              <div key={v}>
+                <label className="mb-1 block text-xs font-medium font-mono text-purple-700">
+                  {`{{${v}}}`}
+                </label>
+                <input
+                  type="text"
+                  value={templateVars[v] ?? ''}
+                  onChange={(e) =>
+                    setTemplateVars((prev) => ({ ...prev, [v]: e.target.value }))
+                  }
+                  placeholder={v.replace(/_/g, ' ')}
+                  className="w-full rounded border border-purple-200 bg-white px-3 py-1.5 text-sm focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Test User Message */}
       <div className="mt-4">

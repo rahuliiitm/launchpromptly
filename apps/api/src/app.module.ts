@@ -12,6 +12,8 @@ import { PlaygroundModule } from './playground/playground.module';
 import { InvitationModule } from './invitation/invitation.module';
 import { BillingModule } from './billing/billing.module';
 import { EnvironmentModule } from './environment/environment.module';
+import { EvalModule } from './eval/eval.module';
+import { TeamModule } from './team/team.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -29,6 +31,8 @@ import { AppController } from './app.controller';
     InvitationModule,
     BillingModule,
     EnvironmentModule,
+    EvalModule,
+    TeamModule,
   ],
   controllers: [AppController],
 })

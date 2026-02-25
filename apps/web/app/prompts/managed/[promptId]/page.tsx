@@ -15,6 +15,16 @@ import type {
   Environment,
 } from '@aiecon/types';
 
+function extractVariables(content: string): string[] {
+  const vars = new Set<string>();
+  const pattern = /\{\{(\w+)\}\}/g;
+  let match;
+  while ((match = pattern.exec(content)) !== null) {
+    vars.add(match[1]);
+  }
+  return [...vars];
+}
+
 const STATUS_BADGE: Record<string, string> = {
   draft: 'bg-yellow-100 text-yellow-700',
   active: 'bg-green-100 text-green-700',
@@ -395,7 +405,17 @@ export default function PromptDetailPage() {
             </form>
           ) : (
             <>
-              <h1 className="text-2xl font-bold">{prompt.name}</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold">{prompt.name}</h1>
+                {prompt.team && (
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
+                    style={{ backgroundColor: prompt.team.color }}
+                  >
+                    {prompt.team.name}
+                  </span>
+                )}
+              </div>
               <p className="mt-0.5 font-mono text-sm text-gray-500">{prompt.slug}</p>
               {prompt.description && (
                 <p className="mt-1 text-sm text-gray-600">{prompt.description}</p>
@@ -424,6 +444,12 @@ export default function PromptDetailPage() {
                 ? `Rollback to v${rollbackTarget.version}`
                 : 'Rollback'}
           </button>
+          <Link
+            href={`/prompts/managed/${promptId}/evals`}
+            className="rounded border border-purple-200 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50"
+          >
+            Evals
+          </Link>
           <Link
             href={`/prompts/managed/${promptId}/ab-tests`}
             className="rounded border px-3 py-1.5 text-xs font-medium hover:bg-gray-50"
@@ -569,28 +595,44 @@ export default function PromptDetailPage() {
         </button>
       </div>
 
-      {showNewVersion && (
-        <form onSubmit={handleCreateVersion} className="mt-3 rounded border bg-white p-4">
-          <label className="mb-1 block text-xs font-medium text-gray-600">
-            Version Content
-          </label>
-          <textarea
-            value={newContent}
-            onChange={(e) => setNewContent(e.target.value)}
-            rows={5}
-            required
-            className="w-full rounded border px-3 py-2 text-sm"
-            placeholder="You are a helpful assistant that..."
-          />
-          <button
-            type="submit"
-            disabled={actionLoading === 'create-version'}
-            className="mt-2 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {actionLoading === 'create-version' ? 'Creating...' : 'Create Version'}
-          </button>
-        </form>
-      )}
+      {showNewVersion && (() => {
+        const detectedVars = extractVariables(newContent);
+        return (
+          <form onSubmit={handleCreateVersion} className="mt-3 rounded border bg-white p-4">
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              Version Content
+            </label>
+            <textarea
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              rows={5}
+              required
+              className="w-full rounded border px-3 py-2 font-mono text-sm"
+              placeholder={'You are a {{role}} assistant.\nHelp {{user_name}} with their question about {{topic}}.'}
+            />
+            {detectedVars.length > 0 && (
+              <div className="mt-2">
+                <span className="text-xs font-medium text-gray-500">Template variables: </span>
+                {detectedVars.map((v) => (
+                  <span
+                    key={v}
+                    className="mr-1 inline-block rounded bg-purple-100 px-2 py-0.5 text-xs font-mono text-purple-700"
+                  >
+                    {`{{${v}}}`}
+                  </span>
+                ))}
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={actionLoading === 'create-version'}
+              className="mt-2 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {actionLoading === 'create-version' ? 'Creating...' : 'Create Version'}
+            </button>
+          </form>
+        );
+      })()}
 
       {/* Versions List */}
       <div className="mt-4 space-y-3">
@@ -693,9 +735,28 @@ export default function PromptDetailPage() {
                   </button>
                 </div>
               </div>
-              <pre className="mt-2 max-h-40 overflow-auto rounded bg-gray-50 p-3 text-sm text-gray-700 whitespace-pre-wrap">
+              <pre className="mt-2 max-h-40 overflow-auto rounded bg-gray-50 p-3 font-mono text-sm text-gray-700 whitespace-pre-wrap">
                 {v.content}
               </pre>
+
+              {/* Template variables */}
+              {(() => {
+                const vars = extractVariables(v.content);
+                if (vars.length === 0) return null;
+                return (
+                  <div className="mt-2">
+                    <span className="text-xs font-medium text-gray-500">Variables: </span>
+                    {vars.map((varName) => (
+                      <span
+                        key={varName}
+                        className="mr-1 inline-block rounded bg-purple-100 px-2 py-0.5 text-xs font-mono text-purple-700"
+                      >
+                        {`{{${varName}}}`}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* Compare dropdown */}
               {prompt.versions.length > 1 && (

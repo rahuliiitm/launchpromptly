@@ -3,17 +3,20 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
+import { TeamService } from '../team/team.service';
 import { selectVariant, MODEL_PRICING, calculatePerRequestCost } from '@aiecon/calculators';
 import type { CreateManagedPromptDto } from './dto/create-managed-prompt.dto';
 import type { UpdateManagedPromptDto } from './dto/update-managed-prompt.dto';
 import type { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
 import type { CreateABTestDto } from './dto/create-ab-test.dto';
 import type { PromptAnalysis } from '@aiecon/types';
+import { extractTemplateVariables } from './template-utils';
 
 @Injectable()
 export class PromptService {
@@ -22,6 +25,7 @@ export class PromptService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly projectService: ProjectService,
+    private readonly teamService: TeamService,
     private readonly configService: ConfigService,
   ) {
     const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
@@ -35,6 +39,11 @@ export class PromptService {
   ) {
     await this.projectService.assertProjectAccess(projectId, userId);
 
+    // If assigning to a team, verify editor+ access
+    if (dto.teamId) {
+      await this.teamService.assertTeamRole(dto.teamId, userId, 'editor');
+    }
+
     try {
       if (dto.initialContent) {
         return await this.prisma.$transaction(async (tx) => {
@@ -44,6 +53,7 @@ export class PromptService {
               slug: dto.slug,
               name: dto.name,
               description: dto.description ?? '',
+              ...(dto.teamId && { teamId: dto.teamId }),
             },
           });
           const version = await tx.promptVersion.create({
@@ -64,6 +74,7 @@ export class PromptService {
           slug: dto.slug,
           name: dto.name,
           description: dto.description ?? '',
+          ...(dto.teamId && { teamId: dto.teamId }),
         },
       });
     } catch (error: unknown) {
@@ -82,14 +93,34 @@ export class PromptService {
   async listPrompts(projectId: string, userId: string) {
     await this.projectService.assertProjectAccess(projectId, userId);
 
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    // Org admin sees all; org member sees own teams + unassigned
+    let where: any = { projectId };
+    if (user?.role !== 'admin') {
+      const memberships = await this.prisma.teamMember.findMany({
+        where: { userId },
+        select: { teamId: true },
+      });
+      const teamIds = memberships.map((m) => m.teamId);
+      where = {
+        projectId,
+        OR: [
+          { teamId: null },
+          ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
+        ],
+      };
+    }
+
     return this.prisma.managedPrompt.findMany({
-      where: { projectId },
+      where,
       include: {
         versions: {
           where: { status: 'active' },
           take: 1,
         },
         _count: { select: { versions: true } },
+        team: { select: { id: true, name: true, slug: true, color: true } },
       },
       orderBy: { updatedAt: 'desc' },
     });
@@ -97,6 +128,7 @@ export class PromptService {
 
   async getPrompt(projectId: string, promptId: string, userId: string) {
     await this.projectService.assertProjectAccess(projectId, userId);
+    await this.teamService.assertPromptTeamAccess(promptId, userId, 'viewer');
 
     const prompt = await this.prisma.managedPrompt.findFirst({
       where: { id: promptId, projectId },
@@ -113,6 +145,7 @@ export class PromptService {
           },
           orderBy: { environment: { sortOrder: 'asc' } },
         },
+        team: { select: { id: true, name: true, slug: true, color: true } },
       },
     });
 
@@ -143,6 +176,7 @@ export class PromptService {
     dto: UpdateManagedPromptDto,
   ) {
     await this.projectService.assertProjectAccess(projectId, userId);
+    await this.teamService.assertPromptTeamAccess(promptId, userId, 'editor');
 
     const existing = await this.prisma.managedPrompt.findFirst({
       where: { id: promptId, projectId },
@@ -175,6 +209,7 @@ export class PromptService {
 
   async deletePrompt(projectId: string, promptId: string, userId: string) {
     await this.projectService.assertProjectAccess(projectId, userId);
+    await this.teamService.assertPromptTeamAccess(promptId, userId, 'lead');
 
     const existing = await this.prisma.managedPrompt.findFirst({
       where: { id: promptId, projectId },
@@ -194,6 +229,7 @@ export class PromptService {
     dto: CreatePromptVersionDto,
   ) {
     await this.projectService.assertProjectAccess(projectId, userId);
+    await this.teamService.assertPromptTeamAccess(promptId, userId, 'editor');
 
     const prompt = await this.prisma.managedPrompt.findFirst({
       where: { id: promptId, projectId },
@@ -297,6 +333,13 @@ export class PromptService {
   ) {
     await this.projectService.assertProjectAccess(projectId, userId);
 
+    // Check environment first to determine required team role
+    const envForRole = await this.prisma.environment.findFirst({
+      where: { id: environmentId, projectId },
+    });
+    const requiredRole = envForRole?.isCritical ? 'lead' : 'editor';
+    await this.teamService.assertPromptTeamAccess(promptId, userId, requiredRole as any);
+
     const version = await this.prisma.promptVersion.findFirst({
       where: { id: versionId, managedPromptId: promptId },
     });
@@ -306,6 +349,28 @@ export class PromptService {
       where: { id: environmentId, projectId },
     });
     if (!env) throw new NotFoundException('Environment not found');
+
+    // Eval gate: critical environments require a passing eval
+    if (env.isCritical) {
+      const hasDatasets = await this.prisma.evalDataset.count({
+        where: { managedPromptId: promptId },
+      });
+      if (hasDatasets > 0) {
+        const passingRun = await this.prisma.evalRun.findFirst({
+          where: {
+            promptVersionId: versionId,
+            passed: true,
+            dataset: { managedPromptId: promptId },
+          },
+        });
+        if (!passingRun) {
+          throw new BadRequestException(
+            `Cannot deploy to critical environment "${env.name}" without a passing evaluation. ` +
+            'Run an eval on this version first, or deploy to a non-critical environment.',
+          );
+        }
+      }
+    }
 
     return this.prisma.$transaction(async (tx) => {
       // Upsert deployment (one version per prompt per environment)
@@ -748,11 +813,14 @@ export class PromptService {
 
       const selectedVariant = runningTest.variants.find((v) => v.id === selectedVariantId);
       if (selectedVariant) {
+        const content = selectedVariant.promptVersion.content;
+        const variables = extractTemplateVariables(content);
         return {
-          content: selectedVariant.promptVersion.content,
+          content,
           managedPromptId: prompt.id,
           promptVersionId: selectedVariant.promptVersionId,
           version: selectedVariant.promptVersion.version,
+          ...(variables.length > 0 && { variables }),
         };
       }
     }
@@ -760,12 +828,15 @@ export class PromptService {
     // 2. Environment-based deployment (if environmentId present)
     if (environmentId && (prompt as any).deployments?.length > 0) {
       const deployment = (prompt as any).deployments[0];
+      const content = deployment.promptVersion.content;
+      const variables = extractTemplateVariables(content);
       return {
-        content: deployment.promptVersion.content,
+        content,
         managedPromptId: prompt.id,
         promptVersionId: deployment.promptVersionId,
         version: deployment.promptVersion.version,
         environment: deployment.environment.slug,
+        ...(variables.length > 0 && { variables }),
       };
     }
 
@@ -775,11 +846,14 @@ export class PromptService {
       throw new NotFoundException('No active version for this prompt');
     }
 
+    const content = activeVersion.content;
+    const variables = extractTemplateVariables(content);
     return {
-      content: activeVersion.content,
+      content,
       managedPromptId: prompt.id,
       promptVersionId: activeVersion.id,
       version: activeVersion.version,
+      ...(variables.length > 0 && { variables }),
     };
   }
 
@@ -956,6 +1030,37 @@ export class PromptService {
     });
 
     return { message: 'Optimized version created', version: newVersion };
+  }
+
+  // ── Team Assignment ──
+
+  async assignTeam(projectId: string, promptId: string, userId: string, teamId: string | null) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    // Only org administrators can assign/transfer prompts between teams
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (user?.role !== 'admin') {
+      throw new ForbiddenException('Only org administrators can assign prompts to teams');
+    }
+
+    const prompt = await this.prisma.managedPrompt.findFirst({
+      where: { id: promptId, projectId },
+    });
+    if (!prompt) throw new NotFoundException('Prompt not found');
+
+    // Validate the target team exists in this project
+    if (teamId) {
+      const team = await this.prisma.team.findFirst({
+        where: { id: teamId, projectId },
+      });
+      if (!team) throw new NotFoundException('Team not found');
+    }
+
+    return this.prisma.managedPrompt.update({
+      where: { id: promptId },
+      data: { teamId },
+      include: { team: { select: { id: true, name: true, slug: true, color: true } } },
+    });
   }
 
   // ── Standalone Prompt Analysis ──

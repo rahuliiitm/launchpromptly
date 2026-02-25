@@ -1,8 +1,10 @@
 import { EventBatcher } from './batcher';
 import { PromptCache } from './prompt-cache';
+import { interpolate } from './template';
 import { calculateEventCost, fingerprintMessages } from '@aiecon/calculators';
 import type {
   PlanForgeOptions,
+  PromptOptions,
   WrapOptions,
   ChatCompletionCreateParams,
   ChatCompletion,
@@ -61,11 +63,21 @@ export class PlanForge {
     );
   }
 
-  async prompt(slug: string, options?: { customerId?: string }): Promise<string> {
+  async prompt(slug: string, options?: PromptOptions): Promise<string> {
     // Check cache first
     const cached = this.promptCache.get(slug);
     if (cached) {
-      return cached.content;
+      const content = options?.variables
+        ? interpolate(cached.content, options.variables)
+        : cached.content;
+
+      // Store interpolated content for event metadata
+      this.resolvedPrompts.set(content, {
+        managedPromptId: cached.managedPromptId,
+        promptVersionId: cached.promptVersionId,
+      });
+
+      return content;
     }
 
     // Fetch from API
@@ -97,16 +109,21 @@ export class PlanForge {
         version: number;
       };
 
-      // Cache the result
+      // Cache the raw template (before interpolation)
       this.promptCache.set(slug, data, this.promptCacheTtl);
 
-      // Store for event metadata injection
-      this.resolvedPrompts.set(data.content, {
+      // Interpolate variables if provided
+      const content = options?.variables
+        ? interpolate(data.content, options.variables)
+        : data.content;
+
+      // Store interpolated content for event metadata injection
+      this.resolvedPrompts.set(content, {
         managedPromptId: data.managedPromptId,
         promptVersionId: data.promptVersionId,
       });
 
-      return data.content;
+      return content;
     } catch (error) {
       // On PromptNotFoundError, always throw
       if (error instanceof PromptNotFoundError) {
@@ -116,7 +133,10 @@ export class PlanForge {
       // On network error, try stale cache
       const stale = this.promptCache.getStale(slug);
       if (stale) {
-        return stale.content;
+        const content = options?.variables
+          ? interpolate(stale.content, options.variables)
+          : stale.content;
+        return content;
       }
 
       throw error;

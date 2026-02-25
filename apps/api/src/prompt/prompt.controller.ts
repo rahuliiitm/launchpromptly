@@ -19,6 +19,7 @@ import { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
 import { CreateABTestDto } from './dto/create-ab-test.dto';
 import { AnalyzePromptDto } from './dto/analyze-prompt.dto';
 import { PromoteVersionDto } from './dto/promote-version.dto';
+import { AssignTeamDto } from './dto/assign-team.dto';
 import type { Request } from 'express';
 
 interface AuthUser {
@@ -135,6 +136,19 @@ export class PromptController {
   ) {
     const user = req.user as AuthUser;
     return this.promptService.rollbackVersion(projectId, promptId, user.userId);
+  }
+
+  // ── Team Assignment ──
+
+  @Patch(':projectId/:promptId/team')
+  async assignTeam(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Body() dto: AssignTeamDto,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.assignTeam(projectId, promptId, user.userId, dto.teamId);
   }
 
   // ── Environment Deployments ──

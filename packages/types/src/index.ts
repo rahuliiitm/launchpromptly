@@ -27,7 +27,33 @@ export interface AuthResponse {
   plan: PlanTier;
 }
 
-// ── Team & Invitations ──
+// ── Teams (prompt ownership & RBAC) ──
+export type TeamRole = 'viewer' | 'editor' | 'lead';
+
+export interface Team {
+  id: string;
+  projectId: string;
+  name: string;
+  slug: string;
+  description: string;
+  color: string;
+  createdAt: string;
+}
+
+export interface TeamWithMembers extends Team {
+  members: TeamMemberDetail[];
+  _count: { prompts: number };
+}
+
+export interface TeamMemberDetail {
+  id: string;
+  userId: string;
+  email: string;
+  role: TeamRole;
+  createdAt: string;
+}
+
+// ── Org Members & Invitations ──
 export interface TeamMember {
   id: string;
   email: string;
@@ -398,6 +424,7 @@ export type ABTestStatus = 'draft' | 'running' | 'completed';
 export interface ManagedPrompt {
   id: string;
   projectId: string;
+  teamId: string | null;
   slug: string;
   name: string;
   description: string;
@@ -420,6 +447,7 @@ export interface ManagedPromptWithVersions extends ManagedPrompt {
   _count?: { versions: number };
   activeVersion?: PromptVersion | null;
   deployments?: PromptDeploymentInfo[];
+  team?: { id: string; name: string; slug: string; color: string } | null;
 }
 
 export interface CreateManagedPromptInput {
@@ -427,6 +455,7 @@ export interface CreateManagedPromptInput {
   name: string;
   description?: string;
   initialContent?: string;
+  teamId?: string;
 }
 
 export interface UpdateManagedPromptInput {
@@ -445,6 +474,7 @@ export interface ResolvedPrompt {
   promptVersionId: string;
   version: number;
   environment?: string;
+  variables?: string[];
 }
 
 export interface ABTest {
@@ -514,6 +544,62 @@ export interface PlaygroundModelResult {
 
 export interface PlaygroundResponse {
   results: PlaygroundModelResult[];
+}
+
+// ── Platform: Eval Gates ──
+export type EvalRunStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface EvalDataset {
+  id: string;
+  managedPromptId: string;
+  name: string;
+  description: string;
+  passThreshold: number;
+  createdAt: string;
+  _count?: { cases: number; runs: number };
+}
+
+export interface EvalCase {
+  id: string;
+  datasetId: string;
+  input: string;
+  expectedOutput: string | null;
+  variables: Record<string, string> | null;
+  criteria: string | null;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface EvalDatasetWithCases extends EvalDataset {
+  cases: EvalCase[];
+}
+
+export interface EvalRun {
+  id: string;
+  datasetId: string;
+  promptVersionId: string;
+  status: EvalRunStatus;
+  score: number | null;
+  passed: boolean | null;
+  createdAt: string;
+  completedAt: string | null;
+  _count?: { results: number };
+}
+
+export interface EvalResult {
+  id: string;
+  evalRunId: string;
+  evalCaseId: string;
+  score: number;
+  reasoning: string;
+  createdAt: string;
+  evalCase?: EvalCase;
+}
+
+export interface EvalRunWithResults extends EvalRun {
+  results: EvalResult[];
+  dataset?: EvalDataset;
+  promptVersion?: { version: number };
 }
 
 // ── Platform: Prompt Analysis ──

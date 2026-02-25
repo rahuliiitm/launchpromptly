@@ -8,13 +8,14 @@ datasource db {
 }
 
 model User {
-  id             String        @id @default(uuid())
-  email          String        @unique
-  passwordHash   String?
-  organizationId String?
-  role           String        @default("admin")
-  createdAt      DateTime      @default(now())
-  organization   Organization? @relation(fields: [organizationId], references: [id])
+  id              String        @id @default(uuid())
+  email           String        @unique
+  passwordHash    String?
+  organizationId  String?
+  role            String        @default("admin")
+  createdAt       DateTime      @default(now())
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+  teamMemberships TeamMember[]
 }
 
 model Organization {
@@ -58,6 +59,7 @@ model Project {
   events          LLMEvent[]
   managedPrompts  ManagedPrompt[]
   environments    Environment[]
+  teams           Team[]
 
   @@index([organizationId])
 }
@@ -144,19 +146,23 @@ model RagEvaluation {
 model ManagedPrompt {
   id               String          @id @default(uuid())
   projectId        String
+  teamId           String?
   slug             String
   name             String
   description      String          @default("")
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   project          Project              @relation(fields: [projectId], references: [id])
+  team             Team?                @relation(fields: [teamId], references: [id], onDelete: SetNull)
   versions         PromptVersion[]
   abTests          ABTest[]
   events           LLMEvent[]
   deployments      PromptDeployment[]
+  evalDatasets     EvalDataset[]
 
   @@unique([projectId, slug])
   @@index([projectId])
+  @@index([teamId])
 }
 
 model PromptVersion {
@@ -171,6 +177,7 @@ model PromptVersion {
   abTestVariants  ABTestVariant[]
   events          LLMEvent[]           @relation("VersionEvents")
   deployments     PromptDeployment[]
+  evalRuns        EvalRun[]
 
   @@unique([managedPromptId, version])
   @@index([managedPromptId, status])
@@ -247,4 +254,92 @@ model PromptDeployment {
 
   @@unique([managedPromptId, environmentId])
   @@index([environmentId])
+}
+
+model EvalDataset {
+  id              String        @id @default(uuid())
+  managedPromptId String
+  name            String
+  description     String        @default("")
+  passThreshold   Float         @default(3.5)
+  createdAt       DateTime      @default(now())
+  managedPrompt   ManagedPrompt @relation(fields: [managedPromptId], references: [id], onDelete: Cascade)
+  cases           EvalCase[]
+  runs            EvalRun[]
+
+  @@index([managedPromptId])
+}
+
+model EvalCase {
+  id             String      @id @default(uuid())
+  datasetId      String
+  input          String
+  expectedOutput String?
+  variables      Json?
+  criteria       String?
+  sortOrder      Int         @default(0)
+  createdAt      DateTime    @default(now())
+  dataset        EvalDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  results        EvalResult[]
+
+  @@index([datasetId])
+}
+
+model EvalRun {
+  id              String        @id @default(uuid())
+  datasetId       String
+  promptVersionId String
+  status          String        @default("pending")
+  score           Float?
+  passed          Boolean?
+  createdAt       DateTime      @default(now())
+  completedAt     DateTime?
+  dataset         EvalDataset   @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  promptVersion   PromptVersion @relation(fields: [promptVersionId], references: [id])
+  results         EvalResult[]
+
+  @@index([datasetId])
+  @@index([promptVersionId])
+}
+
+model EvalResult {
+  id         String   @id @default(uuid())
+  evalRunId  String
+  evalCaseId String
+  score      Float
+  reasoning  String
+  createdAt  DateTime @default(now())
+  evalRun    EvalRun  @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
+  evalCase   EvalCase @relation(fields: [evalCaseId], references: [id])
+
+  @@index([evalRunId])
+}
+
+model Team {
+  id          String          @id @default(uuid())
+  projectId   String
+  name        String
+  slug        String
+  description String          @default("")
+  color       String          @default("#6B7280")
+  createdAt   DateTime        @default(now())
+  project     Project         @relation(fields: [projectId], references: [id])
+  members     TeamMember[]
+  prompts     ManagedPrompt[]
+
+  @@unique([projectId, slug])
+  @@index([projectId])
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String
+  userId    String
+  role      String   @default("editor")
+  createdAt DateTime @default(now())
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([teamId, userId])
+  @@index([userId])
 }

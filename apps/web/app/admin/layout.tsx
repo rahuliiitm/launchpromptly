@@ -7,7 +7,8 @@ import { RequireAdmin } from '@/components/require-admin';
 const NAV_ITEMS = [
   { href: '/admin', label: 'Billing' },
   { href: '/admin/environments', label: 'Environments' },
-  { href: '/admin/team', label: 'Team' },
+  { href: '/admin/teams', label: 'Teams' },
+  { href: '/admin/team', label: 'Members' },
   { href: '/admin/api-keys', label: 'API Keys' },
   { href: '/admin/providers', label: 'LLM Providers' },
   { href: '/admin/sdk', label: 'SDK Setup' },

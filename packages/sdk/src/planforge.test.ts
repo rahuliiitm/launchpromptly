@@ -400,5 +400,138 @@ describe('PlanForge', () => {
       await expect(pf.prompt('no-cache')).rejects.toThrow('Connection refused');
       pf.destroy();
     });
+
+    // ── Template variable interpolation ──
+
+    it('should interpolate variables in fetched prompt', async () => {
+      const pf = new PlanForge({
+        apiKey: 'pf_live_test',
+        endpoint: 'http://localhost:3001',
+      });
+      mockResolveResponse({
+        content: 'Hello {{name}}, you are a {{role}}.',
+        managedPromptId: 'mp-1',
+        promptVersionId: 'pv-1',
+        version: 1,
+      });
+
+      const content = await pf.prompt('greeting', {
+        variables: { name: 'Alice', role: 'admin' },
+      });
+      expect(content).toBe('Hello Alice, you are a admin.');
+      pf.destroy();
+    });
+
+    it('should return raw template when no variables provided', async () => {
+      const pf = new PlanForge({
+        apiKey: 'pf_live_test',
+        endpoint: 'http://localhost:3001',
+      });
+      mockResolveResponse({
+        content: 'Hello {{name}}',
+        managedPromptId: 'mp-1',
+        promptVersionId: 'pv-1',
+        version: 1,
+      });
+
+      const content = await pf.prompt('raw-template');
+      expect(content).toBe('Hello {{name}}');
+      pf.destroy();
+    });
+
+    it('should interpolate from cache on second call', async () => {
+      const pf = new PlanForge({
+        apiKey: 'pf_live_test',
+        endpoint: 'http://localhost:3001',
+        promptCacheTtl: 60000,
+      });
+      mockResolveResponse({
+        content: 'Hi {{name}}, topic: {{topic}}',
+        managedPromptId: 'mp-1',
+        promptVersionId: 'pv-1',
+        version: 1,
+      });
+
+      const first = await pf.prompt('cached-vars', {
+        variables: { name: 'Alice', topic: 'billing' },
+      });
+      expect(first).toBe('Hi Alice, topic: billing');
+
+      // Second call with different variables — should use cache, no fetch
+      const second = await pf.prompt('cached-vars', {
+        variables: { name: 'Bob', topic: 'support' },
+      });
+      expect(second).toBe('Hi Bob, topic: support');
+
+      // Only one fetch call
+      const resolveCalls = fetchSpy.mock.calls.filter((c) =>
+        (c[0] as string).includes('/v1/prompts/resolve/'),
+      );
+      expect(resolveCalls).toHaveLength(1);
+      pf.destroy();
+    });
+
+    it('should track interpolated content for event metadata', async () => {
+      const pf = new PlanForge({
+        apiKey: 'pf_live_test',
+        endpoint: 'http://localhost:3001',
+        flushAt: 1,
+      });
+      mockResolveResponse({
+        content: 'You are a {{role}} assistant.',
+        managedPromptId: 'mp-2',
+        promptVersionId: 'pv-2',
+        version: 3,
+      });
+
+      const systemPrompt = await pf.prompt('role-prompt', {
+        variables: { role: 'support' },
+      });
+      expect(systemPrompt).toBe('You are a support assistant.');
+
+      const client = createMockClient();
+      const wrapped = pf.wrap(client);
+
+      await wrapped.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: 'Hello' },
+        ],
+      });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      const batchCall = fetchSpy.mock.calls.find((c) =>
+        (c[0] as string).includes('/v1/events/batch'),
+      );
+      expect(batchCall).toBeDefined();
+      const body = JSON.parse(batchCall![1]!.body as string);
+      expect(body.events[0].managedPromptId).toBe('mp-2');
+      expect(body.events[0].promptVersionId).toBe('pv-2');
+      pf.destroy();
+    });
+
+    it('should interpolate stale cache on network error', async () => {
+      const pf = new PlanForge({
+        apiKey: 'pf_live_test',
+        endpoint: 'http://localhost:3001',
+        promptCacheTtl: 1,
+      });
+      mockResolveResponse({
+        content: 'Hello {{name}}',
+        managedPromptId: 'mp-1',
+        promptVersionId: 'pv-1',
+        version: 1,
+      });
+      await pf.prompt('stale-var-slug', { variables: { name: 'Alice' } });
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      fetchSpy.mockRejectedValueOnce(new Error('Network error'));
+      const content = await pf.prompt('stale-var-slug', { variables: { name: 'Bob' } });
+      expect(content).toBe('Hello Bob');
+      pf.destroy();
+    });
   });
 });

@@ -11,12 +11,22 @@ describe('CryptoService', () => {
     return new CryptoService(configService);
   }
 
-  it('throws if ENCRYPTION_KEY is missing', () => {
-    expect(() => createService(undefined)).toThrow('ENCRYPTION_KEY');
+  it('throws with actionable message if ENCRYPTION_KEY is missing', () => {
+    expect(() => createService(undefined)).toThrow('ENCRYPTION_KEY is missing or invalid');
+    expect(() => createService(undefined)).toThrow('Generate one');
+    expect(() => createService(undefined)).toThrow('.env');
   });
 
-  it('throws if ENCRYPTION_KEY is wrong length', () => {
-    expect(() => createService('tooshort')).toThrow('ENCRYPTION_KEY');
+  it('throws with actionable message if ENCRYPTION_KEY is wrong length', () => {
+    expect(() => createService('tooshort')).toThrow('ENCRYPTION_KEY is missing or invalid');
+  });
+
+  it('throws with generation command in error message', () => {
+    try {
+      createService(undefined);
+    } catch (e) {
+      expect((e as Error).message).toContain('randomBytes');
+    }
   });
 
   it('encrypt then decrypt roundtrip', () => {
@@ -46,5 +56,46 @@ describe('CryptoService', () => {
     const service = createService(validKey);
     const { encrypted, iv } = service.encrypt('secret');
     expect(() => service.decrypt(encrypted, iv, 'bad'.padEnd(32, '0'))).toThrow();
+  });
+
+  it('handles Unicode API keys (Chinese provider keys)', () => {
+    const service = createService(validKey);
+    const unicodeKey = 'sk-密钥-テスト-مفتاح-🔑';
+    const { encrypted, iv, authTag } = service.encrypt(unicodeKey);
+    expect(service.decrypt(encrypted, iv, authTag)).toBe(unicodeKey);
+  });
+
+  it('handles very long API keys (500+ chars)', () => {
+    const service = createService(validKey);
+    const longKey = 'sk-' + 'a'.repeat(500);
+    const { encrypted, iv, authTag } = service.encrypt(longKey);
+    expect(service.decrypt(encrypted, iv, authTag)).toBe(longKey);
+  });
+
+  it('handles empty string encryption', () => {
+    const service = createService(validKey);
+    const { encrypted, iv, authTag } = service.encrypt('');
+    expect(service.decrypt(encrypted, iv, authTag)).toBe('');
+  });
+
+  it('handles special characters in API keys', () => {
+    const service = createService(validKey);
+    const specialKey = "sk-test!@#$%^&*()_+-=[]{}|;':\",./<>?";
+    const { encrypted, iv, authTag } = service.encrypt(specialKey);
+    expect(service.decrypt(encrypted, iv, authTag)).toBe(specialKey);
+  });
+
+  it('decrypt fails with tampered ciphertext', () => {
+    const service = createService(validKey);
+    const { encrypted, iv, authTag } = service.encrypt('secret');
+    const tampered = 'ff' + encrypted.slice(2); // flip first byte
+    expect(() => service.decrypt(tampered, iv, authTag)).toThrow();
+  });
+
+  it('decrypt fails with wrong IV', () => {
+    const service = createService(validKey);
+    const { encrypted, authTag } = service.encrypt('secret');
+    const wrongIv = '00'.repeat(12);
+    expect(() => service.decrypt(encrypted, wrongIv, authTag)).toThrow();
   });
 });

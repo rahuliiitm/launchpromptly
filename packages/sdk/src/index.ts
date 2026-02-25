@@ -1,2 +1,3 @@
 export { PlanForge, PromptNotFoundError } from './planforge';
-export type { PlanForgeOptions, WrapOptions, CustomerContext } from './types';
+export { interpolate, extractVariables } from './template';
+export type { PlanForgeOptions, PromptOptions, WrapOptions, CustomerContext } from './types';

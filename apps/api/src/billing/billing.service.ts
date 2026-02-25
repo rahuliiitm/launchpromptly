@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHmac } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PlanTier } from '@aiecon/types';
 
@@ -26,6 +27,17 @@ export class BillingService {
       pro: this.config.get<string>('LS_VARIANT_PRO', ''),
       team: this.config.get<string>('LS_VARIANT_TEAM', ''),
     };
+
+    if (!this.storeId || !this.variantMap.pro || !this.variantMap.team) {
+      this.logger.warn(
+        'Billing not fully configured. Checkout URLs will be empty.\n' +
+        '  → Set these in .env:\n' +
+        '    LS_STORE_ID="your-store-slug" (from Lemon Squeezy → Settings → Store)\n' +
+        '    LS_VARIANT_PRO="variant-id"   (from Products → Pro → Variants)\n' +
+        '    LS_VARIANT_TEAM="variant-id"   (from Products → Team → Variants)\n' +
+        '    LS_WEBHOOK_SECRET="secret"     (from Settings → Webhooks)',
+      );
+    }
   }
 
   getWebhookSecret(): string {
@@ -151,6 +163,53 @@ export class BillingService {
         team: this.getCheckoutUrl('team', organizationId),
       },
     };
+  }
+
+  /** Verify HMAC-SHA256 signature from Lemon Squeezy */
+  verifySignature(body: string, signature: string): boolean {
+    if (!this.webhookSecret) return false;
+    const expected = createHmac('sha256', this.webhookSecret).update(body).digest('hex');
+    return expected === signature;
+  }
+
+  /** Process a verified webhook event body. Returns { handled, error? } */
+  async processWebhookEvent(body: Record<string, any>): Promise<{ handled: boolean; error?: string }> {
+    const eventName = body?.meta?.event_name;
+    const customData = body?.meta?.custom_data;
+    const organizationId = customData?.org_id;
+
+    if (!organizationId) {
+      return { handled: false, error: 'no org_id in custom_data' };
+    }
+
+    const attrs = body?.data?.attributes;
+    const subscriptionId = String(body?.data?.id ?? '');
+    const customerId = String(attrs?.customer_id ?? '');
+    const variantId = String(attrs?.variant_id ?? '');
+    const status = attrs?.status ?? '';
+    const endsAt = attrs?.ends_at ?? null;
+
+    switch (eventName) {
+      case 'subscription_created':
+      case 'subscription_updated':
+      case 'subscription_resumed':
+        await this.handleSubscriptionChange({
+          organizationId, customerId, subscriptionId, variantId, status, endsAt,
+        });
+        return { handled: true };
+
+      case 'subscription_cancelled':
+        await this.handleSubscriptionCancelled({ organizationId, subscriptionId, endsAt });
+        return { handled: true };
+
+      case 'subscription_expired':
+        await this.handleSubscriptionExpired({ organizationId, subscriptionId });
+        return { handled: true };
+
+      default:
+        this.logger.log(`Unhandled webhook event: ${eventName}`);
+        return { handled: false };
+    }
   }
 
   private resolveplan(status: string, variantId: string): PlanTier {

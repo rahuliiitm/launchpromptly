@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { PromptService } from './prompt.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
+import { TeamService } from '../team/team.service';
 import {
   NotFoundException,
   ConflictException,
@@ -17,6 +18,7 @@ describe('PromptService', () => {
       create: jest.fn(),
       findMany: jest.fn(),
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
     },
@@ -36,11 +38,35 @@ describe('PromptService', () => {
       aggregate: jest.fn(),
       groupBy: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn().mockResolvedValue({ id: 'user1', role: 'admin' }),
+    },
+    teamMember: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    environment: {
+      findFirst: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    evalDataset: {
+      count: jest.fn().mockResolvedValue(0),
+    },
+    evalRun: {
+      findFirst: jest.fn(),
+    },
+    team: {
+      findFirst: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
   const mockProjectService = {
     assertProjectAccess: jest.fn(),
+  };
+
+  const mockTeamService = {
+    assertTeamRole: jest.fn().mockResolvedValue(undefined),
+    assertPromptTeamAccess: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockConfigService = {
@@ -52,6 +78,7 @@ describe('PromptService', () => {
     service = new PromptService(
       mockPrisma as unknown as PrismaService,
       mockProjectService as unknown as ProjectService,
+      mockTeamService as unknown as TeamService,
       mockConfigService as unknown as ConfigService,
     );
   });
@@ -750,6 +777,7 @@ describe('PromptService', () => {
       const svcNoKey = new PromptService(
         mockPrisma as unknown as PrismaService,
         mockProjectService as unknown as ProjectService,
+        mockTeamService as unknown as TeamService,
         mockConfigService as unknown as ConfigService,
       );
 
@@ -770,6 +798,7 @@ describe('PromptService', () => {
       const svcNoKey = new PromptService(
         mockPrisma as unknown as PrismaService,
         mockProjectService as unknown as ProjectService,
+        mockTeamService as unknown as TeamService,
         mockConfigService as unknown as ConfigService,
       );
 
@@ -813,6 +842,7 @@ describe('PromptService', () => {
       const svc = new PromptService(
         mockPrisma as unknown as PrismaService,
         mockProjectService as unknown as ProjectService,
+        mockTeamService as unknown as TeamService,
         mockConfigService as unknown as ConfigService,
       );
 
@@ -830,6 +860,7 @@ describe('PromptService', () => {
       const svc = new PromptService(
         mockPrisma as unknown as PrismaService,
         mockProjectService as unknown as ProjectService,
+        mockTeamService as unknown as TeamService,
         mockConfigService as unknown as ConfigService,
       );
 
@@ -842,6 +873,7 @@ describe('PromptService', () => {
       const svc = new PromptService(
         mockPrisma as unknown as PrismaService,
         mockProjectService as unknown as ProjectService,
+        mockTeamService as unknown as TeamService,
         mockConfigService as unknown as ConfigService,
       );
 
@@ -854,6 +886,7 @@ describe('PromptService', () => {
       const svc = new PromptService(
         mockPrisma as unknown as PrismaService,
         mockProjectService as unknown as ProjectService,
+        mockTeamService as unknown as TeamService,
         mockConfigService as unknown as ConfigService,
       );
 
@@ -928,6 +961,119 @@ describe('PromptService', () => {
         service.deployToEnvironment('proj1', 'p1', 'v1', 'bad-env', 'user1'),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('should block deploy to critical env without passing eval', async () => {
+      mockPrisma.promptVersion.findFirst.mockResolvedValue({
+        id: 'v1',
+        managedPromptId: 'p1',
+        status: 'draft',
+      });
+      (mockPrisma as any).environment = {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'env-prod',
+          projectId: 'proj1',
+          name: 'Production',
+          slug: 'production',
+          color: '#059669',
+          isCritical: true,
+        }),
+      };
+      (mockPrisma as any).evalDataset = {
+        count: jest.fn().mockResolvedValue(1), // has datasets
+      };
+      (mockPrisma as any).evalRun = {
+        findFirst: jest.fn().mockResolvedValue(null), // no passing run
+      };
+
+      await expect(
+        service.deployToEnvironment('proj1', 'p1', 'v1', 'env-prod', 'user1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should allow deploy to critical env with passing eval', async () => {
+      mockPrisma.promptVersion.findFirst.mockResolvedValue({
+        id: 'v1',
+        managedPromptId: 'p1',
+        status: 'active',
+      });
+      (mockPrisma as any).environment = {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'env-prod',
+          projectId: 'proj1',
+          name: 'Production',
+          slug: 'production',
+          color: '#059669',
+          isCritical: true,
+        }),
+      };
+      (mockPrisma as any).evalDataset = {
+        count: jest.fn().mockResolvedValue(1),
+      };
+      (mockPrisma as any).evalRun = {
+        findFirst: jest.fn().mockResolvedValue({ id: 'run-1', passed: true }),
+      };
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          promptDeployment: {
+            upsert: jest.fn().mockResolvedValue({
+              id: 'dep-1',
+              environmentId: 'env-prod',
+              promptVersionId: 'v1',
+              deployedAt: new Date(),
+              deployedBy: 'user1',
+              environment: { name: 'Production', slug: 'production', color: '#059669' },
+              promptVersion: { version: 1 },
+            }),
+          },
+          promptVersion: { update: jest.fn() },
+        };
+        return fn(tx);
+      });
+
+      const result = await service.deployToEnvironment('proj1', 'p1', 'v1', 'env-prod', 'user1');
+      expect(result.environmentName).toBe('Production');
+    });
+
+    it('should allow deploy to critical env with no datasets (no eval required)', async () => {
+      mockPrisma.promptVersion.findFirst.mockResolvedValue({
+        id: 'v1',
+        managedPromptId: 'p1',
+        status: 'active',
+      });
+      (mockPrisma as any).environment = {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'env-prod',
+          projectId: 'proj1',
+          name: 'Production',
+          slug: 'production',
+          color: '#059669',
+          isCritical: true,
+        }),
+      };
+      (mockPrisma as any).evalDataset = {
+        count: jest.fn().mockResolvedValue(0), // no datasets configured
+      };
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          promptDeployment: {
+            upsert: jest.fn().mockResolvedValue({
+              id: 'dep-1',
+              environmentId: 'env-prod',
+              promptVersionId: 'v1',
+              deployedAt: new Date(),
+              deployedBy: 'user1',
+              environment: { name: 'Production', slug: 'production', color: '#059669' },
+              promptVersion: { version: 1 },
+            }),
+          },
+          promptVersion: { update: jest.fn() },
+        };
+        return fn(tx);
+      });
+
+      const result = await service.deployToEnvironment('proj1', 'p1', 'v1', 'env-prod', 'user1');
+      expect(result.environmentName).toBe('Production');
+    });
   });
 
   // ── undeployFromEnvironment ──
@@ -973,7 +1119,7 @@ describe('PromptService', () => {
       const result = await service.resolvePrompt('proj1', 'my-prompt', undefined, 'env-staging');
       expect(result.content).toBe('Deployed content');
       expect(result.promptVersionId).toBe('v3');
-      expect(result.environment).toBe('staging');
+      expect((result as any).environment).toBe('staging');
     });
 
     it('should fall back to active version when no deployment for env', async () => {

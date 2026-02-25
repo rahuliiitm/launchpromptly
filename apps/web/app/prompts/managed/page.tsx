@@ -6,14 +6,29 @@ import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
 import type { ManagedPromptWithVersions } from '@aiecon/types';
 
+interface TeamInfo {
+  id: string;
+  name: string;
+  slug: string;
+  color: string;
+}
+
+interface TeamOption {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export default function ManagedPromptsPage() {
   const [prompts, setPrompts] = useState<ManagedPromptWithVersions[]>([]);
+  const [teams, setTeams] = useState<TeamOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
-  const [form, setForm] = useState({ slug: '', name: '', description: '', initialContent: '' });
+  const [collapsedTeams, setCollapsedTeams] = useState<Set<string>>(new Set());
+  const [form, setForm] = useState({ slug: '', name: '', description: '', initialContent: '', teamId: '' });
 
   const loadPrompts = useCallback(() => {
     const token = getToken();
@@ -24,16 +39,29 @@ export default function ManagedPromptsPage() {
       return;
     }
     setAuthenticated(true);
-    apiFetch<ManagedPromptWithVersions[]>(
-      `/prompt/${projectId}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    )
-      .then(setPrompts)
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.all([
+      apiFetch<ManagedPromptWithVersions[]>(`/prompt/${projectId}`, { headers }),
+      apiFetch<TeamOption[]>(`/team/${projectId}`, { headers }).catch(() => [] as TeamOption[]),
+    ])
+      .then(([promptsData, teamsData]) => {
+        setPrompts(promptsData);
+        setTeams(teamsData);
+      })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(loadPrompts, [loadPrompts]);
+
+  const toggleTeam = (key: string) => {
+    setCollapsedTeams((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,9 +82,10 @@ export default function ManagedPromptsPage() {
           name: form.name,
           description: form.description || undefined,
           initialContent: form.initialContent || undefined,
+          teamId: form.teamId || undefined,
         }),
       });
-      setForm({ slug: '', name: '', description: '', initialContent: '' });
+      setForm({ slug: '', name: '', description: '', initialContent: '', teamId: '' });
       setShowCreate(false);
       setLoading(true);
       loadPrompts();
@@ -124,6 +153,21 @@ export default function ManagedPromptsPage() {
               className="w-full rounded border px-3 py-2 text-sm"
             />
           </div>
+          {teams.length > 0 && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Team</label>
+              <select
+                value={form.teamId}
+                onChange={(e) => setForm({ ...form, teamId: e.target.value })}
+                className="w-full rounded border px-3 py-2 text-sm"
+              >
+                <option value="">Unassigned (visible to all)</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">
               Initial Content (optional, creates v1)
@@ -165,49 +209,109 @@ export default function ManagedPromptsPage() {
           No managed prompts yet. Create one to get started.
         </div>
       ) : authenticated ? (
-        <div className="mt-6">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b text-xs uppercase text-gray-500">
-                <th className="pb-2 font-medium">Name</th>
-                <th className="pb-2 font-medium">Slug</th>
-                <th className="pb-2 font-medium">Versions</th>
-                <th className="pb-2 font-medium">Active</th>
-                <th className="pb-2 font-medium">Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {prompts.map((p) => {
-                const activeVersion = p.versions?.[0];
-                return (
-                  <tr key={p.id} className="border-b hover:bg-gray-50">
-                    <td className="py-3">
-                      <Link
-                        href={`/prompts/managed/${p.id}`}
-                        className="font-medium text-blue-600 hover:underline"
-                      >
-                        {p.name}
-                      </Link>
-                    </td>
-                    <td className="py-3 font-mono text-xs text-gray-500">{p.slug}</td>
-                    <td className="py-3">{p._count?.versions ?? 0}</td>
-                    <td className="py-3">
-                      {activeVersion ? (
-                        <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                          v{activeVersion.version}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">none</span>
-                      )}
-                    </td>
-                    <td className="py-3 text-xs text-gray-500">
-                      {new Date(p.updatedAt).toLocaleDateString()}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="mt-6 space-y-4">
+          {(() => {
+            // Group prompts by team
+            const unassigned = prompts.filter((p) => !p.team);
+            const teamMap = new Map<string, { team: TeamInfo; prompts: ManagedPromptWithVersions[] }>();
+            for (const p of prompts) {
+              if (p.team) {
+                if (!teamMap.has(p.team.id)) {
+                  teamMap.set(p.team.id, { team: p.team, prompts: [] });
+                }
+                teamMap.get(p.team.id)!.prompts.push(p);
+              }
+            }
+            const groups = Array.from(teamMap.values());
+
+            const renderPromptRow = (p: ManagedPromptWithVersions) => {
+              const activeVersion = p.versions?.[0];
+              return (
+                <tr key={p.id} className="border-b hover:bg-gray-50">
+                  <td className="py-3">
+                    <Link
+                      href={`/prompts/managed/${p.id}`}
+                      className="font-medium text-blue-600 hover:underline"
+                    >
+                      {p.name}
+                    </Link>
+                  </td>
+                  <td className="py-3 font-mono text-xs text-gray-500">{p.slug}</td>
+                  <td className="py-3">{p._count?.versions ?? 0}</td>
+                  <td className="py-3">
+                    {activeVersion ? (
+                      <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                        v{activeVersion.version}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">none</span>
+                    )}
+                  </td>
+                  <td className="py-3 text-xs text-gray-500">
+                    {new Date(p.updatedAt).toLocaleDateString()}
+                  </td>
+                </tr>
+              );
+            };
+
+            const renderSection = (key: string, label: React.ReactNode, sectionPrompts: ManagedPromptWithVersions[]) => (
+              <div key={key} className="rounded-lg border bg-white">
+                <button
+                  onClick={() => toggleTeam(key)}
+                  className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-gray-50"
+                >
+                  <div className="flex items-center gap-2">
+                    {label}
+                    <span className="text-xs text-gray-400">
+                      ({sectionPrompts.length} prompt{sectionPrompts.length !== 1 && 's'})
+                    </span>
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    {collapsedTeams.has(key) ? '▸' : '▾'}
+                  </span>
+                </button>
+                {!collapsedTeams.has(key) && (
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-t text-xs uppercase text-gray-500">
+                        <th className="px-4 pb-2 pt-3 font-medium">Name</th>
+                        <th className="pb-2 pt-3 font-medium">Slug</th>
+                        <th className="pb-2 pt-3 font-medium">Versions</th>
+                        <th className="pb-2 pt-3 font-medium">Active</th>
+                        <th className="pb-2 pt-3 font-medium">Updated</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sectionPrompts.map(renderPromptRow)}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            );
+
+            return (
+              <>
+                {unassigned.length > 0 && renderSection(
+                  '__unassigned',
+                  <span className="text-sm font-semibold text-gray-700">Unassigned</span>,
+                  unassigned,
+                )}
+                {groups.map(({ team, prompts: teamPrompts }) =>
+                  renderSection(
+                    team.id,
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="inline-block h-3 w-3 rounded-full"
+                        style={{ backgroundColor: team.color }}
+                      />
+                      <span className="text-sm font-semibold">{team.name}</span>
+                    </span>,
+                    teamPrompts,
+                  ),
+                )}
+              </>
+            );
+          })()}
         </div>
       ) : null}
     </div>
