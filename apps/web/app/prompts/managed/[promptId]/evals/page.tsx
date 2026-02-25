@@ -424,25 +424,32 @@ export default function EvalsPage() {
                   }`}
                   onClick={() => handleViewRun(run.id)}
                 >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        run.passed === true
-                          ? 'bg-green-500'
-                          : run.passed === false
-                            ? 'bg-red-500'
-                            : 'bg-yellow-500'
-                      }`}
-                    />
-                    <span className="font-medium">
-                      v{(run as any).promptVersion?.version ?? '?'}
-                    </span>
-                    <span className="text-gray-500">
-                      {run.score !== null ? `${run.score}/5` : run.status}
-                    </span>
-                    <span className="ml-auto text-gray-400">
-                      {new Date(run.createdAt).toLocaleDateString()}
-                    </span>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          run.passed === true
+                            ? 'bg-green-500'
+                            : run.passed === false
+                              ? 'bg-red-500'
+                              : 'bg-yellow-500'
+                        }`}
+                      />
+                      <span className="font-medium">
+                        v{(run as any).promptVersion?.version ?? '?'}
+                      </span>
+                      <span className="text-gray-500">
+                        {run.score !== null ? `${run.score}/5` : run.status}
+                      </span>
+                      <span className="ml-auto text-gray-400">
+                        {new Date(run.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    {(run as any).dataset?.name && (
+                      <span className="ml-4 truncate text-[10px] text-gray-400">
+                        {(run as any).dataset.name}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}

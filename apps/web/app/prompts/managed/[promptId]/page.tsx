@@ -65,7 +65,6 @@ export default function PromptDetailPage() {
   const [successBanner, setSuccessBanner] = useState('');
   const [compareWith, setCompareWith] = useState<Record<string, string>>({});
   const [deployDropdown, setDeployDropdown] = useState<string | null>(null); // versionId with open dropdown
-  const [promoteFrom, setPromoteFrom] = useState<string | null>(null); // environmentId to promote from
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadPrompt = useCallback(() => {
@@ -160,50 +159,6 @@ export default function PromptDetailPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setSuccessBanner(`v${versionNum} deployed to ${envName}.`);
-      loadPrompt();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handlePromote = async (sourceEnvId: string, targetEnvId: string, targetEnvName: string) => {
-    const token = getToken();
-    const projectId = getProjectId();
-    if (!token || !projectId) return;
-    setActionLoading(`promote-${sourceEnvId}-${targetEnvId}`);
-    setPromoteFrom(null);
-    try {
-      await apiFetch(`/prompt/${projectId}/${promptId}/promote`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          sourceEnvironmentId: sourceEnvId,
-          targetEnvironmentId: targetEnvId,
-        }),
-      });
-      setSuccessBanner(`Promoted to ${targetEnvName}.`);
-      loadPrompt();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleUndeploy = async (envId: string, envName: string) => {
-    if (!confirm(`Remove deployment from ${envName}? SDK calls for this environment will fail.`)) return;
-    const token = getToken();
-    const projectId = getProjectId();
-    if (!token || !projectId) return;
-    setActionLoading(`undeploy-${envId}`);
-    try {
-      await apiFetch(`/prompt/${projectId}/${promptId}/deployments/${envId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setSuccessBanner(`Removed deployment from ${envName}.`);
       loadPrompt();
     } catch (err) {
       setError((err as Error).message);
@@ -527,45 +482,6 @@ export default function PromptDetailPage() {
                         </span>
                       )}
 
-                      {/* Actions */}
-                      <div className="ml-auto flex items-center gap-2 shrink-0">
-                        {/* Promote button */}
-                        <div className="relative">
-                          <button
-                            onClick={() => setPromoteFrom(promoteFrom === env.id ? null : env.id)}
-                            className="rounded border px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-50"
-                          >
-                            Promote
-                          </button>
-                          {promoteFrom === env.id && (
-                            <div className="absolute right-0 top-full z-10 mt-1 w-44 rounded border bg-white py-1 shadow-lg">
-                              {environments
-                                .filter((e) => e.id !== env.id)
-                                .map((target) => (
-                                  <button
-                                    key={target.id}
-                                    onClick={() => handlePromote(env.id, target.id, target.name)}
-                                    className="flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50"
-                                  >
-                                    <span
-                                      className="h-2 w-2 rounded-full"
-                                      style={{ backgroundColor: target.color }}
-                                    />
-                                    {target.name}
-                                  </button>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <button
-                          onClick={() => handleUndeploy(env.id, env.name)}
-                          disabled={!!actionLoading}
-                          className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
-                        >
-                          Remove
-                        </button>
-                      </div>
                     </>
                   ) : (
                     <span className="text-xs text-gray-400">Not deployed</span>

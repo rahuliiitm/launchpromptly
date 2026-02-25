@@ -109,9 +109,15 @@ export class EvalService {
       );
     }
 
-    const version = await this.prisma.promptVersion.findFirst({
-      where: { id: dto.promptVersionId, managedPromptId: promptId },
-    });
+    const [version, prompt] = await Promise.all([
+      this.prisma.promptVersion.findFirst({
+        where: { id: dto.promptVersionId, managedPromptId: promptId },
+      }),
+      this.prisma.managedPrompt.findFirst({
+        where: { id: promptId },
+        select: { name: true },
+      }),
+    ]);
     if (!version) throw new NotFoundException('Prompt version not found');
 
     // Detect template variables
@@ -138,12 +144,22 @@ export class EvalService {
 
     const parsed = this.parseGeneratedCases(text);
 
+    // Auto-generate dataset name: "<prompt name> - Auto v1, v2, ..."
+    let datasetName = dto.name;
+    if (!datasetName) {
+      const prefix = prompt?.name ?? 'Prompt';
+      const existingCount = await this.prisma.evalDataset.count({
+        where: { managedPromptId: promptId },
+      });
+      datasetName = `${prefix} - Auto v${existingCount + 1}`;
+    }
+
     // Create dataset + cases in a transaction
     return this.prisma.$transaction(async (tx) => {
       const dataset = await tx.evalDataset.create({
         data: {
           managedPromptId: promptId,
-          name: dto.name || `Auto-generated (v${version.version})`,
+          name: datasetName,
           description: parsed.description,
           passThreshold: dto.passThreshold ?? 3.5,
         },

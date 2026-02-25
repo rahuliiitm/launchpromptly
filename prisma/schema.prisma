@@ -312,7 +312,7 @@ model EvalResult {
   response   String   @default("")
   createdAt  DateTime @default(now())
   evalRun    EvalRun  @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
-  evalCase   EvalCase @relation(fields: [evalCaseId], references: [id])
+  evalCase   EvalCase @relation(fields: [evalCaseId], references: [id], onDelete: Cascade)
 
   @@index([evalRunId])
 }

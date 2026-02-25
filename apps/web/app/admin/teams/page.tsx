@@ -212,6 +212,88 @@ export default function TeamsPage() {
         )}
       </div>
 
+      {/* Role Permissions Reference */}
+      <div className="mt-4 rounded-lg border bg-white p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Role Permissions</h2>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b text-left text-gray-500">
+                <th className="pb-2 pr-4 font-medium">Action</th>
+                <th className="pb-2 px-3 text-center font-medium">
+                  <span className="rounded bg-gray-50 px-2 py-0.5 text-gray-600">Viewer</span>
+                </th>
+                <th className="pb-2 px-3 text-center font-medium">
+                  <span className="rounded bg-blue-50 px-2 py-0.5 text-blue-700">Editor</span>
+                </th>
+                <th className="pb-2 px-3 text-center font-medium">
+                  <span className="rounded bg-purple-50 px-2 py-0.5 text-purple-700">Lead</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-700">
+              <tr className="border-b border-gray-100">
+                <td className="py-1.5 pr-4">View prompts, versions &amp; deployments</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-1.5 pr-4">View eval datasets &amp; run results</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-1.5 pr-4">Create &amp; edit prompt versions</td>
+                <td className="py-1.5 px-3 text-center text-gray-300">&mdash;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-1.5 pr-4">Deploy to environments</td>
+                <td className="py-1.5 px-3 text-center text-gray-300">&mdash;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-1.5 pr-4">Create datasets, add cases &amp; run evals</td>
+                <td className="py-1.5 px-3 text-center text-gray-300">&mdash;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-1.5 pr-4">Generate datasets &amp; optimize prompts</td>
+                <td className="py-1.5 px-3 text-center text-gray-300">&mdash;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-1.5 pr-4">Delete prompts &amp; datasets</td>
+                <td className="py-1.5 px-3 text-center text-gray-300">&mdash;</td>
+                <td className="py-1.5 px-3 text-center text-gray-300">&mdash;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-1.5 pr-4">Deploy to critical environments</td>
+                <td className="py-1.5 px-3 text-center text-gray-300">&mdash;</td>
+                <td className="py-1.5 px-3 text-center text-gray-300">&mdash;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+              </tr>
+              <tr>
+                <td className="py-1.5 pr-4">Manage team members &amp; roles</td>
+                <td className="py-1.5 px-3 text-center text-gray-300">&mdash;</td>
+                <td className="py-1.5 px-3 text-center text-gray-300">&mdash;</td>
+                <td className="py-1.5 px-3 text-center text-green-600">&#10003;</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-2 text-[10px] text-gray-400">
+          Org admins bypass all team restrictions. Unassigned prompts are accessible to all org members.
+        </p>
+      </div>
+
       {error && (
         <div className="mt-3 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
           {error}
@@ -333,9 +415,9 @@ export default function TeamsPage() {
                             : 'bg-gray-50 text-gray-600'
                         }`}
                       >
-                        <option value="viewer">Viewer</option>
-                        <option value="editor">Editor</option>
-                        <option value="lead">Team Lead</option>
+                        <option value="viewer">Viewer — read-only</option>
+                        <option value="editor">Editor — create &amp; deploy</option>
+                        <option value="lead">Lead — full control</option>
                       </select>
                       {member.userId === user?.id && (
                         <span className="text-xs text-gray-400">(you)</span>
