@@ -74,6 +74,46 @@ describe('EventsService', () => {
     expect(eventData.statusCode).toBe(201);
   });
 
+  it('should pass through environmentId from event payload', async () => {
+    await service.ingestBatch('project-123', {
+      events: [{ ...baseEvent, environmentId: 'env-prod' }],
+    });
+
+    const createManyCall = (prisma.lLMEvent.createMany as jest.Mock).mock.calls[0][0];
+    const eventData = createManyCall.data[0];
+    expect(eventData.environmentId).toBe('env-prod');
+  });
+
+  it('should use request environmentId when event has no environmentId', async () => {
+    await service.ingestBatch('project-123', {
+      events: [baseEvent],
+    }, 'env-from-key');
+
+    const createManyCall = (prisma.lLMEvent.createMany as jest.Mock).mock.calls[0][0];
+    const eventData = createManyCall.data[0];
+    expect(eventData.environmentId).toBe('env-from-key');
+  });
+
+  it('should prefer event environmentId over request environmentId', async () => {
+    await service.ingestBatch('project-123', {
+      events: [{ ...baseEvent, environmentId: 'env-from-event' }],
+    }, 'env-from-key');
+
+    const createManyCall = (prisma.lLMEvent.createMany as jest.Mock).mock.calls[0][0];
+    const eventData = createManyCall.data[0];
+    expect(eventData.environmentId).toBe('env-from-event');
+  });
+
+  it('should set environmentId to null when neither event nor request has it', async () => {
+    await service.ingestBatch('project-123', {
+      events: [baseEvent],
+    });
+
+    const createManyCall = (prisma.lLMEvent.createMany as jest.Mock).mock.calls[0][0];
+    const eventData = createManyCall.data[0];
+    expect(eventData.environmentId).toBeNull();
+  });
+
   it('should pass through RAG context fields when provided', async () => {
     const ragChunks = [
       { content: 'chunk text', source: 'doc-1', score: 0.87 },

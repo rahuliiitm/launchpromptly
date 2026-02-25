@@ -11,6 +11,7 @@ import { ProviderKeyModule } from './provider-key/provider-key.module';
 import { PlaygroundModule } from './playground/playground.module';
 import { InvitationModule } from './invitation/invitation.module';
 import { BillingModule } from './billing/billing.module';
+import { EnvironmentModule } from './environment/environment.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -27,6 +28,7 @@ import { AppController } from './app.controller';
     PlaygroundModule,
     InvitationModule,
     BillingModule,
+    EnvironmentModule,
   ],
   controllers: [AppController],
 })

@@ -150,6 +150,7 @@ describe('PromptService', () => {
           { version: 2, status: 'active' },
           { version: 1, status: 'archived' },
         ],
+        deployments: [],
       };
       mockPrisma.managedPrompt.findFirst.mockResolvedValue(prompt);
 
@@ -760,7 +761,7 @@ describe('PromptService', () => {
       });
 
       const result = await svcNoKey.generateOptimizedVersion('proj1', 'p1', 'v1', 'user1');
-      expect(result.message).toContain('unavailable');
+      expect(result.message).toContain('Anthropic API key');
       expect(result.version).toBeNull();
     });
 
@@ -819,9 +820,9 @@ describe('PromptService', () => {
       expect(result.originalTokenEstimate).toBeGreaterThan(0);
       expect(result.originalCostPerCall).toBeGreaterThan(0);
       expect(result.model).toBe('gpt-4o');
-      // No API key → no optimization
+      // No API key → no optimization, but analysis field contains setup instructions
       expect(result.optimizedContent).toBeNull();
-      expect(result.analysis).toBeNull();
+      expect(result.analysis).toContain('Anthropic API key');
     });
 
     it('should use specified model when valid', async () => {
@@ -859,6 +860,133 @@ describe('PromptService', () => {
       // 10 words → Math.ceil(10 / 0.75) = 14 tokens
       const result = await svc.analyzePrompt('one two three four five six seven eight nine ten');
       expect(result.originalTokenEstimate).toBe(14);
+    });
+  });
+
+  // ── deployToEnvironment ──
+
+  describe('deployToEnvironment', () => {
+    it('should upsert deployment and return env info', async () => {
+      mockPrisma.promptVersion.findFirst.mockResolvedValue({
+        id: 'v1',
+        managedPromptId: 'p1',
+        status: 'draft',
+      });
+      (mockPrisma as any).environment = {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'env-1',
+          projectId: 'proj1',
+          name: 'Staging',
+          slug: 'staging',
+          color: '#F59E0B',
+        }),
+      };
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          promptDeployment: {
+            upsert: jest.fn().mockResolvedValue({
+              id: 'dep-1',
+              environmentId: 'env-1',
+              promptVersionId: 'v1',
+              deployedAt: new Date(),
+              deployedBy: 'user1',
+              environment: { name: 'Staging', slug: 'staging', color: '#F59E0B' },
+              promptVersion: { version: 1 },
+            }),
+          },
+          promptVersion: {
+            update: jest.fn().mockResolvedValue({ id: 'v1', status: 'active' }),
+          },
+        };
+        return fn(tx);
+      });
+
+      const result = await service.deployToEnvironment('proj1', 'p1', 'v1', 'env-1', 'user1');
+      expect(result.environmentName).toBe('Staging');
+      expect(result.version).toBe(1);
+    });
+
+    it('should throw NotFoundException for invalid version', async () => {
+      mockPrisma.promptVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.deployToEnvironment('proj1', 'p1', 'bad-id', 'env-1', 'user1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException for invalid environment', async () => {
+      mockPrisma.promptVersion.findFirst.mockResolvedValue({
+        id: 'v1',
+        managedPromptId: 'p1',
+        status: 'draft',
+      });
+      (mockPrisma as any).environment = {
+        findFirst: jest.fn().mockResolvedValue(null),
+      };
+
+      await expect(
+        service.deployToEnvironment('proj1', 'p1', 'v1', 'bad-env', 'user1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ── undeployFromEnvironment ──
+
+  describe('undeployFromEnvironment', () => {
+    it('should delete the deployment', async () => {
+      (mockPrisma as any).promptDeployment = {
+        findUnique: jest.fn().mockResolvedValue({ id: 'dep-1' }),
+        delete: jest.fn().mockResolvedValue({ id: 'dep-1' }),
+      };
+
+      const result = await service.undeployFromEnvironment('proj1', 'p1', 'env-1', 'user1');
+      expect(result.undeployed).toBe(true);
+    });
+
+    it('should throw NotFoundException when no deployment exists', async () => {
+      (mockPrisma as any).promptDeployment = {
+        findUnique: jest.fn().mockResolvedValue(null),
+      };
+
+      await expect(
+        service.undeployFromEnvironment('proj1', 'p1', 'env-1', 'user1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ── resolvePrompt with environment ──
+
+  describe('resolvePrompt with environment', () => {
+    it('should resolve from deployment when environmentId is provided', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({
+        id: 'p1',
+        slug: 'my-prompt',
+        abTests: [],
+        versions: [],
+        deployments: [{
+          promptVersionId: 'v3',
+          promptVersion: { id: 'v3', version: 3, content: 'Deployed content' },
+          environment: { slug: 'staging' },
+        }],
+      });
+
+      const result = await service.resolvePrompt('proj1', 'my-prompt', undefined, 'env-staging');
+      expect(result.content).toBe('Deployed content');
+      expect(result.promptVersionId).toBe('v3');
+      expect(result.environment).toBe('staging');
+    });
+
+    it('should fall back to active version when no deployment for env', async () => {
+      mockPrisma.managedPrompt.findFirst.mockResolvedValue({
+        id: 'p1',
+        slug: 'my-prompt',
+        abTests: [],
+        versions: [{ id: 'v1', version: 1, content: 'Fallback content', status: 'active' }],
+        deployments: [],
+      });
+
+      const result = await service.resolvePrompt('proj1', 'my-prompt', undefined, 'env-missing');
+      expect(result.content).toBe('Fallback content');
     });
   });
 

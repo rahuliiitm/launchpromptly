@@ -17,7 +17,10 @@ export class ApiKeyGuard implements CanActivate {
     const authHeader = request.headers['authorization'];
 
     if (!authHeader?.startsWith('Bearer pf_live_')) {
-      throw new UnauthorizedException('API key required');
+      throw new UnauthorizedException(
+        'Valid API key required. Send header: Authorization: Bearer pf_live_<your-key>. ' +
+        'Generate one in Settings → API Keys.',
+      );
     }
 
     const rawKey = authHeader.slice(7);
@@ -28,15 +31,23 @@ export class ApiKeyGuard implements CanActivate {
     });
 
     if (!apiKey) {
-      throw new UnauthorizedException('Invalid API key');
+      throw new UnauthorizedException(
+        'Invalid or revoked API key. Check that you are using a valid key from Settings → API Keys.',
+      );
     }
 
     const isValid = await bcrypt.compare(rawKey, apiKey.keyHash);
     if (!isValid) {
-      throw new UnauthorizedException('Invalid API key');
+      throw new UnauthorizedException(
+        'Invalid API key. The key format is correct but authentication failed. ' +
+        'Regenerate a new key in Settings → API Keys.',
+      );
     }
 
-    (request as Request & { projectId: string }).projectId = apiKey.projectId;
+    (request as Request & { projectId: string; environmentId?: string }).projectId = apiKey.projectId;
+    if (apiKey.environmentId) {
+      (request as Request & { environmentId: string }).environmentId = apiKey.environmentId;
+    }
 
     void this.prisma.apiKey.update({
       where: { id: apiKey.id },

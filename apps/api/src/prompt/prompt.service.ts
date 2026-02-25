@@ -106,6 +106,13 @@ export class PromptService {
           include: { variants: true },
           orderBy: { createdAt: 'desc' },
         },
+        deployments: {
+          include: {
+            environment: true,
+            promptVersion: true,
+          },
+          orderBy: { environment: { sortOrder: 'asc' } },
+        },
       },
     });
 
@@ -113,7 +120,20 @@ export class PromptService {
       throw new NotFoundException('Prompt not found');
     }
 
-    return prompt;
+    return {
+      ...prompt,
+      deployments: prompt.deployments.map((d) => ({
+        id: d.id,
+        environmentId: d.environmentId,
+        environmentName: d.environment.name,
+        environmentSlug: d.environment.slug,
+        environmentColor: d.environment.color,
+        promptVersionId: d.promptVersionId,
+        version: d.promptVersion.version,
+        deployedAt: d.deployedAt.toISOString(),
+        deployedBy: d.deployedBy,
+      })),
+    };
   }
 
   async updatePrompt(
@@ -264,6 +284,225 @@ export class PromptService {
         data: { status: 'active' },
       });
     });
+  }
+
+  // ── Environment Deployments ──
+
+  async deployToEnvironment(
+    projectId: string,
+    promptId: string,
+    versionId: string,
+    environmentId: string,
+    userId: string,
+  ) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const version = await this.prisma.promptVersion.findFirst({
+      where: { id: versionId, managedPromptId: promptId },
+    });
+    if (!version) throw new NotFoundException('Version not found');
+
+    const env = await this.prisma.environment.findFirst({
+      where: { id: environmentId, projectId },
+    });
+    if (!env) throw new NotFoundException('Environment not found');
+
+    return this.prisma.$transaction(async (tx) => {
+      // Upsert deployment (one version per prompt per environment)
+      const deployment = await tx.promptDeployment.upsert({
+        where: {
+          managedPromptId_environmentId: { managedPromptId: promptId, environmentId },
+        },
+        create: {
+          managedPromptId: promptId,
+          environmentId,
+          promptVersionId: versionId,
+          deployedBy: userId,
+        },
+        update: {
+          promptVersionId: versionId,
+          deployedAt: new Date(),
+          deployedBy: userId,
+        },
+        include: {
+          environment: true,
+          promptVersion: true,
+        },
+      });
+
+      // If version was draft, mark as active
+      if (version.status === 'draft') {
+        await tx.promptVersion.update({
+          where: { id: versionId },
+          data: { status: 'active' },
+        });
+      }
+
+      return {
+        id: deployment.id,
+        environmentId: deployment.environmentId,
+        environmentName: deployment.environment.name,
+        environmentSlug: deployment.environment.slug,
+        environmentColor: deployment.environment.color,
+        promptVersionId: deployment.promptVersionId,
+        version: deployment.promptVersion.version,
+        deployedAt: deployment.deployedAt.toISOString(),
+        deployedBy: deployment.deployedBy,
+      };
+    });
+  }
+
+  async promoteVersion(
+    projectId: string,
+    promptId: string,
+    sourceEnvId: string,
+    targetEnvId: string,
+    userId: string,
+  ) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const sourceDeployment = await this.prisma.promptDeployment.findUnique({
+      where: {
+        managedPromptId_environmentId: { managedPromptId: promptId, environmentId: sourceEnvId },
+      },
+    });
+    if (!sourceDeployment) {
+      throw new NotFoundException('No deployment found in source environment');
+    }
+
+    const targetEnv = await this.prisma.environment.findFirst({
+      where: { id: targetEnvId, projectId },
+    });
+    if (!targetEnv) throw new NotFoundException('Target environment not found');
+
+    return this.deployToEnvironment(
+      projectId,
+      promptId,
+      sourceDeployment.promptVersionId,
+      targetEnvId,
+      userId,
+    );
+  }
+
+  async getDeployments(projectId: string, promptId: string, userId: string) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const deployments = await this.prisma.promptDeployment.findMany({
+      where: { managedPromptId: promptId },
+      include: {
+        environment: true,
+        promptVersion: true,
+      },
+      orderBy: { environment: { sortOrder: 'asc' } },
+    });
+
+    return deployments.map((d) => ({
+      id: d.id,
+      environmentId: d.environmentId,
+      environmentName: d.environment.name,
+      environmentSlug: d.environment.slug,
+      environmentColor: d.environment.color,
+      promptVersionId: d.promptVersionId,
+      version: d.promptVersion.version,
+      deployedAt: d.deployedAt.toISOString(),
+      deployedBy: d.deployedBy,
+    }));
+  }
+
+  async undeployFromEnvironment(
+    projectId: string,
+    promptId: string,
+    environmentId: string,
+    userId: string,
+  ) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const deployment = await this.prisma.promptDeployment.findUnique({
+      where: {
+        managedPromptId_environmentId: { managedPromptId: promptId, environmentId },
+      },
+    });
+    if (!deployment) {
+      throw new NotFoundException('No deployment found for this environment');
+    }
+
+    await this.prisma.promptDeployment.delete({ where: { id: deployment.id } });
+    return { undeployed: true };
+  }
+
+  async getDeploymentUsageStats(projectId: string, promptId: string, userId: string) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const environments = await this.prisma.environment.findMany({
+      where: { projectId },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    const deployments = await this.prisma.promptDeployment.findMany({
+      where: { managedPromptId: promptId },
+      include: { promptVersion: true },
+    });
+    const deploymentByEnv = new Map(deployments.map((d) => [d.environmentId, d]));
+
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+    const stats = await Promise.all(
+      environments.map(async (env) => {
+        const deployment = deploymentByEnv.get(env.id);
+
+        // 24h stats
+        const agg24h = await this.prisma.lLMEvent.aggregate({
+          where: {
+            projectId,
+            managedPromptId: promptId,
+            environmentId: env.id,
+            createdAt: { gte: oneDayAgo },
+          },
+          _count: true,
+          _sum: { costUsd: true },
+          _avg: { latencyMs: true },
+        });
+
+        // 1h stats (for "is it live?" check)
+        const agg1h = await this.prisma.lLMEvent.aggregate({
+          where: {
+            projectId,
+            managedPromptId: promptId,
+            environmentId: env.id,
+            createdAt: { gte: oneHourAgo },
+          },
+          _count: true,
+        });
+
+        // Most recent event
+        const lastEvent = await this.prisma.lLMEvent.findFirst({
+          where: {
+            projectId,
+            managedPromptId: promptId,
+            environmentId: env.id,
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        });
+
+        return {
+          environmentId: env.id,
+          environmentName: env.name,
+          environmentColor: env.color,
+          promptVersionId: deployment?.promptVersionId ?? null,
+          version: deployment?.promptVersion.version ?? null,
+          callCount24h: agg24h._count,
+          callCount1h: agg1h._count,
+          totalCostUsd24h: agg24h._sum.costUsd ?? 0,
+          avgLatencyMs: agg24h._avg.latencyMs ?? 0,
+          lastCalledAt: lastEvent?.createdAt.toISOString() ?? null,
+        };
+      }),
+    );
+
+    return stats;
   }
 
   // ── A/B Testing ──
@@ -457,6 +696,7 @@ export class PromptService {
     projectId: string,
     slug: string,
     customerId?: string,
+    environmentId?: string,
   ) {
     const prompt = await this.prisma.managedPrompt.findFirst({
       where: { projectId, slug },
@@ -474,6 +714,16 @@ export class PromptService {
           where: { status: 'active' },
           take: 1,
         },
+        ...(environmentId && {
+          deployments: {
+            where: { environmentId },
+            include: {
+              promptVersion: true,
+              environment: true,
+            },
+            take: 1,
+          },
+        }),
       },
     });
 
@@ -481,7 +731,7 @@ export class PromptService {
       throw new NotFoundException(`Prompt "${slug}" not found`);
     }
 
-    // Check for running A/B test first
+    // 1. Check for running A/B test first (global priority)
     const runningTest = prompt.abTests[0];
     if (runningTest && runningTest.variants.length > 0) {
       const hashKey = customerId
@@ -507,7 +757,19 @@ export class PromptService {
       }
     }
 
-    // No A/B test — use active version
+    // 2. Environment-based deployment (if environmentId present)
+    if (environmentId && (prompt as any).deployments?.length > 0) {
+      const deployment = (prompt as any).deployments[0];
+      return {
+        content: deployment.promptVersion.content,
+        managedPromptId: prompt.id,
+        promptVersionId: deployment.promptVersionId,
+        version: deployment.promptVersion.version,
+        environment: deployment.environment.slug,
+      };
+    }
+
+    // 3. Legacy fallback — use active version (for keys without environmentId)
     const activeVersion = prompt.versions[0];
     if (!activeVersion) {
       throw new NotFoundException('No active version for this prompt');
@@ -654,7 +916,10 @@ export class PromptService {
     const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
     if (!apiKey) {
       return {
-        message: 'AI optimization unavailable (ANTHROPIC_API_KEY not set)',
+        message:
+          'AI optimization requires an Anthropic API key. ' +
+          'Add ANTHROPIC_API_KEY to your .env file. ' +
+          'Get one at https://console.anthropic.com/settings/keys',
         version: null,
       };
     }
@@ -713,7 +978,10 @@ export class PromptService {
         originalTokenEstimate,
         originalCostPerCall,
         optimizedContent: null,
-        analysis: null,
+        analysis:
+          'AI-powered analysis requires an Anthropic API key. ' +
+          'Add ANTHROPIC_API_KEY to your .env file. ' +
+          'Get one at https://console.anthropic.com/settings/keys',
         optimizedTokenEstimate: null,
         optimizedCostPerCall: null,
         tokenSavings: null,

@@ -33,8 +33,23 @@ export class PlanForge {
     { managedPromptId: string; promptVersionId: string }
   >();
 
-  constructor(options: PlanForgeOptions) {
-    this.apiKey = options.apiKey;
+  constructor(options: PlanForgeOptions = {}) {
+    const resolvedKey = options.apiKey
+      || (typeof process !== 'undefined' && process.env?.PLANFORGE_API_KEY)
+      || (typeof process !== 'undefined' && process.env?.PF_API_KEY)
+      || '';
+
+    if (!resolvedKey) {
+      throw new Error(
+        'PlanForge API key not found. Either:\n' +
+        '  1. Pass it directly: new PlanForge({ apiKey: "pf_live_..." })\n' +
+        '  2. Set PLANFORGE_API_KEY environment variable\n' +
+        '  3. Set PF_API_KEY environment variable\n' +
+        'Get your key from Settings → Environments in the PlanForge dashboard.',
+      );
+    }
+
+    this.apiKey = resolvedKey;
     this.endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
     this.promptCacheTtl = options.promptCacheTtl ?? DEFAULT_PROMPT_CACHE_TTL;
     this.promptCache = new PromptCache();

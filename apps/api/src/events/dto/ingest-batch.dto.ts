@@ -112,6 +112,10 @@ export class IngestEventDto {
   @IsOptional()
   @IsString()
   spanName?: string;
+
+  @IsOptional()
+  @IsString()
+  environmentId?: string;
 }
 
 export class IngestBatchDto {

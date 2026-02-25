@@ -12,10 +12,11 @@ interface IngestResult {
 export class EventsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async ingestBatch(projectId: string, dto: IngestBatchDto): Promise<IngestResult> {
+  async ingestBatch(projectId: string, dto: IngestBatchDto, environmentId?: string): Promise<IngestResult> {
     await this.prisma.lLMEvent.createMany({
       data: dto.events.map((e) => ({
         projectId,
+        environmentId: e.environmentId ?? environmentId ?? null,
         customerId: e.customerId ?? null,
         feature: e.feature ?? null,
         provider: e.provider,

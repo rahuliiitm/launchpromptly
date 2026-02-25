@@ -69,11 +69,54 @@ export interface Project {
 export interface ApiKey {
   id: string;
   projectId: string;
+  environmentId: string | null;
   keyPrefix: string;
   name: string;
   createdAt: Date;
   lastUsedAt: Date | null;
   revokedAt: Date | null;
+}
+
+// ── Environments ──
+export interface Environment {
+  id: string;
+  projectId: string;
+  name: string;
+  slug: string;
+  color: string;
+  sortOrder: number;
+  isCritical: boolean;
+  createdAt: string;
+}
+
+export interface EnvironmentWithKey extends Environment {
+  sdkKey?: string;
+  sdkKeyPrefix?: string;
+}
+
+export interface PromptDeploymentInfo {
+  id: string;
+  environmentId: string;
+  environmentName: string;
+  environmentSlug: string;
+  environmentColor: string;
+  promptVersionId: string;
+  version: number;
+  deployedAt: string;
+  deployedBy: string | null;
+}
+
+export interface EnvironmentUsageStats {
+  environmentId: string;
+  environmentName: string;
+  environmentColor: string;
+  promptVersionId: string | null;
+  version: number | null;
+  callCount24h: number;
+  callCount1h: number;
+  totalCostUsd24h: number;
+  avgLatencyMs: number;
+  lastCalledAt: string | null;
 }
 
 // ── Platform: Events ──
@@ -122,6 +165,7 @@ export interface IngestEventPayload {
   responseText?: string;
   traceId?: string;
   spanName?: string;
+  environmentId?: string;
 }
 
 export interface IngestBatchPayload {
@@ -375,6 +419,7 @@ export interface ManagedPromptWithVersions extends ManagedPrompt {
   versions: PromptVersion[];
   _count?: { versions: number };
   activeVersion?: PromptVersion | null;
+  deployments?: PromptDeploymentInfo[];
 }
 
 export interface CreateManagedPromptInput {
@@ -399,6 +444,7 @@ export interface ResolvedPrompt {
   managedPromptId: string;
   promptVersionId: string;
   version: number;
+  environment?: string;
 }
 
 export interface ABTest {

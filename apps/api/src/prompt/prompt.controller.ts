@@ -18,6 +18,7 @@ import { UpdateManagedPromptDto } from './dto/update-managed-prompt.dto';
 import { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
 import { CreateABTestDto } from './dto/create-ab-test.dto';
 import { AnalyzePromptDto } from './dto/analyze-prompt.dto';
+import { PromoteVersionDto } from './dto/promote-version.dto';
 import type { Request } from 'express';
 
 interface AuthUser {
@@ -134,6 +135,67 @@ export class PromptController {
   ) {
     const user = req.user as AuthUser;
     return this.promptService.rollbackVersion(projectId, promptId, user.userId);
+  }
+
+  // ── Environment Deployments ──
+
+  @Post(':projectId/:promptId/versions/:versionId/deploy-to/:envId')
+  @HttpCode(200)
+  async deployToEnvironment(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Param('versionId') versionId: string,
+    @Param('envId') envId: string,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.deployToEnvironment(projectId, promptId, versionId, envId, user.userId);
+  }
+
+  @Post(':projectId/:promptId/promote')
+  @HttpCode(200)
+  async promote(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Body() dto: PromoteVersionDto,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.promoteVersion(
+      projectId, promptId, dto.sourceEnvironmentId, dto.targetEnvironmentId, user.userId,
+    );
+  }
+
+  @Get(':projectId/:promptId/deployments')
+  async getDeployments(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.getDeployments(projectId, promptId, user.userId);
+  }
+
+  @Get(':projectId/:promptId/deployments/usage')
+  async getDeploymentUsage(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.getDeploymentUsageStats(projectId, promptId, user.userId);
+  }
+
+  @Delete(':projectId/:promptId/deployments/:envId')
+  @HttpCode(204)
+  async undeploy(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Param('envId') envId: string,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    await this.promptService.undeployFromEnvironment(projectId, promptId, envId, user.userId);
   }
 
   // ── A/B Testing ──

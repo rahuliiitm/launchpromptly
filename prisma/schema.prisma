@@ -57,20 +57,23 @@ model Project {
   apiKeys         ApiKey[]
   events          LLMEvent[]
   managedPrompts  ManagedPrompt[]
+  environments    Environment[]
 
   @@index([organizationId])
 }
 
 model ApiKey {
-  id         String    @id @default(uuid())
-  projectId  String
-  keyHash    String    @unique
-  keyPrefix  String
-  name       String    @default("Default")
-  createdAt  DateTime  @default(now())
-  lastUsedAt DateTime?
-  revokedAt  DateTime?
-  project    Project   @relation(fields: [projectId], references: [id])
+  id            String       @id @default(uuid())
+  projectId     String
+  environmentId String?
+  keyHash       String       @unique
+  keyPrefix     String
+  name          String       @default("Default")
+  createdAt     DateTime     @default(now())
+  lastUsedAt    DateTime?
+  revokedAt     DateTime?
+  project       Project      @relation(fields: [projectId], references: [id])
+  environment   Environment? @relation(fields: [environmentId], references: [id])
 
   @@index([keyHash])
 }
@@ -102,6 +105,7 @@ model LLMEvent {
   responseText     String?
   traceId          String?
   spanName         String?
+  environmentId    String?
   createdAt        DateTime       @default(now())
   project          Project        @relation(fields: [projectId], references: [id])
   managedPrompt    ManagedPrompt? @relation(fields: [managedPromptId], references: [id])
@@ -116,6 +120,7 @@ model LLMEvent {
   @@index([projectId, managedPromptId])
   @@index([projectId, ragPipelineId])
   @@index([projectId, traceId])
+  @@index([projectId, environmentId, managedPromptId])
 }
 
 model RagEvaluation {
@@ -144,10 +149,11 @@ model ManagedPrompt {
   description      String          @default("")
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
-  project          Project         @relation(fields: [projectId], references: [id])
+  project          Project              @relation(fields: [projectId], references: [id])
   versions         PromptVersion[]
   abTests          ABTest[]
   events           LLMEvent[]
+  deployments      PromptDeployment[]
 
   @@unique([projectId, slug])
   @@index([projectId])
@@ -161,9 +167,10 @@ model PromptVersion {
   status          String          @default("draft")
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
-  managedPrompt   ManagedPrompt   @relation(fields: [managedPromptId], references: [id], onDelete: Cascade)
+  managedPrompt   ManagedPrompt        @relation(fields: [managedPromptId], references: [id], onDelete: Cascade)
   abTestVariants  ABTestVariant[]
-  events          LLMEvent[]      @relation("VersionEvents")
+  events          LLMEvent[]           @relation("VersionEvents")
+  deployments     PromptDeployment[]
 
   @@unique([managedPromptId, version])
   @@index([managedPromptId, status])
@@ -208,4 +215,36 @@ model Invitation {
 
   @@unique([organizationId, email])
   @@index([organizationId])
+}
+
+model Environment {
+  id          String              @id @default(uuid())
+  projectId   String
+  name        String
+  slug        String
+  color       String              @default("#6B7280")
+  sortOrder   Int                 @default(0)
+  isCritical  Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  project     Project             @relation(fields: [projectId], references: [id])
+  apiKeys     ApiKey[]
+  deployments PromptDeployment[]
+
+  @@unique([projectId, slug])
+  @@index([projectId])
+}
+
+model PromptDeployment {
+  id              String        @id @default(uuid())
+  managedPromptId String
+  environmentId   String
+  promptVersionId String
+  deployedAt      DateTime      @default(now())
+  deployedBy      String?
+  managedPrompt   ManagedPrompt @relation(fields: [managedPromptId], references: [id], onDelete: Cascade)
+  environment     Environment   @relation(fields: [environmentId], references: [id])
+  promptVersion   PromptVersion @relation(fields: [promptVersionId], references: [id])
+
+  @@unique([managedPromptId, environmentId])
+  @@index([environmentId])
 }

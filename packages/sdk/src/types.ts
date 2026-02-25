@@ -4,7 +4,7 @@ export interface CustomerContext {
 }
 
 export interface PlanForgeOptions {
-  apiKey: string;
+  apiKey?: string;
   endpoint?: string;
   flushAt?: number;
   flushInterval?: number;

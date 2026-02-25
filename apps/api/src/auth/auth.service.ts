@@ -8,6 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+import { EnvironmentService } from '../environment/environment.service';
 
 export interface AuthResponse {
   accessToken: string;
@@ -28,6 +29,7 @@ export interface UserProfile {
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly environmentService: EnvironmentService,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -69,11 +71,14 @@ export class AuthService {
       const created = await tx.user.create({
         data: { email, passwordHash, organizationId: org.id },
       });
-      await tx.project.create({
+      const project = await tx.project.create({
         data: { organizationId: org.id, name: 'Default Project' },
       });
-      return { ...created, organization: org };
+      return { ...created, organization: org, projectId: project.id };
     });
+
+    // Create default environments (Production + Development) with SDK keys
+    await this.environmentService.createDefaultEnvironments(user.projectId);
 
     const plan = user.organization.plan;
     const accessToken = this.jwtService.sign({

@@ -2,11 +2,18 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
 import { TextDiff } from '@/components/text-diff';
-import type { ManagedPromptWithVersions, PromptVersion, PromptVersionAnalytics } from '@aiecon/types';
+import type {
+  ManagedPromptWithVersions,
+  PromptVersion,
+  PromptVersionAnalytics,
+  PromptDeploymentInfo,
+  EnvironmentUsageStats,
+  Environment,
+} from '@aiecon/types';
 
 const STATUS_BADGE: Record<string, string> = {
   draft: 'bg-yellow-100 text-yellow-700',
@@ -14,11 +21,30 @@ const STATUS_BADGE: Record<string, string> = {
   archived: 'bg-gray-100 text-gray-600',
 };
 
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  if (diff < 60_000) return `${Math.round(diff / 1000)}s ago`;
+  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
+  return `${Math.round(diff / 86_400_000)}d ago`;
+}
+
+function statusIndicator(lastCalledAt: string | null): { color: string; label: string } {
+  if (!lastCalledAt) return { color: 'bg-gray-400', label: 'Never called' };
+  const diff = Date.now() - new Date(lastCalledAt).getTime();
+  if (diff < 5 * 60_000) return { color: 'bg-green-500', label: 'Active' };
+  if (diff < 30 * 60_000) return { color: 'bg-yellow-500', label: 'Idle' };
+  return { color: 'bg-gray-400', label: 'Inactive' };
+}
+
 export default function PromptDetailPage() {
   const { promptId } = useParams<{ promptId: string }>();
   const router = useRouter();
   const [prompt, setPrompt] = useState<ManagedPromptWithVersions | null>(null);
   const [analytics, setAnalytics] = useState<PromptVersionAnalytics[]>([]);
+  const [environments, setEnvironments] = useState<Environment[]>([]);
+  const [deployments, setDeployments] = useState<PromptDeploymentInfo[]>([]);
+  const [usageStats, setUsageStats] = useState<EnvironmentUsageStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -27,7 +53,10 @@ export default function PromptDetailPage() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', slug: '', description: '' });
   const [successBanner, setSuccessBanner] = useState('');
-  const [compareWith, setCompareWith] = useState<Record<string, string>>({}); // versionId -> compareToVersionId
+  const [compareWith, setCompareWith] = useState<Record<string, string>>({});
+  const [deployDropdown, setDeployDropdown] = useState<string | null>(null); // versionId with open dropdown
+  const [promoteFrom, setPromoteFrom] = useState<string | null>(null); // environmentId to promote from
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadPrompt = useCallback(() => {
     const token = getToken();
@@ -36,19 +65,35 @@ export default function PromptDetailPage() {
       setLoading(false);
       return;
     }
+    const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
       apiFetch<ManagedPromptWithVersions>(
         `/prompt/${projectId}/${promptId}`,
-        { headers: { Authorization: `Bearer ${token}` } },
+        { headers },
       ),
       apiFetch<PromptVersionAnalytics[]>(
         `/prompt/${projectId}/${promptId}/analytics?days=30`,
-        { headers: { Authorization: `Bearer ${token}` } },
+        { headers },
       ).catch(() => [] as PromptVersionAnalytics[]),
+      apiFetch<Environment[]>(
+        `/environment/${projectId}`,
+        { headers },
+      ).catch(() => [] as Environment[]),
+      apiFetch<PromptDeploymentInfo[]>(
+        `/prompt/${projectId}/${promptId}/deployments`,
+        { headers },
+      ).catch(() => [] as PromptDeploymentInfo[]),
+      apiFetch<EnvironmentUsageStats[]>(
+        `/prompt/${projectId}/${promptId}/deployments/usage`,
+        { headers },
+      ).catch(() => [] as EnvironmentUsageStats[]),
     ])
-      .then(([p, a]) => {
+      .then(([p, a, envs, deps, usage]) => {
         setPrompt(p);
         setAnalytics(a);
+        setEnvironments(envs);
+        setDeployments(deps);
+        setUsageStats(usage);
         setEditForm({ name: p.name, slug: p.slug, description: p.description });
       })
       .catch((err: Error) => setError(err.message))
@@ -57,12 +102,105 @@ export default function PromptDetailPage() {
 
   useEffect(loadPrompt, [loadPrompt]);
 
+  // Auto-refresh usage stats every 30 seconds
+  useEffect(() => {
+    const token = getToken();
+    const projectId = getProjectId();
+    if (!token || !projectId) return;
+    const headers = { Authorization: `Bearer ${token}` };
+
+    pollRef.current = setInterval(() => {
+      Promise.all([
+        apiFetch<PromptDeploymentInfo[]>(
+          `/prompt/${projectId}/${promptId}/deployments`,
+          { headers },
+        ).catch(() => null),
+        apiFetch<EnvironmentUsageStats[]>(
+          `/prompt/${projectId}/${promptId}/deployments/usage`,
+          { headers },
+        ).catch(() => null),
+      ]).then(([deps, usage]) => {
+        if (deps) setDeployments(deps);
+        if (usage) setUsageStats(usage);
+      });
+    }, 30_000);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [promptId]);
+
   // Auto-dismiss success banner
   useEffect(() => {
     if (!successBanner) return;
     const timer = setTimeout(() => setSuccessBanner(''), 5000);
     return () => clearTimeout(timer);
   }, [successBanner]);
+
+  const handleDeployToEnv = async (versionId: string, versionNum: number, envId: string, envName: string, isCritical: boolean) => {
+    if (isCritical && !confirm(`Deploy v${versionNum} to ${envName}? This is a critical environment.`)) return;
+    const token = getToken();
+    const projectId = getProjectId();
+    if (!token || !projectId) return;
+    setActionLoading(`deploy-${versionId}-${envId}`);
+    setDeployDropdown(null);
+    try {
+      await apiFetch(`/prompt/${projectId}/${promptId}/versions/${versionId}/deploy-to/${envId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSuccessBanner(`v${versionNum} deployed to ${envName}.`);
+      loadPrompt();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handlePromote = async (sourceEnvId: string, targetEnvId: string, targetEnvName: string) => {
+    const token = getToken();
+    const projectId = getProjectId();
+    if (!token || !projectId) return;
+    setActionLoading(`promote-${sourceEnvId}-${targetEnvId}`);
+    setPromoteFrom(null);
+    try {
+      await apiFetch(`/prompt/${projectId}/${promptId}/promote`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          sourceEnvironmentId: sourceEnvId,
+          targetEnvironmentId: targetEnvId,
+        }),
+      });
+      setSuccessBanner(`Promoted to ${targetEnvName}.`);
+      loadPrompt();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUndeploy = async (envId: string, envName: string) => {
+    if (!confirm(`Remove deployment from ${envName}? SDK calls for this environment will fail.`)) return;
+    const token = getToken();
+    const projectId = getProjectId();
+    if (!token || !projectId) return;
+    setActionLoading(`undeploy-${envId}`);
+    try {
+      await apiFetch(`/prompt/${projectId}/${promptId}/deployments/${envId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSuccessBanner(`Removed deployment from ${envName}.`);
+      loadPrompt();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const handleDeploy = async (versionId: string, versionNum: number) => {
     if (!confirm(`Deploy v${versionNum} to production? SDK will immediately serve this version.`)) return;
@@ -186,6 +324,7 @@ export default function PromptDetailPage() {
   const hasActiveVersion = prompt.versions.some((v: PromptVersion) => v.status === 'active');
   const archivedVersions = prompt.versions.filter((v: PromptVersion) => v.status === 'archived');
   const rollbackTarget = archivedVersions.length > 0 ? archivedVersions[0] : null;
+  const hasEnvironments = environments.length > 0;
 
   return (
     <div>
@@ -206,9 +345,9 @@ export default function PromptDetailPage() {
       )}
 
       {/* No active version warning */}
-      {!hasActiveVersion && (
+      {!hasActiveVersion && deployments.length === 0 && (
         <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-          No active version. SDK calls for this prompt will fail until you deploy a version.
+          No active deployment. SDK calls for this prompt will fail until you deploy a version.
         </div>
       )}
 
@@ -303,6 +442,122 @@ export default function PromptDetailPage() {
 
       {error && <div className="mt-3 text-sm text-red-500">{error}</div>}
 
+      {/* ── Deployment Status Panel ── */}
+      {hasEnvironments && (
+        <div className="mt-6 rounded-lg border bg-white p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+              Deployment Status
+            </h2>
+            <button
+              onClick={loadPrompt}
+              className="text-xs text-gray-500 hover:text-gray-700"
+              title="Refresh"
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {environments.map((env) => {
+              const dep = deployments.find((d) => d.environmentId === env.id);
+              const usage = usageStats.find((u) => u.environmentId === env.id);
+              const indicator = dep ? statusIndicator(usage?.lastCalledAt ?? null) : null;
+
+              return (
+                <div
+                  key={env.id}
+                  className="flex items-center gap-3 rounded border px-3 py-2 text-sm"
+                >
+                  {/* Color dot + env name */}
+                  <div
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: env.color }}
+                  />
+                  <span className="w-36 shrink-0 font-medium truncate">{env.name}</span>
+
+                  {dep ? (
+                    <>
+                      {/* Version badge */}
+                      <span className="shrink-0 rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                        v{dep.version}
+                      </span>
+
+                      {/* Status indicator */}
+                      <span className="flex items-center gap-1 shrink-0">
+                        <span className={`h-2 w-2 rounded-full ${indicator!.color}`} />
+                        <span className="text-xs text-gray-500">{indicator!.label}</span>
+                      </span>
+
+                      {/* Call count 24h */}
+                      <span className="text-xs text-gray-500 shrink-0">
+                        {usage?.callCount24h ?? 0} calls (24h)
+                      </span>
+
+                      {/* Last called */}
+                      {usage?.lastCalledAt && (
+                        <span className="text-xs text-gray-400 shrink-0">
+                          last: {timeAgo(usage.lastCalledAt)}
+                        </span>
+                      )}
+
+                      {/* Actions */}
+                      <div className="ml-auto flex items-center gap-2 shrink-0">
+                        {/* Promote button */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setPromoteFrom(promoteFrom === env.id ? null : env.id)}
+                            className="rounded border px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-50"
+                          >
+                            Promote
+                          </button>
+                          {promoteFrom === env.id && (
+                            <div className="absolute right-0 top-full z-10 mt-1 w-44 rounded border bg-white py-1 shadow-lg">
+                              {environments
+                                .filter((e) => e.id !== env.id)
+                                .map((target) => (
+                                  <button
+                                    key={target.id}
+                                    onClick={() => handlePromote(env.id, target.id, target.name)}
+                                    className="flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50"
+                                  >
+                                    <span
+                                      className="h-2 w-2 rounded-full"
+                                      style={{ backgroundColor: target.color }}
+                                    />
+                                    {target.name}
+                                  </button>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => handleUndeploy(env.id, env.name)}
+                          disabled={!!actionLoading}
+                          className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-xs text-gray-400">Not deployed</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="mt-3 text-xs text-gray-400">
+            Auto-refreshes every 30s. Manage environments in{' '}
+            <Link href="/admin/environments" className="text-blue-600 hover:underline">
+              Admin &gt; Environments
+            </Link>.
+          </p>
+        </div>
+      )}
+
       {/* New Version Button */}
       <div className="mt-6 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Versions</h2>
@@ -346,6 +601,9 @@ export default function PromptDetailPage() {
             ? prompt.versions.find((other: PromptVersion) => other.id === compareTargetId)
             : null;
 
+          // Which environments is this version deployed to?
+          const deployedTo = deployments.filter((d) => d.promptVersionId === v.id);
+
           return (
             <div key={v.id} className="rounded-lg border bg-white p-4">
               <div className="flex items-center justify-between">
@@ -356,6 +614,23 @@ export default function PromptDetailPage() {
                   >
                     {v.status}
                   </span>
+                  {/* Env badges for this version */}
+                  {deployedTo.map((d) => (
+                    <span
+                      key={d.environmentId}
+                      className="flex items-center gap-1 rounded px-2 py-0.5 text-xs"
+                      style={{
+                        backgroundColor: `${d.environmentColor}20`,
+                        color: d.environmentColor,
+                      }}
+                    >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ backgroundColor: d.environmentColor }}
+                      />
+                      {d.environmentName}
+                    </span>
+                  ))}
                   {vAnalytics && vAnalytics.callCount > 0 && (
                     <span className="text-xs text-gray-500">
                       {vAnalytics.callCount} calls | ${vAnalytics.totalCostUsd.toFixed(4)} |{' '}
@@ -364,7 +639,44 @@ export default function PromptDetailPage() {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  {v.status !== 'active' && (
+                  {/* Deploy to environment dropdown */}
+                  {hasEnvironments && (
+                    <div className="relative">
+                      <button
+                        onClick={() =>
+                          setDeployDropdown(deployDropdown === v.id ? null : v.id)
+                        }
+                        disabled={!!actionLoading}
+                        className="rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                      >
+                        Deploy to...
+                      </button>
+                      {deployDropdown === v.id && (
+                        <div className="absolute right-0 top-full z-10 mt-1 w-48 rounded border bg-white py-1 shadow-lg">
+                          {environments.map((env) => (
+                            <button
+                              key={env.id}
+                              onClick={() =>
+                                handleDeployToEnv(v.id, v.version, env.id, env.name, env.isCritical)
+                              }
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50"
+                            >
+                              <span
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: env.color }}
+                              />
+                              {env.name}
+                              {env.isCritical && (
+                                <span className="ml-auto text-red-500">!</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Legacy deploy button (if no environments configured) */}
+                  {!hasEnvironments && v.status !== 'active' && (
                     <button
                       onClick={() => handleDeploy(v.id, v.version)}
                       disabled={actionLoading === `deploy-${v.id}`}
