@@ -10,6 +10,7 @@ import { ProjectService } from '../project/project.service';
 import { TeamService } from '../team/team.service';
 import type { CreateEvalDatasetDto } from './dto/create-eval-dataset.dto';
 import type { CreateEvalCaseDto } from './dto/create-eval-case.dto';
+import type { GenerateDatasetDto } from './dto/generate-dataset.dto';
 
 @Injectable()
 export class EvalService {
@@ -88,6 +89,87 @@ export class EvalService {
     if (!dataset) throw new NotFoundException('Eval dataset not found');
 
     await this.prisma.evalDataset.delete({ where: { id: datasetId } });
+  }
+
+  // ── Generate dataset ──
+
+  async generateDataset(
+    projectId: string,
+    promptId: string,
+    userId: string,
+    dto: GenerateDatasetDto,
+  ) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+    await this.assertPromptAccess(projectId, promptId);
+    await this.teamService.assertPromptTeamAccess(promptId, userId, 'editor');
+
+    if (!this.anthropic) {
+      throw new BadRequestException(
+        'Dataset generation requires ANTHROPIC_API_KEY to be configured.',
+      );
+    }
+
+    const version = await this.prisma.promptVersion.findFirst({
+      where: { id: dto.promptVersionId, managedPromptId: promptId },
+    });
+    if (!version) throw new NotFoundException('Prompt version not found');
+
+    // Detect template variables
+    const variables: string[] = [];
+    const variablePattern = /\{\{(\w+)\}\}/g;
+    let match;
+    while ((match = variablePattern.exec(version.content)) !== null) {
+      if (!variables.includes(match[1])) variables.push(match[1]);
+    }
+
+    // Call Claude to generate test cases
+    const generationPrompt = this.buildGenerationPrompt(version.content, variables);
+    const response = await this.anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      temperature: 0.7,
+      messages: [{ role: 'user', content: generationPrompt }],
+    });
+
+    const text = response.content
+      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+      .map((block) => block.text)
+      .join('');
+
+    const parsed = this.parseGeneratedCases(text);
+
+    // Create dataset + cases in a transaction
+    return this.prisma.$transaction(async (tx) => {
+      const dataset = await tx.evalDataset.create({
+        data: {
+          managedPromptId: promptId,
+          name: dto.name || `Auto-generated (v${version.version})`,
+          description: parsed.description,
+          passThreshold: dto.passThreshold ?? 3.5,
+        },
+      });
+
+      if (parsed.cases.length > 0) {
+        await tx.evalCase.createMany({
+          data: parsed.cases.map((c, i) => ({
+            datasetId: dataset.id,
+            input: c.input,
+            expectedOutput: null,
+            variables: c.variables ?? undefined,
+            criteria: c.criteria,
+            sortOrder: i,
+          })),
+        });
+      }
+
+      return tx.evalDataset.findUnique({
+        where: { id: dataset.id },
+        include: {
+          cases: { orderBy: { sortOrder: 'asc' } },
+          _count: { select: { cases: true, runs: true } },
+        },
+      });
+    });
   }
 
   // ── Case CRUD ──
@@ -198,6 +280,7 @@ export class EvalService {
           evalCaseId: r.caseId,
           score: r.score,
           reasoning: r.reasoning,
+          response: r.response,
         })),
       });
 
@@ -309,25 +392,57 @@ export class EvalService {
       variables: any;
       criteria: string | null;
     }>,
-  ): Promise<Array<{ caseId: string; score: number; reasoning: string }>> {
-    const results: Array<{ caseId: string; score: number; reasoning: string }> = [];
+  ): Promise<Array<{ caseId: string; score: number; reasoning: string; response: string }>> {
+    const CONCURRENCY = 5;
+    const results: Array<{ caseId: string; score: number; reasoning: string; response: string }> = [];
 
-    for (const evalCase of cases) {
-      // Interpolate variables into prompt content
-      let resolvedPrompt = promptContent;
-      if (evalCase.variables && typeof evalCase.variables === 'object') {
-        const vars = evalCase.variables as Record<string, string>;
-        resolvedPrompt = resolvedPrompt.replace(
-          /\{\{(\w+)\}\}/g,
-          (match, name) => (name in vars ? vars[name] : match),
-        );
-      }
+    // Process cases in batches for controlled concurrency
+    for (let i = 0; i < cases.length; i += CONCURRENCY) {
+      const batch = cases.slice(i, i + CONCURRENCY);
+      const batchResults = await Promise.all(
+        batch.map(async (evalCase) => {
+          // Interpolate variables into prompt content
+          let resolvedPrompt = promptContent;
+          if (evalCase.variables && typeof evalCase.variables === 'object') {
+            const vars = evalCase.variables as Record<string, string>;
+            resolvedPrompt = resolvedPrompt.replace(
+              /\{\{(\w+)\}\}/g,
+              (match, name) => (name in vars ? vars[name] : match),
+            );
+          }
 
-      const result = await this.judgeCase(resolvedPrompt, evalCase);
-      results.push({ caseId: evalCase.id, ...result });
+          // Phase 1: Run the prompt to get a real response
+          const response = await this.runPrompt(resolvedPrompt, evalCase.input);
+
+          // Phase 2: Judge the actual response
+          const judgment = await this.judgeCase(resolvedPrompt, evalCase, response);
+
+          return { caseId: evalCase.id, response, ...judgment };
+        }),
+      );
+      results.push(...batchResults);
     }
 
     return results;
+  }
+
+  private async runPrompt(systemPrompt: string, userInput: string): Promise<string> {
+    try {
+      const message = await this.anthropic!.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2048,
+        temperature: 0,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userInput }],
+      });
+
+      return message.content
+        .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+        .map((block) => block.text)
+        .join('');
+    } catch (err) {
+      return `[Error: prompt execution failed — ${(err as Error).message}]`;
+    }
   }
 
   private async judgeCase(
@@ -337,8 +452,14 @@ export class EvalService {
       expectedOutput: string | null;
       criteria: string | null;
     },
+    actualResponse: string,
   ): Promise<{ score: number; reasoning: string }> {
-    const judgePrompt = this.buildJudgePrompt(resolvedPrompt, evalCase);
+    // If the prompt failed to run, auto-fail
+    if (actualResponse.startsWith('[Error:')) {
+      return { score: 1, reasoning: `Prompt execution failed: ${actualResponse}` };
+    }
+
+    const judgePrompt = this.buildJudgePrompt(resolvedPrompt, evalCase, actualResponse);
 
     try {
       const response = await this.anthropic!.messages.create({
@@ -365,31 +486,34 @@ export class EvalService {
       expectedOutput: string | null;
       criteria: string | null;
     },
+    actualResponse: string,
   ): string {
-    let prompt = `You are an expert prompt evaluator. Score the following system prompt on a scale of 1-5 for how well it would handle the given test scenario.
+    let prompt = `You are an expert evaluator of AI assistant responses. Score the following response on a scale of 1-5.
 
-## System Prompt Being Evaluated
-${resolvedPrompt}
+## Context
+System Prompt: ${resolvedPrompt}
 
-## Test Scenario
-User Input: ${evalCase.input}`;
+User Input: ${evalCase.input}
 
-    if (evalCase.expectedOutput) {
-      prompt += `\n\nExpected Output Pattern: ${evalCase.expectedOutput}`;
-    }
+## Actual Response
+${actualResponse}`;
 
     if (evalCase.criteria) {
-      prompt += `\n\nSpecific Criteria: ${evalCase.criteria}`;
+      prompt += `\n\n## Evaluation Criteria\n${evalCase.criteria}`;
+    }
+
+    if (evalCase.expectedOutput) {
+      prompt += `\n\n## Expected Output (reference)\n${evalCase.expectedOutput}`;
     }
 
     prompt += `
 
 ## Scoring Guide
-1 = Very Poor: The prompt would likely produce harmful, irrelevant, or completely wrong responses
-2 = Poor: The prompt has significant gaps that would lead to low-quality responses
-3 = Acceptable: The prompt would produce adequate but not great responses
-4 = Good: The prompt is well-crafted and would handle this scenario effectively
-5 = Excellent: The prompt is optimally designed for this scenario
+1 = Very Poor: Response is incorrect, harmful, or completely misses the point
+2 = Poor: Response has major issues or significant gaps
+3 = Acceptable: Response is adequate but could be improved
+4 = Good: Response is correct and well-formulated
+5 = Excellent: Response perfectly addresses the input and meets all criteria
 
 Respond with ONLY a JSON object (no markdown, no code blocks):
 {"score": <1-5>, "reasoning": "<brief explanation>"}`;
@@ -419,6 +543,64 @@ Respond with ONLY a JSON object (no markdown, no code blocks):
     }
 
     return { score: 3, reasoning: 'Could not parse judge response. Assigned neutral score.' };
+  }
+
+  private buildGenerationPrompt(promptContent: string, variables: string[]): string {
+    let prompt = `You are an expert at creating evaluation test cases for AI system prompts.
+
+Given the following system prompt, generate 8-12 diverse test cases that thoroughly test the prompt's capabilities, edge cases, and potential failure modes.
+
+## System Prompt
+${promptContent}`;
+
+    if (variables.length > 0) {
+      prompt += `\n\n## Template Variables\nThis prompt uses these template variables: ${variables.map((v) => `{{${v}}}`).join(', ')}. For each test case, provide sample values for these variables.`;
+    }
+
+    prompt += `
+
+## Requirements
+- Each test case should have: an "input" (the user message) and "criteria" (what a good response should satisfy)
+- Do NOT include expected outputs — focus on criteria-based evaluation
+- Cover: typical use cases, edge cases, adversarial inputs, and boundary conditions
+- Criteria should be specific and measurable (e.g., "Response must mention the refund policy" not "Response should be good")
+- Also generate a brief dataset description (1 sentence)
+${variables.length > 0 ? '- Include a "variables" object with sample values for each test case' : ''}
+
+Respond with ONLY a JSON object (no markdown, no code blocks):
+{
+  "description": "<dataset description>",
+  "cases": [
+    {
+      "input": "<user message>",
+      "criteria": "<specific evaluation criteria>"${variables.length > 0 ? ',\n      "variables": {"varName": "value"}' : ''}
+    }
+  ]
+}`;
+
+    return prompt;
+  }
+
+  private parseGeneratedCases(text: string): {
+    description: string;
+    cases: Array<{ input: string; criteria: string; variables?: Record<string, string> }>;
+  } {
+    try {
+      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      const jsonStr = jsonMatch ? jsonMatch[1] : text;
+      const parsed = JSON.parse(jsonStr!);
+
+      return {
+        description: String(parsed.description || 'Auto-generated test cases'),
+        cases: (parsed.cases || []).map((c: any) => ({
+          input: String(c.input || ''),
+          criteria: String(c.criteria || ''),
+          ...(c.variables && typeof c.variables === 'object' ? { variables: c.variables } : {}),
+        })),
+      };
+    } catch {
+      return { description: 'Auto-generated test cases', cases: [] };
+    }
   }
 
   private async assertPromptAccess(projectId: string, promptId: string) {

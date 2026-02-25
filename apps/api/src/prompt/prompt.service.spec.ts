@@ -962,7 +962,7 @@ describe('PromptService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should block deploy to critical env without passing eval', async () => {
+    it('should block deploy when evalGateEnabled and no passing eval', async () => {
       mockPrisma.promptVersion.findFirst.mockResolvedValue({
         id: 'v1',
         managedPromptId: 'p1',
@@ -976,6 +976,7 @@ describe('PromptService', () => {
           slug: 'production',
           color: '#059669',
           isCritical: true,
+          evalGateEnabled: true,
         }),
       };
       (mockPrisma as any).evalDataset = {
@@ -990,7 +991,7 @@ describe('PromptService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should allow deploy to critical env with passing eval', async () => {
+    it('should allow deploy when evalGateEnabled and passing eval exists', async () => {
       mockPrisma.promptVersion.findFirst.mockResolvedValue({
         id: 'v1',
         managedPromptId: 'p1',
@@ -1004,6 +1005,7 @@ describe('PromptService', () => {
           slug: 'production',
           color: '#059669',
           isCritical: true,
+          evalGateEnabled: true,
         }),
       };
       (mockPrisma as any).evalDataset = {
@@ -1034,7 +1036,7 @@ describe('PromptService', () => {
       expect(result.environmentName).toBe('Production');
     });
 
-    it('should allow deploy to critical env with no datasets (no eval required)', async () => {
+    it('should allow deploy when evalGateEnabled but no datasets exist', async () => {
       mockPrisma.promptVersion.findFirst.mockResolvedValue({
         id: 'v1',
         managedPromptId: 'p1',
@@ -1048,6 +1050,7 @@ describe('PromptService', () => {
           slug: 'production',
           color: '#059669',
           isCritical: true,
+          evalGateEnabled: true,
         }),
       };
       (mockPrisma as any).evalDataset = {
@@ -1071,6 +1074,46 @@ describe('PromptService', () => {
         return fn(tx);
       });
 
+      const result = await service.deployToEnvironment('proj1', 'p1', 'v1', 'env-prod', 'user1');
+      expect(result.environmentName).toBe('Production');
+    });
+
+    it('should allow deploy when isCritical but evalGateEnabled is false', async () => {
+      mockPrisma.promptVersion.findFirst.mockResolvedValue({
+        id: 'v1',
+        managedPromptId: 'p1',
+        status: 'active',
+      });
+      (mockPrisma as any).environment = {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'env-prod',
+          projectId: 'proj1',
+          name: 'Production',
+          slug: 'production',
+          color: '#059669',
+          isCritical: true,
+          evalGateEnabled: false,
+        }),
+      };
+      mockPrisma.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          promptDeployment: {
+            upsert: jest.fn().mockResolvedValue({
+              id: 'dep-1',
+              environmentId: 'env-prod',
+              promptVersionId: 'v1',
+              deployedAt: new Date(),
+              deployedBy: 'user1',
+              environment: { name: 'Production', slug: 'production', color: '#059669' },
+              promptVersion: { version: 1 },
+            }),
+          },
+          promptVersion: { update: jest.fn() },
+        };
+        return fn(tx);
+      });
+
+      // Should NOT check eval datasets/runs since evalGateEnabled is false
       const result = await service.deployToEnvironment('proj1', 'p1', 'v1', 'env-prod', 'user1');
       expect(result.environmentName).toBe('Production');
     });

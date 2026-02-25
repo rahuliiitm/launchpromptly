@@ -112,6 +112,7 @@ export interface Environment {
   color: string;
   sortOrder: number;
   isCritical: boolean;
+  evalGateEnabled: boolean;
   createdAt: string;
 }
 
@@ -592,6 +593,7 @@ export interface EvalResult {
   evalCaseId: string;
   score: number;
   reasoning: string;
+  response: string;
   createdAt: string;
   evalCase?: EvalCase;
 }

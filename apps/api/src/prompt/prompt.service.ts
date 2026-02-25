@@ -350,8 +350,8 @@ export class PromptService {
     });
     if (!env) throw new NotFoundException('Environment not found');
 
-    // Eval gate: critical environments require a passing eval
-    if (env.isCritical) {
+    // Eval gate: environments with evalGateEnabled require a passing eval
+    if (env.evalGateEnabled) {
       const hasDatasets = await this.prisma.evalDataset.count({
         where: { managedPromptId: promptId },
       });
@@ -365,8 +365,8 @@ export class PromptService {
         });
         if (!passingRun) {
           throw new BadRequestException(
-            `Cannot deploy to critical environment "${env.name}" without a passing evaluation. ` +
-            'Run an eval on this version first, or deploy to a non-critical environment.',
+            `Cannot deploy to "${env.name}" — eval gate is enabled and no passing evaluation exists for this version. ` +
+            'Run an eval on this version first, or disable the eval gate on this environment.',
           );
         }
       }

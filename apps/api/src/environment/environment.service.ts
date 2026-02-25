@@ -19,6 +19,7 @@ export interface EnvironmentWithKeyInfo {
   color: string;
   sortOrder: number;
   isCritical: boolean;
+  evalGateEnabled: boolean;
   createdAt: Date;
   sdkKeyPrefix?: string;
   sdkKey?: string; // raw key, only returned at creation
@@ -72,6 +73,7 @@ export class EnvironmentService {
       color: env.color,
       sortOrder: env.sortOrder,
       isCritical: env.isCritical,
+      evalGateEnabled: env.evalGateEnabled,
       createdAt: env.createdAt,
       sdkKeyPrefix: env.apiKeys[0]?.keyPrefix ?? undefined,
     }));
@@ -120,6 +122,7 @@ export class EnvironmentService {
       color: env.color,
       sortOrder: env.sortOrder,
       isCritical: env.isCritical,
+      evalGateEnabled: env.evalGateEnabled,
       createdAt: env.createdAt,
       sdkKeyPrefix: rawKey.slice(0, 16),
       sdkKey: rawKey, // shown once
@@ -146,6 +149,7 @@ export class EnvironmentService {
         ...(dto.color !== undefined && { color: dto.color }),
         ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
         ...(dto.isCritical !== undefined && { isCritical: dto.isCritical }),
+        ...(dto.evalGateEnabled !== undefined && { evalGateEnabled: dto.evalGateEnabled }),
       },
     });
 
@@ -157,6 +161,7 @@ export class EnvironmentService {
       color: updated.color,
       sortOrder: updated.sortOrder,
       isCritical: updated.isCritical,
+      evalGateEnabled: updated.evalGateEnabled,
       createdAt: updated.createdAt,
     };
   }

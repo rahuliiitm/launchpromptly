@@ -276,6 +276,56 @@ describe('EvalService', () => {
     });
   });
 
+  describe('generateDataset', () => {
+    it('should throw when ANTHROPIC_API_KEY not configured', async () => {
+      await expect(
+        service.generateDataset('proj-1', 'p-1', 'user-1', { promptVersionId: 'v-1' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw when version not found', async () => {
+      // Create service with API key configured
+      const configWithKey = { get: jest.fn().mockReturnValue('test-key') } as unknown as ConfigService;
+      const teamService = {
+        assertTeamRole: jest.fn().mockResolvedValue(undefined),
+        assertPromptTeamAccess: jest.fn().mockResolvedValue(undefined),
+      } as unknown as TeamService;
+      const svc = new EvalService(prisma, projectService, teamService, configWithKey);
+      prisma.promptVersion.findFirst.mockResolvedValue(null);
+
+      await expect(
+        svc.generateDataset('proj-1', 'p-1', 'user-1', { promptVersionId: 'v-missing' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('parseGeneratedCases', () => {
+    const callParse = (text: string) => {
+      return (service as any).parseGeneratedCases(text);
+    };
+
+    it('should parse valid JSON response', () => {
+      const result = callParse(JSON.stringify({
+        description: 'Test cases',
+        cases: [{ input: 'hello', criteria: 'must greet back' }],
+      }));
+      expect(result.description).toBe('Test cases');
+      expect(result.cases).toHaveLength(1);
+      expect(result.cases[0].criteria).toBe('must greet back');
+    });
+
+    it('should handle markdown code blocks', () => {
+      const result = callParse('```json\n{"description": "test", "cases": [{"input": "hi", "criteria": "respond"}]}\n```');
+      expect(result.cases).toHaveLength(1);
+    });
+
+    it('should handle malformed JSON gracefully', () => {
+      const result = callParse('This is not JSON at all');
+      expect(result.description).toBe('Auto-generated test cases');
+      expect(result.cases).toHaveLength(0);
+    });
+  });
+
   describe('parseJudgeResponse', () => {
     // Access private method for testing
     const callParse = (text: string) => {

@@ -56,7 +56,8 @@ export default function EnvironmentsPage() {
     name: string;
     color: string;
     isCritical: boolean;
-  }>({ name: '', color: '', isCritical: false });
+    evalGateEnabled: boolean;
+  }>({ name: '', color: '', isCritical: false, evalGateEnabled: false });
 
   // Confirm dialog
   const [confirmAction, setConfirmAction] = useState<{
@@ -337,6 +338,11 @@ export default function EnvironmentsPage() {
                     Critical
                   </span>
                 )}
+                {(env as any).evalGateEnabled && (
+                  <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                    Eval Gate
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {editingId === env.id ? (
@@ -353,6 +359,19 @@ export default function EnvironmentsPage() {
                         }
                       />
                       Critical
+                    </label>
+                    <label className="flex items-center gap-1 text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={editForm.evalGateEnabled}
+                        onChange={(e) =>
+                          setEditForm((f) => ({
+                            ...f,
+                            evalGateEnabled: e.target.checked,
+                          }))
+                        }
+                      />
+                      Eval Gate
                     </label>
                     <div className="flex gap-1">
                       {DEFAULT_COLORS.map((c) => (
@@ -392,6 +411,7 @@ export default function EnvironmentsPage() {
                           name: env.name,
                           color: env.color,
                           isCritical: env.isCritical,
+                          evalGateEnabled: (env as any).evalGateEnabled ?? false,
                         });
                       }}
                       className="text-xs text-blue-600 hover:text-blue-800"

@@ -13,6 +13,7 @@ import { EvalService } from './eval.service';
 import { CreateEvalDatasetDto } from './dto/create-eval-dataset.dto';
 import { CreateEvalCaseDto } from './dto/create-eval-case.dto';
 import { RunEvalDto } from './dto/run-eval.dto';
+import { GenerateDatasetDto } from './dto/generate-dataset.dto';
 import type { Request } from 'express';
 
 @Controller('eval')
@@ -30,6 +31,16 @@ export class EvalController {
     @Req() req: Request,
   ) {
     return this.evalService.createDataset(projectId, promptId, (req as any).user.userId, dto);
+  }
+
+  @Post(':projectId/:promptId/datasets/generate')
+  async generateDataset(
+    @Param('projectId') projectId: string,
+    @Param('promptId') promptId: string,
+    @Body() dto: GenerateDatasetDto,
+    @Req() req: Request,
+  ) {
+    return this.evalService.generateDataset(projectId, promptId, (req as any).user.userId, dto);
   }
 
   @Get(':projectId/:promptId/datasets')

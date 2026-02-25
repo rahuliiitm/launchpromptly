@@ -38,6 +38,7 @@ export default function EvalsPage() {
   const [newCaseExpected, setNewCaseExpected] = useState('');
   const [newCaseVariables, setNewCaseVariables] = useState('');
   const [newCaseCriteria, setNewCaseCriteria] = useState('');
+  const [generating, setGenerating] = useState(false);
 
   const loadData = useCallback(() => {
     const token = getToken();
@@ -244,6 +245,33 @@ export default function EvalsPage() {
     }
   };
 
+  const handleGenerateDataset = async () => {
+    const token = getToken();
+    const projectId = getProjectId();
+    if (!token || !projectId || versions.length === 0) return;
+    const latestVersion = versions[0];
+    setGenerating(true);
+    setError('');
+    try {
+      const dataset = await apiFetch<EvalDatasetWithCases>(
+        `/eval/${projectId}/${promptId}/datasets/generate`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ promptVersionId: latestVersion!.id }),
+        },
+      );
+      setSelectedDataset(dataset);
+      setSelectedRun(null);
+      setSuccessBanner(`Generated dataset with ${dataset.cases?.length ?? 0} test cases.`);
+      loadData();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   if (loading) {
     return <div className="py-20 text-center text-gray-400">Loading...</div>;
   }
@@ -278,17 +306,26 @@ export default function EvalsPage() {
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Evaluations</h1>
-        <button
-          onClick={() => setShowNewDataset(!showNewDataset)}
-          className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-        >
-          {showNewDataset ? 'Cancel' : 'New Dataset'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleGenerateDataset}
+            disabled={generating || versions.length === 0}
+            className="rounded bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+          >
+            {generating ? 'Generating...' : 'Generate Dataset'}
+          </button>
+          <button
+            onClick={() => setShowNewDataset(!showNewDataset)}
+            className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+          >
+            {showNewDataset ? 'Cancel' : 'New Dataset'}
+          </button>
+        </div>
       </div>
 
       <p className="mt-1 text-sm text-gray-500">
-        Create test datasets with golden test cases. Eval runs score your prompt versions
-        using LLM-as-judge. Critical environments require a passing eval before deploy.
+        Create test datasets or auto-generate them from your prompt. Eval runs execute your
+        prompt against each test case and score the actual responses using LLM-as-judge.
       </p>
 
       {/* New Dataset Form */}
@@ -471,6 +508,14 @@ export default function EvalsPage() {
                       <span className="font-medium">Input: </span>
                       <span className="text-gray-700">{result.evalCase?.input ?? 'N/A'}</span>
                     </div>
+                    {result.response && (
+                      <div className="mt-2">
+                        <span className="text-xs font-medium text-gray-600">Response:</span>
+                        <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-gray-50 p-2 text-xs text-gray-700">
+                          {result.response}
+                        </pre>
+                      </div>
+                    )}
                     <div className="mt-1 text-xs text-gray-600">
                       <span className="font-medium">Reasoning: </span>
                       {result.reasoning}
@@ -620,8 +665,8 @@ export default function EvalsPage() {
                         </div>
                       )}
                       {c.criteria && (
-                        <div className="mt-1 text-xs text-gray-500">
-                          <span className="font-medium">Criteria: </span>
+                        <div className="mt-1 rounded bg-blue-50 px-2 py-1 text-xs text-blue-700">
+                          <span className="font-semibold">Criteria: </span>
                           {c.criteria}
                         </div>
                       )}

@@ -231,8 +231,9 @@ model Environment {
   slug        String
   color       String              @default("#6B7280")
   sortOrder   Int                 @default(0)
-  isCritical  Boolean             @default(false)
-  createdAt   DateTime            @default(now())
+  isCritical      Boolean             @default(false)
+  evalGateEnabled Boolean             @default(false)
+  createdAt       DateTime            @default(now())
   project     Project             @relation(fields: [projectId], references: [id])
   apiKeys     ApiKey[]
   deployments PromptDeployment[]
@@ -308,6 +309,7 @@ model EvalResult {
   evalCaseId String
   score      Float
   reasoning  String
+  response   String   @default("")
   createdAt  DateTime @default(now())
   evalRun    EvalRun  @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
   evalCase   EvalCase @relation(fields: [evalCaseId], references: [id])
