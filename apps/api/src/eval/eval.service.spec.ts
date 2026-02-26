@@ -62,6 +62,7 @@ describe('EvalService', () => {
         findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn().mockResolvedValue(null),
         update: jest.fn().mockResolvedValue({}),
+        count: jest.fn().mockResolvedValue(0),
       },
       evalResult: {
         createMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -71,6 +72,12 @@ describe('EvalService', () => {
       },
       promptVersion: {
         findFirst: jest.fn().mockResolvedValue(mockVersion),
+      },
+      project: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'proj-1', organizationId: 'org-1' }),
+      },
+      organization: {
+        findUnique: jest.fn().mockResolvedValue({ plan: 'free' }),
       },
     } as unknown as PrismaService;
 

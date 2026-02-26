@@ -3,9 +3,10 @@ import { PlaygroundController } from './playground.controller';
 import { PlaygroundService } from './playground.service';
 import { LlmGatewayService } from './llm-gateway.service';
 import { ProviderKeyModule } from '../provider-key/provider-key.module';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
-  imports: [ProviderKeyModule],
+  imports: [ProviderKeyModule, BillingModule],
   controllers: [PlaygroundController],
   providers: [PlaygroundService, LlmGatewayService],
 })

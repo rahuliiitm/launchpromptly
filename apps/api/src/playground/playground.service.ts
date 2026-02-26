@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProviderKeyService } from '../provider-key/provider-key.service';
 import { LlmGatewayService } from './llm-gateway.service';
@@ -7,11 +8,16 @@ import type { PlaygroundResponse, PlaygroundModelResult, LLMProvider } from '@ai
 
 @Injectable()
 export class PlaygroundService {
+  private readonly platformAnthropicKey: string | undefined;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly providerKeyService: ProviderKeyService,
     private readonly llmGateway: LlmGatewayService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    this.platformAnthropicKey = this.config.get<string>('ANTHROPIC_API_KEY');
+  }
 
   async testPrompt(
     userId: string,
@@ -50,16 +56,22 @@ export class PlaygroundService {
     }
 
     const providerKeys = new Map<LLMProvider, string>();
+    let usingPlatformCredits = false;
     for (const provider of providerModels.keys()) {
       const key = await this.providerKeyService.getDecryptedKey(orgId, provider);
-      if (!key) {
+      if (key) {
+        providerKeys.set(provider, key);
+      } else if (provider === 'anthropic' && this.platformAnthropicKey) {
+        // Fallback to PlanForge's bundled Anthropic credits
+        providerKeys.set(provider, this.platformAnthropicKey);
+        usingPlatformCredits = true;
+      } else {
         throw new BadRequestException(
           `No API key configured for "${provider}". ` +
           `Go to Settings → LLM Providers and add your ${provider === 'openai' ? 'OpenAI' : 'Anthropic'} API key. ` +
           `Get one at ${provider === 'openai' ? 'https://platform.openai.com/api-keys' : 'https://console.anthropic.com/settings/keys'}`,
         );
       }
-      providerKeys.set(provider, key);
     }
 
     // Fire all model calls in parallel
@@ -88,15 +100,25 @@ export class PlaygroundService {
     return { results };
   }
 
-  async getAvailableModels(userId: string): Promise<string[]> {
+  async getAvailableModels(userId: string): Promise<{ models: string[]; platformCredits: boolean }> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user?.organizationId) return [];
+    if (!user?.organizationId) return { models: [], platformCredits: false };
 
     const keys = await this.providerKeyService.listKeys(user.organizationId);
     const configuredProviders = new Set(keys.map((k) => k.provider));
 
-    return Object.entries(MODEL_PROVIDER)
+    // If PlanForge has a platform Anthropic key and the org doesn't have their own,
+    // include Anthropic models via bundled credits
+    let platformCredits = false;
+    if (!configuredProviders.has('anthropic') && this.platformAnthropicKey) {
+      configuredProviders.add('anthropic');
+      platformCredits = true;
+    }
+
+    const models = Object.entries(MODEL_PROVIDER)
       .filter(([, provider]) => configuredProviders.has(provider))
       .map(([model]) => model);
+
+    return { models, platformCredits };
   }
 }

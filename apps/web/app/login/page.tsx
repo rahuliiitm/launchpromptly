@@ -1,12 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 
 type Tab = 'signin' | 'signup';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="py-20 text-center text-gray-400">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const { isAuthenticated, isLoading, login, register } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -61,7 +69,7 @@ export default function LoginPage() {
     <main className="mx-auto max-w-md px-6 py-16">
       <h1 className="text-center text-2xl font-bold">Welcome to PlanForge</h1>
       <p className="mt-2 text-center text-sm text-gray-500">
-        Track, analyze, and optimize your AI costs.
+        Manage, test, and deploy your AI prompts.
       </p>
 
       {/* Tabs */}

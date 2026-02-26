@@ -20,6 +20,19 @@ interface DashboardStats {
   totalApiKeys: number;
 }
 
+interface FetchStats {
+  totalFetches: number;
+  promptCount: number;
+  prompts: { id: string; name: string; slug: string; fetchCount: number }[];
+  dailyFetches: { date: string; fetches: number }[];
+}
+
+interface EvalUsage {
+  used: number;
+  limit: number;
+  plan: string;
+}
+
 function Dashboard() {
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
@@ -29,6 +42,8 @@ function Dashboard() {
     apiKey: false,
   });
   const [stats, setStats] = useState<DashboardStats>({ activePrompts: 0, totalApiKeys: 0 });
+  const [fetchStats, setFetchStats] = useState<FetchStats | null>(null);
+  const [evalUsage, setEvalUsage] = useState<EvalUsage | null>(null);
   const [loadingChecklist, setLoadingChecklist] = useState(true);
 
   useEffect(() => {
@@ -44,7 +59,9 @@ function Dashboard() {
       apiFetch<{ id: string }[]>('/provider-keys', { headers }),
       apiFetch<{ id: string; slug: string }[]>(`/prompt/${projectId}`, { headers }),
       apiFetch<{ id: string }[]>(`/project/${projectId}/api-keys`, { headers }),
-    ]).then(([providerRes, promptRes, apiKeyRes]) => {
+      apiFetch<FetchStats>(`/prompt/${projectId}/fetch-stats?days=30`, { headers }),
+      apiFetch<{ evalRuns: EvalUsage }>('/billing/info', { headers }),
+    ]).then(([providerRes, promptRes, apiKeyRes, fetchRes, billingRes]) => {
       const hasProviderKey = providerRes.status === 'fulfilled' && providerRes.value.length > 0;
       const prompts = promptRes.status === 'fulfilled' ? promptRes.value : [];
       const apiKeys = apiKeyRes.status === 'fulfilled' ? apiKeyRes.value : [];
@@ -58,6 +75,8 @@ function Dashboard() {
         activePrompts: prompts.length,
         totalApiKeys: apiKeys.length,
       });
+      if (fetchRes.status === 'fulfilled') setFetchStats(fetchRes.value);
+      if (billingRes.status === 'fulfilled') setEvalUsage(billingRes.value.evalRuns);
       setLoadingChecklist(false);
     });
   }, [user?.projectId]);
@@ -111,14 +130,54 @@ function Dashboard() {
               <div className="text-2xl font-bold">{stats.activePrompts}</div>
               <div className="mt-1 text-sm text-gray-500">Managed Prompts</div>
             </Link>
+            <div className="rounded-lg border bg-white p-5">
+              <div className="text-2xl font-bold">
+                {fetchStats ? fetchStats.totalFetches.toLocaleString() : <span className="text-gray-400">&mdash;</span>}
+              </div>
+              <div className="mt-1 text-sm text-gray-500">API Fetches (30d)</div>
+            </div>
+            {evalUsage && (
+              <div className="rounded-lg border bg-white p-5">
+                <div className="text-2xl font-bold">
+                  {evalUsage.used} <span className="text-base font-normal text-gray-400">/ {evalUsage.limit}</span>
+                </div>
+                <div className="mt-1 text-sm text-gray-500">Eval Runs This Month</div>
+                <div className="mt-2 h-1.5 w-full rounded-full bg-gray-100">
+                  <div
+                    className={`h-1.5 rounded-full ${evalUsage.used / evalUsage.limit > 0.8 ? 'bg-orange-500' : 'bg-blue-500'}`}
+                    style={{ width: `${Math.min(100, (evalUsage.used / evalUsage.limit) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
             <Link
               href="/observability"
               className="rounded-lg border bg-white p-5 transition hover:border-blue-300"
             >
               <div className="text-2xl font-bold text-gray-400">&mdash;</div>
-              <div className="mt-1 text-sm text-gray-500">Observability</div>
+              <div className="mt-1 text-sm text-gray-500">Analytics & Observability</div>
             </Link>
           </div>
+
+          {/* Prompt Fetch Breakdown */}
+          {fetchStats && fetchStats.prompts.length > 0 && (
+            <div className="mt-6 rounded-lg border bg-white p-5">
+              <h3 className="text-sm font-semibold text-gray-700">Prompt Fetches (Last 30 Days)</h3>
+              <div className="mt-3 space-y-2">
+                {fetchStats.prompts
+                  .sort((a, b) => b.fetchCount - a.fetchCount)
+                  .slice(0, 5)
+                  .map((p) => (
+                    <div key={p.id} className="flex items-center justify-between text-sm">
+                      <Link href={`/prompts/managed/${p.id}`} className="text-blue-600 hover:underline">
+                        {p.name}
+                      </Link>
+                      <span className="font-mono text-gray-600">{p.fetchCount.toLocaleString()}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 flex gap-3">
             <Link
@@ -195,26 +254,8 @@ function Dashboard() {
 
 const FEATURES = [
   {
-    title: 'Cost Tracking',
-    desc: 'See exactly what every LLM call costs. Break down spend by customer, feature, model, and prompt.',
-    icon: (
-      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-  {
-    title: 'RAG Quality Evaluation',
-    desc: 'Auto-evaluate faithfulness, answer relevance, and context relevance with LLM-as-judge scoring.',
-    icon: (
-      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
-      </svg>
-    ),
-  },
-  {
-    title: 'Prompt Management',
-    desc: 'Version, deploy, and A/B test prompts without redeploying your app. Roll back in one click.',
+    title: 'Prompt Versioning & Deploy',
+    desc: 'Version your prompts like code. Deploy to staging or production with one click, roll back instantly.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
@@ -222,8 +263,8 @@ const FEATURES = [
     ),
   },
   {
-    title: 'Pipeline Tracing',
-    desc: 'Group multi-step LLM calls into flows. See rerank, generate, and guardrail steps in a single timeline.',
+    title: 'A/B Testing',
+    desc: 'Split traffic between prompt versions. Measure which performs better before committing to production.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
@@ -231,8 +272,26 @@ const FEATURES = [
     ),
   },
   {
-    title: 'Per-Customer Analytics',
-    desc: 'Know which customers are driving your LLM costs. Attribute spend to features and user segments.',
+    title: 'LLM-as-Judge Evaluations',
+    desc: 'Auto-evaluate prompt quality with AI-powered judging. Generate test datasets, set quality gates.',
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Playground',
+    desc: 'Test prompts against multiple models side-by-side. Compare responses, tweak, and publish — all in your browser.',
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Team Collaboration',
+    desc: 'Manage prompts across teams with role-based access. Viewers, editors, and leads with clear permissions.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
@@ -240,11 +299,11 @@ const FEATURES = [
     ),
   },
   {
-    title: '2-Line Integration',
-    desc: 'Wrap your OpenAI client and you are done. No proxy, no config files, no infrastructure changes.',
+    title: 'Observability & Cost Tracking',
+    desc: 'Track every LLM call — cost, latency, tokens. Per-customer attribution and analytics included.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
   },
@@ -252,50 +311,49 @@ const FEATURES = [
 
 const PRICING = [
   {
-    name: 'Free',
+    name: 'Starter',
     price: '$0',
     period: 'forever',
-    desc: 'For developers getting started with LLM observability.',
+    desc: 'For developers exploring prompt management.',
     features: [
-      '5,000 events / month',
-      '1 project',
-      'Cost & latency tracking',
-      'Analytics dashboard',
+      '3 managed prompts',
+      '1,000 API fetches / mo',
+      '2 environments',
       'Prompt playground',
+      '50 eval runs included',
       'Community support',
     ],
     cta: 'Get Started Free',
     highlighted: false,
   },
   {
-    name: 'Pro',
-    price: '$19',
+    name: 'Growth',
+    price: '$29',
     period: '/ month',
-    desc: 'For developers and small teams shipping to production.',
+    desc: 'For teams shipping AI features to production.',
     features: [
-      '50,000 events / month',
-      'Unlimited projects',
-      'RAG quality evaluation',
-      'Prompt versioning & A/B tests',
-      'Pipeline flow tracing',
-      'Per-customer cost attribution',
+      '25 managed prompts',
+      '50,000 API fetches / mo',
+      'Unlimited environments',
+      'A/B testing & eval gates',
+      '500 eval runs included',
       'Email support',
     ],
     cta: 'Start Free Trial',
     highlighted: true,
   },
   {
-    name: 'Team',
-    price: '$49',
+    name: 'Scale',
+    price: '$99',
     period: '/ month',
-    desc: 'For production teams that need scale and collaboration.',
+    desc: 'For organizations that need collaboration and governance.',
     features: [
-      '500,000 events / month',
-      'Everything in Pro',
-      'Team management & roles',
-      'Member invitations with RBAC',
+      'Unlimited prompts',
+      '500,000 API fetches / mo',
+      'Teams & RBAC',
+      'Eval gate enforcement',
+      '2,000 eval runs included',
       'Priority support & SLA',
-      'Dedicated onboarding',
     ],
     cta: 'Start Free Trial',
     highlighted: false,
@@ -309,16 +367,16 @@ function LandingPage() {
       <section className="px-6 pb-20 pt-16 text-center">
         <div className="mx-auto max-w-3xl">
           <div className="mb-6 inline-block rounded-full border border-blue-200 bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-700">
-            Open-source LLM observability
+            Open-source prompt management platform
           </div>
           <h1 className="text-5xl font-bold leading-tight tracking-tight text-gray-900">
-            Stop guessing what your
+            Ship better prompts,
             <br />
-            <span className="text-blue-600">LLM calls</span> actually cost
+            <span className="text-blue-600">faster</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-500">
-            PlanForge gives you full visibility into your LLM spending, RAG quality, and prompt
-            performance. Drop in our SDK, see everything in real time.
+            PlanForge gives you full control over your AI prompts &mdash; version, deploy, A/B test,
+            and evaluate &mdash; all without redeploying your app. Plus built-in observability and cost tracking.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <Link
@@ -341,7 +399,7 @@ function LandingPage() {
       <section className="border-y bg-gray-900 px-6 py-16">
         <div className="mx-auto max-w-2xl">
           <h2 className="text-center text-sm font-semibold uppercase tracking-wider text-gray-400">
-            Integrate in 2 minutes
+            Fetch prompts in 2 lines
           </h2>
           <div className="mt-6 overflow-hidden rounded-xl border border-gray-700 bg-gray-950">
             <div className="flex items-center gap-2 border-b border-gray-700 px-4 py-3">
@@ -370,50 +428,72 @@ function LandingPage() {
                 <span className="text-gray-300">{' })'}</span>
                 <span className="text-gray-500">;</span>
                 {'\n\n'}
-                <span className="text-gray-500">{'// Wrap your OpenAI client — that\'s it'}</span>
+                <span className="text-gray-500">{'// Fetch your managed prompt — always the latest deployed version'}</span>
                 {'\n'}
                 <span className="text-purple-400">const</span>
-                <span className="text-blue-300"> client </span>
+                <span className="text-blue-300"> prompt </span>
                 <span className="text-gray-500">= </span>
-                <span className="text-gray-300">pf.</span>
-                <span className="text-yellow-300">wrap</span>
-                <span className="text-gray-300">(openai, {'{ '}</span>
+                <span className="text-purple-400">await</span>
+                <span className="text-gray-300"> pf.</span>
+                <span className="text-yellow-300">getPrompt</span>
+                <span className="text-gray-300">(</span>
+                <span className="text-green-400">{`'onboarding-assistant'`}</span>
+                <span className="text-gray-300">, {'{ '}</span>
                 {'\n'}
                 <span className="text-gray-300">{'  '}</span>
-                <span className="text-blue-300">feature</span>
+                <span className="text-blue-300">environment</span>
                 <span className="text-gray-500">: </span>
-                <span className="text-green-400">{`'knowledge-base'`}</span>
+                <span className="text-green-400">{`'production'`}</span>
                 <span className="text-gray-500">,</span>
                 {'\n'}
                 <span className="text-gray-300">{'  '}</span>
-                <span className="text-blue-300">traceId</span>
+                <span className="text-blue-300">variables</span>
                 <span className="text-gray-500">: </span>
-                <span className="text-gray-300">req.id</span>
-                <span className="text-gray-500">,</span>
-                {'\n'}
-                <span className="text-gray-300">{'  '}</span>
-                <span className="text-blue-300">spanName</span>
+                <span className="text-gray-300">{'{ '}</span>
+                <span className="text-blue-300">userName</span>
                 <span className="text-gray-500">: </span>
-                <span className="text-green-400">{`'generate'`}</span>
+                <span className="text-gray-300">user.name</span>
+                <span className="text-gray-300">{' }'}</span>
                 {'\n'}
                 <span className="text-gray-300">{'})'}</span>
                 <span className="text-gray-500">;</span>
                 {'\n\n'}
-                <span className="text-gray-500">{'// Use it exactly like the normal OpenAI client'}</span>
+                <span className="text-gray-500">{'// Use it with any LLM provider'}</span>
                 {'\n'}
                 <span className="text-purple-400">const</span>
                 <span className="text-blue-300"> response </span>
                 <span className="text-gray-500">= </span>
                 <span className="text-purple-400">await</span>
-                <span className="text-gray-300"> client.chat.completions.</span>
+                <span className="text-gray-300"> openai.chat.completions.</span>
                 <span className="text-yellow-300">create</span>
-                <span className="text-gray-300">({'{ ... }'})</span>
+                <span className="text-gray-300">({'{ '}</span>
+                {'\n'}
+                <span className="text-gray-300">{'  '}</span>
+                <span className="text-blue-300">model</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-green-400">{`'gpt-4o'`}</span>
+                <span className="text-gray-500">,</span>
+                {'\n'}
+                <span className="text-gray-300">{'  '}</span>
+                <span className="text-blue-300">messages</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-gray-300">{'[{ '}</span>
+                <span className="text-blue-300">role</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-green-400">{`'system'`}</span>
+                <span className="text-gray-500">, </span>
+                <span className="text-blue-300">content</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-gray-300">prompt</span>
+                <span className="text-gray-300">{' }]'}</span>
+                {'\n'}
+                <span className="text-gray-300">{'})'}</span>
                 <span className="text-gray-500">;</span>
               </code>
             </pre>
           </div>
           <p className="mt-4 text-center text-sm text-gray-400">
-            Every call is automatically tracked &mdash; cost, latency, tokens, and quality.
+            Update prompts instantly from your dashboard &mdash; no code changes, no redeployment.
           </p>
         </div>
       </section>
@@ -422,10 +502,10 @@ function LandingPage() {
       <section className="px-6 py-20">
         <div className="mx-auto max-w-5xl">
           <h2 className="text-center text-3xl font-bold text-gray-900">
-            Everything you need to ship LLMs with confidence
+            Everything you need to manage AI prompts in production
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            From cost tracking to quality evaluation, PlanForge covers the full lifecycle of your LLM features.
+            From first draft to production deployment &mdash; PlanForge covers the full prompt lifecycle.
           </p>
           <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => (
@@ -445,24 +525,24 @@ function LandingPage() {
       <section className="border-y bg-gray-50 px-6 py-20">
         <div className="mx-auto max-w-3xl">
           <h2 className="text-center text-3xl font-bold text-gray-900">
-            Up and running in 5 minutes
+            From draft to production in minutes
           </h2>
           <div className="mt-12 space-y-8">
             {[
               {
                 step: '1',
-                title: 'Install the SDK',
-                desc: 'npm install @planforge/node — works with any Node.js app.',
+                title: 'Create a prompt',
+                desc: 'Write your system prompt in the Playground. Test it against models, iterate until it\u2019s right.',
               },
               {
                 step: '2',
-                title: 'Wrap your LLM client',
-                desc: 'One line to wrap your OpenAI client. Every call is automatically captured.',
+                title: 'Deploy to an environment',
+                desc: 'Publish to staging or production. Your app fetches the latest version via the SDK \u2014 no redeploy needed.',
               },
               {
                 step: '3',
-                title: 'See everything in your dashboard',
-                desc: 'Costs, latency, token usage, RAG quality scores — all in real time.',
+                title: 'Iterate with confidence',
+                desc: 'A/B test new versions, run evals, review results. Deploy the winner with one click.',
               },
             ].map((s) => (
               <div key={s.step} className="flex gap-4">
@@ -486,7 +566,7 @@ function LandingPage() {
             Simple, transparent pricing
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            Start free. Upgrade when you need more events, team features, or evaluations.
+            Pay only for what you use. Scale up as your prompts go to production.
           </p>
           <div className="mt-12 grid gap-6 sm:grid-cols-3">
             {PRICING.map((plan) => (
@@ -539,11 +619,11 @@ function LandingPage() {
       <section className="border-t bg-gray-900 px-6 py-20 text-center">
         <div className="mx-auto max-w-2xl">
           <h2 className="text-3xl font-bold text-white">
-            Stop flying blind with your LLM costs
+            Take control of your AI prompts
           </h2>
           <p className="mt-4 text-gray-400">
-            Join developers who are shipping LLM features with full visibility
-            into cost, quality, and performance.
+            Join developers who version, test, and deploy prompts
+            without touching their codebase.
           </p>
           <Link
             href="/login?redirect=/"

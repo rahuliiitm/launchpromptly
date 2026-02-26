@@ -56,7 +56,7 @@ export class PlanForge {
     this.promptCacheTtl = options.promptCacheTtl ?? DEFAULT_PROMPT_CACHE_TTL;
     this.promptCache = new PromptCache();
     this.batcher = new EventBatcher(
-      options.apiKey,
+      resolvedKey,
       this.endpoint,
       options.flushAt ?? 10,
       options.flushInterval ?? 5000,

@@ -12,6 +12,14 @@ import type { CreateEvalDatasetDto } from './dto/create-eval-dataset.dto';
 import type { CreateEvalCaseDto } from './dto/create-eval-case.dto';
 import type { GenerateDatasetDto } from './dto/generate-dataset.dto';
 
+/** Monthly eval run limits per plan tier */
+const EVAL_RUN_LIMITS: Record<string, number> = {
+  free: 50,
+  pro: 500,
+  business: 2000,
+  team: 2000,
+};
+
 @Injectable()
 export class EvalService {
   private anthropic: Anthropic | null = null;
@@ -25,6 +33,58 @@ export class EvalService {
     const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
     if (apiKey) {
       this.anthropic = new Anthropic({ apiKey });
+    }
+  }
+
+  /**
+   * Count eval runs for an organization in the current calendar month.
+   */
+  async getMonthlyEvalRunCount(organizationId: string): Promise<number> {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    return this.prisma.evalRun.count({
+      where: {
+        createdAt: { gte: startOfMonth },
+        dataset: {
+          managedPrompt: {
+            project: { organizationId },
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Get eval run usage info for an organization.
+   */
+  async getEvalUsage(organizationId: string): Promise<{ used: number; limit: number; plan: string }> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { plan: true },
+    });
+    const plan = org?.plan ?? 'free';
+    const limit = EVAL_RUN_LIMITS[plan] ?? EVAL_RUN_LIMITS.free;
+    const used = await this.getMonthlyEvalRunCount(organizationId);
+    return { used, limit, plan };
+  }
+
+  /**
+   * Assert that the organization has not exceeded its monthly eval run limit.
+   */
+  private async assertEvalRunLimit(projectId: string): Promise<void> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { organizationId: true },
+    });
+    if (!project) return;
+
+    const { used, limit } = await this.getEvalUsage(project.organizationId);
+    if (used >= limit) {
+      throw new BadRequestException(
+        `Monthly eval run limit reached (${used}/${limit}). ` +
+        'Upgrade your plan for more eval runs, or bring your own API key for unlimited evaluations.',
+      );
     }
   }
 
@@ -108,6 +168,9 @@ export class EvalService {
         'Dataset generation requires ANTHROPIC_API_KEY to be configured.',
       );
     }
+
+    // Dataset generation counts against eval run limits
+    await this.assertEvalRunLimit(projectId);
 
     const [version, prompt] = await Promise.all([
       this.prisma.promptVersion.findFirst({
@@ -272,6 +335,9 @@ export class EvalService {
         'Set it in your .env file to enable LLM-as-judge evaluation.',
       );
     }
+
+    // Check monthly eval run limit
+    await this.assertEvalRunLimit(projectId);
 
     // Create the run
     const run = await this.prisma.evalRun.create({

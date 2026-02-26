@@ -20,7 +20,7 @@ function extractVariables(content: string): string[] {
   const pattern = /\{\{(\w+)\}\}/g;
   let match;
   while ((match = pattern.exec(content)) !== null) {
-    vars.add(match[1]);
+    vars.add(match[1]!);
   }
   return [...vars];
 }

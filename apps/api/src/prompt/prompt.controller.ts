@@ -294,4 +294,18 @@ export class PromptController {
     );
   }
 
+  @Get(':projectId/fetch-stats')
+  async getProjectFetchStats(
+    @Param('projectId') projectId: string,
+    @Query('days') days: string | undefined,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.getProjectFetchStats(
+      projectId,
+      user.userId,
+      days ? parseInt(days, 10) : 30,
+    );
+  }
+
 }

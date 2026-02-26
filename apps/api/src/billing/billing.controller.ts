@@ -11,12 +11,16 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
 import { BillingService } from './billing.service';
+import { EvalService } from '../eval/eval.service';
 
 @Controller('billing')
 export class BillingController {
   private readonly logger = new Logger(BillingController.name);
 
-  constructor(private readonly billingService: BillingService) {}
+  constructor(
+    private readonly billingService: BillingService,
+    private readonly evalService: EvalService,
+  ) {}
 
   /**
    * Lemon Squeezy webhook endpoint.
@@ -64,7 +68,13 @@ export class BillingController {
   @Get('info')
   async getBillingInfo(@Req() req: Request) {
     const user = req.user as { organizationId: string };
-    const info = await this.billingService.getBillingInfo(user.organizationId);
-    return info ?? { plan: 'free', hasSubscription: false, checkoutUrls: { pro: '', team: '' } };
+    const [info, evalUsage] = await Promise.all([
+      this.billingService.getBillingInfo(user.organizationId),
+      this.evalService.getEvalUsage(user.organizationId),
+    ]);
+    return {
+      ...(info ?? { plan: 'free', hasSubscription: false, checkoutUrls: { pro: '', team: '' } }),
+      evalRuns: evalUsage,
+    };
   }
 }

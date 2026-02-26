@@ -796,6 +796,26 @@ export class PromptService {
       throw new NotFoundException(`Prompt "${slug}" not found`);
     }
 
+    // Helper to build result and record fetch asynchronously
+    const buildResult = (
+      content: string,
+      promptVersionId: string,
+      version: number,
+      extra?: Record<string, unknown>,
+    ) => {
+      const variables = extractTemplateVariables(content);
+      // Record fetch asynchronously — don't await
+      this.recordFetch(prompt.id, promptVersionId, environmentId).catch(() => {});
+      return {
+        content,
+        managedPromptId: prompt.id,
+        promptVersionId,
+        version,
+        ...(variables.length > 0 && { variables }),
+        ...extra,
+      };
+    };
+
     // 1. Check for running A/B test first (global priority)
     const runningTest = prompt.abTests[0];
     if (runningTest && runningTest.variants.length > 0) {
@@ -813,31 +833,23 @@ export class PromptService {
 
       const selectedVariant = runningTest.variants.find((v) => v.id === selectedVariantId);
       if (selectedVariant) {
-        const content = selectedVariant.promptVersion.content;
-        const variables = extractTemplateVariables(content);
-        return {
-          content,
-          managedPromptId: prompt.id,
-          promptVersionId: selectedVariant.promptVersionId,
-          version: selectedVariant.promptVersion.version,
-          ...(variables.length > 0 && { variables }),
-        };
+        return buildResult(
+          selectedVariant.promptVersion.content,
+          selectedVariant.promptVersionId,
+          selectedVariant.promptVersion.version,
+        );
       }
     }
 
     // 2. Environment-based deployment (if environmentId present)
     if (environmentId && (prompt as any).deployments?.length > 0) {
       const deployment = (prompt as any).deployments[0];
-      const content = deployment.promptVersion.content;
-      const variables = extractTemplateVariables(content);
-      return {
-        content,
-        managedPromptId: prompt.id,
-        promptVersionId: deployment.promptVersionId,
-        version: deployment.promptVersion.version,
-        environment: deployment.environment.slug,
-        ...(variables.length > 0 && { variables }),
-      };
+      return buildResult(
+        deployment.promptVersion.content,
+        deployment.promptVersionId,
+        deployment.promptVersion.version,
+        { environment: deployment.environment.slug },
+      );
     }
 
     // 3. Legacy fallback — use active version (for keys without environmentId)
@@ -846,15 +858,38 @@ export class PromptService {
       throw new NotFoundException('No active version for this prompt');
     }
 
-    const content = activeVersion.content;
-    const variables = extractTemplateVariables(content);
-    return {
-      content,
-      managedPromptId: prompt.id,
-      promptVersionId: activeVersion.id,
-      version: activeVersion.version,
-      ...(variables.length > 0 && { variables }),
-    };
+    return buildResult(activeVersion.content, activeVersion.id, activeVersion.version);
+  }
+
+  /**
+   * Record a prompt fetch for analytics (daily aggregate, upsert).
+   */
+  private async recordFetch(
+    managedPromptId: string,
+    promptVersionId?: string,
+    environmentId?: string,
+  ): Promise<void> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    await this.prisma.promptFetchLog.upsert({
+      where: {
+        managedPromptId_promptVersionId_environmentId_date: {
+          managedPromptId,
+          promptVersionId: promptVersionId ?? '',
+          environmentId: environmentId ?? '',
+          date: today,
+        },
+      },
+      update: { fetchCount: { increment: 1 } },
+      create: {
+        managedPromptId,
+        promptVersionId: promptVersionId ?? '',
+        environmentId: environmentId ?? '',
+        date: today,
+        fetchCount: 1,
+      },
+    });
   }
 
   // ── Prompt Analytics ──
@@ -1160,6 +1195,65 @@ ${content}`,
       tokenSavings: originalTokenEstimate - optimizedTokenEstimate,
       costSavings: originalCostPerCall - optimizedCostPerCall,
       model: targetModel,
+    };
+  }
+
+  // ── Fetch Analytics ──
+
+  /**
+   * Get fetch count summary for all prompts in a project.
+   */
+  async getProjectFetchStats(projectId: string, userId: string, days = 30) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const prompts = await this.prisma.managedPrompt.findMany({
+      where: { projectId },
+      select: { id: true, name: true, slug: true },
+    });
+
+    const fetchLogs = await this.prisma.promptFetchLog.groupBy({
+      by: ['managedPromptId'],
+      where: {
+        managedPromptId: { in: prompts.map((p) => p.id) },
+        date: { gte: since },
+      },
+      _sum: { fetchCount: true },
+    });
+
+    const fetchMap = new Map(
+      fetchLogs.map((f) => [f.managedPromptId, f._sum.fetchCount ?? 0]),
+    );
+
+    // Also get total fetch count across project
+    const totalFetches = fetchLogs.reduce((sum, f) => sum + (f._sum.fetchCount ?? 0), 0);
+
+    // Daily time series for the project
+    const dailyFetches = await this.prisma.promptFetchLog.groupBy({
+      by: ['date'],
+      where: {
+        managedPromptId: { in: prompts.map((p) => p.id) },
+        date: { gte: since },
+      },
+      _sum: { fetchCount: true },
+      orderBy: { date: 'asc' },
+    });
+
+    return {
+      totalFetches,
+      promptCount: prompts.length,
+      prompts: prompts.map((p) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        fetchCount: fetchMap.get(p.id) ?? 0,
+      })),
+      dailyFetches: dailyFetches.map((d) => ({
+        date: d.date.toISOString().split('T')[0],
+        fetches: d._sum.fetchCount ?? 0,
+      })),
     };
   }
 }

@@ -159,6 +159,7 @@ model ManagedPrompt {
   events           LLMEvent[]
   deployments      PromptDeployment[]
   evalDatasets     EvalDataset[]
+  fetchLogs        PromptFetchLog[]
 
   @@unique([projectId, slug])
   @@index([projectId])
@@ -344,4 +345,17 @@ model TeamMember {
 
   @@unique([teamId, userId])
   @@index([userId])
+}
+
+model PromptFetchLog {
+  id              String        @id @default(uuid())
+  managedPromptId String
+  promptVersionId String        @default("")
+  environmentId   String        @default("")
+  date            DateTime      @db.Date
+  fetchCount      Int           @default(1)
+  managedPrompt   ManagedPrompt @relation(fields: [managedPromptId], references: [id], onDelete: Cascade)
+
+  @@unique([managedPromptId, promptVersionId, environmentId, date])
+  @@index([managedPromptId, date])
 }

@@ -8,7 +8,7 @@ export function extractVariables(template: string): string[] {
   const vars = new Set<string>();
   let match;
   while ((match = VARIABLE_PATTERN.exec(template)) !== null) {
-    vars.add(match[1]);
+    vars.add(match[1]!);
   }
   return [...vars];
 }
@@ -21,7 +21,7 @@ export function interpolate(
   template: string,
   variables: Record<string, string>,
 ): string {
-  return template.replace(VARIABLE_PATTERN, (match, name) => {
-    return name in variables ? variables[name] : match;
+  return template.replace(VARIABLE_PATTERN, (match: string, name: string) => {
+    return name in variables ? variables[name]! : match;
   });
 }

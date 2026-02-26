@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
@@ -13,7 +13,7 @@ function extractVariables(content: string): string[] {
   const pattern = /\{\{(\w+)\}\}/g;
   let match;
   while ((match = pattern.exec(content)) !== null) {
-    vars.add(match[1]);
+    vars.add(match[1]!);
   }
   return [...vars];
 }
@@ -38,6 +38,14 @@ function estimateCost(model: string, tokens: number): number {
 }
 
 export default function PlaygroundPage() {
+  return (
+    <Suspense fallback={<div className="py-20 text-center text-gray-400">Loading...</div>}>
+      <PlaygroundContent />
+    </Suspense>
+  );
+}
+
+function PlaygroundContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editPromptId = searchParams.get('edit');
@@ -46,6 +54,7 @@ export default function PlaygroundPage() {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [userMessage, setUserMessage] = useState('');
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [platformCredits, setPlatformCredits] = useState(false);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
   const [results, setResults] = useState<PlaygroundModelResult[]>([]);
@@ -70,14 +79,22 @@ export default function PlaygroundPage() {
     : systemPrompt;
   const tokens = estimateTokens(resolvedForEstimate);
 
-  // Load available models (based on org's configured provider keys)
+  // Load available models (based on org's configured provider keys + platform credits)
   useEffect(() => {
     const token = getToken();
     if (!token) return;
-    apiFetch<string[]>('/playground/models', {
+    apiFetch<{ models: string[]; platformCredits: boolean }>('/playground/models', {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(setAvailableModels)
+      .then((res) => {
+        // Handle both old (string[]) and new ({ models, platformCredits }) response shapes
+        if (Array.isArray(res)) {
+          setAvailableModels(res);
+        } else {
+          setAvailableModels(res.models);
+          setPlatformCredits(res.platformCredits);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -311,6 +328,13 @@ export default function PlaygroundPage() {
         <label className="mb-2 block text-sm font-medium text-gray-700">
           Models {selectedModels.length > 0 && `(${selectedModels.length}/3)`}
         </label>
+        {platformCredits && (
+          <div className="mb-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            Using PlanForge credits for Anthropic models. Add your own API key in{' '}
+            <Link href="/admin/providers" className="font-medium underline">Settings</Link>{' '}
+            for unlimited usage.
+          </div>
+        )}
         {availableModels.length === 0 ? (
           <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
             No models available. Please{' '}

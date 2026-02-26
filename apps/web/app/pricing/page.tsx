@@ -8,39 +8,39 @@ import { getToken } from '@/lib/auth';
 
 const PLANS = [
   {
-    name: 'Free',
+    name: 'Starter',
     key: 'free',
     price: '$0',
     period: 'forever',
-    desc: 'For developers getting started with LLM observability.',
+    desc: 'For developers exploring prompt management.',
     features: [
-      '5,000 events / month',
-      '1 project',
-      'Cost & latency tracking',
-      'Analytics dashboard',
+      '3 managed prompts',
+      '1,000 API fetches / mo',
+      '2 environments',
       'Prompt playground',
+      '50 eval runs / mo included',
       'Community support',
     ],
     limits: [
-      'No RAG evaluations',
-      'No prompt A/B testing',
+      'No A/B testing',
+      'No eval gates',
     ],
     cta: 'Get Started Free',
     highlighted: false,
   },
   {
-    name: 'Pro',
+    name: 'Growth',
     key: 'pro',
-    price: '$19',
+    price: '$29',
     period: '/ month',
-    desc: 'For developers and small teams shipping to production.',
+    desc: 'For teams shipping AI features to production.',
     features: [
-      '50,000 events / month',
-      'Unlimited projects',
-      'RAG quality evaluation (LLM-as-judge)',
-      'Prompt versioning & A/B tests',
-      'Pipeline flow tracing',
-      'Per-customer cost attribution',
+      '25 managed prompts',
+      '50,000 API fetches / mo',
+      'Unlimited environments',
+      'A/B testing & eval gates',
+      'Auto-generated eval datasets',
+      '500 eval runs / mo included',
       'Prompt playground with model comparison',
       'Email support',
     ],
@@ -49,18 +49,20 @@ const PLANS = [
     highlighted: true,
   },
   {
-    name: 'Team',
+    name: 'Scale',
     key: 'team',
-    price: '$49',
+    price: '$99',
     period: '/ month',
-    desc: 'For production teams that need scale and collaboration.',
+    desc: 'For organizations that need collaboration and governance.',
     features: [
-      '500,000 events / month',
-      'Everything in Pro',
-      'Team management & roles',
-      'Member invitations with RBAC',
+      'Unlimited prompts',
+      '500,000 API fetches / mo',
+      'Everything in Growth',
+      'Team management & RBAC',
+      'Eval gate enforcement',
+      '2,000 eval runs / mo included',
       'Priority support & SLA',
-      'Dedicated onboarding call',
+      'Dedicated onboarding',
     ],
     limits: [],
     cta: 'Start Free Trial',
@@ -68,26 +70,55 @@ const PLANS = [
   },
 ];
 
+const OBSERVABILITY_TIERS = [
+  {
+    name: 'Free',
+    price: 'Included',
+    desc: '1,000 events / mo',
+    features: ['Cost & latency tracking', 'Basic analytics dashboard'],
+  },
+  {
+    name: 'Pro',
+    price: '+$19 / mo',
+    desc: '100,000 events / mo',
+    features: ['Everything in Free', 'Per-customer attribution', 'Pipeline tracing'],
+  },
+  {
+    name: 'Enterprise',
+    price: 'Custom',
+    desc: 'Unlimited events',
+    features: ['Everything in Pro', 'Custom dashboards', 'Data export & API'],
+  },
+];
+
 const FAQ = [
   {
-    q: 'What counts as an event?',
-    a: 'Every LLM API call captured by the SDK counts as one event. A multi-step RAG pipeline with 3 LLM calls counts as 3 events.',
+    q: 'What counts as a managed prompt?',
+    a: 'Each unique prompt you create and deploy counts as one managed prompt. Different versions of the same prompt count as one prompt.',
+  },
+  {
+    q: 'What counts as an API fetch?',
+    a: 'Every time your application calls pf.getPrompt() to retrieve a prompt via the SDK, that counts as one API fetch. Cached responses on your side don\u2019t count.',
+  },
+  {
+    q: 'What are included eval runs?',
+    a: 'Each plan includes LLM credits for running evaluations in the playground and eval system. You don\u2019t need your own API key to test prompts \u2014 we cover the cost. Need more? Bring your own key for unlimited runs.',
   },
   {
     q: 'Can I upgrade or downgrade at any time?',
     a: 'Yes. Changes take effect immediately. When upgrading, you get prorated access to your new plan. When downgrading, you keep access until the end of your billing cycle.',
   },
   {
-    q: 'Do you store my LLM prompts and responses?',
-    a: 'We store metadata (tokens, cost, latency) by default. Prompt content storage is opt-in and can be disabled per project.',
+    q: 'How does the SDK fetch prompts?',
+    a: 'Your app calls pf.getPrompt(\'slug\', { environment }) at runtime. PlanForge returns the active deployed version. Update prompts from the dashboard \u2014 no code changes needed.',
   },
   {
-    q: 'What happens if I exceed my event limit?',
-    a: 'We will never drop your data. Events beyond your plan limit are queued and you will be notified. You can upgrade anytime to increase your limit.',
+    q: 'Is observability required?',
+    a: 'No. Observability is a separate add-on. You can use PlanForge purely for prompt management without tracking LLM calls. Add observability only when you need call-level analytics.',
   },
   {
-    q: 'Do you support providers other than OpenAI?',
-    a: 'The SDK currently wraps OpenAI-compatible clients. Anthropic, Cohere, and other providers are on the roadmap. The ingestion API accepts events from any provider.',
+    q: 'What LLM providers are supported?',
+    a: 'PlanForge manages your prompts, not your LLM calls. Use the fetched prompt text with any provider \u2014 OpenAI, Anthropic, Cohere, or any other.',
   },
 ];
 
@@ -136,11 +167,12 @@ export default function PricingPage() {
 
   return (
     <div>
+      {/* ── Prompt Management Pricing ── */}
       <section className="px-6 pb-16 pt-12">
         <div className="mx-auto max-w-5xl">
           <h1 className="text-center text-4xl font-bold text-gray-900">Pricing</h1>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            Start free. Upgrade when your LLM usage grows.
+            Pay only for what you use. Scale up as your prompts go to production.
           </p>
 
           <div className="mt-12 grid gap-6 sm:grid-cols-3">
@@ -206,11 +238,49 @@ export default function PricingPage() {
               );
             })}
           </div>
+
+          <p className="mt-6 text-center text-sm text-gray-400">
+            Need more? <span className="font-medium text-gray-600">Enterprise</span> plans with unlimited
+            everything, SSO, and dedicated support are available.{' '}
+            <a href="mailto:hello@planforge.dev" className="text-blue-600 hover:underline">Contact us</a>
+          </p>
         </div>
       </section>
 
-      {/* FAQ */}
+      {/* ── Observability Add-on ── */}
       <section className="border-t bg-gray-50 px-6 py-16">
+        <div className="mx-auto max-w-4xl">
+          <h2 className="text-center text-2xl font-bold text-gray-900">
+            Observability Add-on
+          </h2>
+          <p className="mx-auto mt-2 max-w-lg text-center text-sm text-gray-500">
+            Track every LLM call &mdash; cost, latency, tokens. Add it independently to any prompt management plan.
+          </p>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-3">
+            {OBSERVABILITY_TIERS.map((tier) => (
+              <div key={tier.name} className="rounded-xl border bg-white p-5">
+                <h3 className="font-semibold text-gray-900">{tier.name}</h3>
+                <div className="mt-1 text-lg font-bold text-gray-900">{tier.price}</div>
+                <p className="mt-1 text-xs text-gray-500">{tier.desc}</p>
+                <ul className="mt-4 space-y-2">
+                  {tier.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-xs text-gray-600">
+                      <svg className="mt-0.5 h-3 w-3 flex-shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section className="border-t px-6 py-16">
         <div className="mx-auto max-w-2xl">
           <h2 className="text-center text-2xl font-bold text-gray-900">
             Frequently Asked Questions
@@ -226,10 +296,10 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="px-6 py-16 text-center">
+      {/* ── CTA ── */}
+      <section className="border-t bg-gray-50 px-6 py-16 text-center">
         <h2 className="text-2xl font-bold text-gray-900">Ready to get started?</h2>
-        <p className="mt-2 text-gray-500">Free tier is free forever. No credit card required.</p>
+        <p className="mt-2 text-gray-500">Starter plan is free forever. No credit card required.</p>
         <Link
           href={isAuthenticated ? '/' : '/login?redirect=/'}
           className="mt-6 inline-block rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white hover:bg-blue-700"

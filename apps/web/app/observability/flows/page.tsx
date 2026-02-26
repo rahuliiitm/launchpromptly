@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
@@ -20,6 +20,14 @@ function ScoreDot({ score }: { score: number | null }) {
 }
 
 export default function FlowsPage() {
+  return (
+    <Suspense fallback={<div className="py-20 text-center text-gray-400">Loading...</div>}>
+      <FlowsContent />
+    </Suspense>
+  );
+}
+
+function FlowsContent() {
   const searchParams = useSearchParams();
   const pipelineFilter = searchParams.get('pipeline') ?? '';
 

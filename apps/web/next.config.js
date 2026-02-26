@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   transpilePackages: ['@aiecon/types', '@aiecon/calculators'],
   async redirects() {
     return [
