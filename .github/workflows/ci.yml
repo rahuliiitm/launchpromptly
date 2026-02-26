@@ -57,16 +57,58 @@ jobs:
       - name: Build
         run: npx turbo run build
 
-  docker:
+  deploy:
     runs-on: ubuntu-latest
     needs: test
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      REGION: us-west1
+      REGISTRY: us-west1-docker.pkg.dev
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build API Docker image
-        run: docker build -f apps/api/Dockerfile -t planforge-api .
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-      - name: Build Web Docker image
-        run: docker build -f apps/web/Dockerfile -t planforge-web .
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGISTRY }}
+
+      - name: Build and push API image
+        run: |
+          docker build -f apps/api/Dockerfile \
+            -t ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/api:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/api:latest .
+          docker push --all-tags ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/api
+
+      - name: Build and push Web image
+        run: |
+          docker build -f apps/web/Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.API_URL }} \
+            -t ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/web:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/web:latest .
+          docker push --all-tags ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/web
+
+      - name: Deploy API to Cloud Run
+        run: |
+          gcloud run deploy planforge-api \
+            --image=${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/api:${{ github.sha }} \
+            --region=${{ env.REGION }} \
+            --platform=managed
+
+      - name: Deploy Web to Cloud Run
+        run: |
+          gcloud run deploy planforge-web \
+            --image=${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/web:${{ github.sha }} \
+            --region=${{ env.REGION }} \
+            --platform=managed

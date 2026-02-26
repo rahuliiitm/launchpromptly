@@ -20,8 +20,12 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build shared packages + Web
+# Accept API URL as build arg (baked into Next.js at build time)
+ARG NEXT_PUBLIC_API_URL=http://localhost:3001
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# Build shared packages + Web
 RUN npx turbo run build --filter=@aiecon/web...
 
 # ── Stage 3: Production ──
@@ -34,7 +38,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Copy Next.js standalone output
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder /app/apps/web/public ./apps/web/public
 
 EXPOSE 3000
 

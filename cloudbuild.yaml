@@ -1,0 +1,81 @@
+steps:
+  # ── Build API image ──
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - apps/api/Dockerfile
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/planforge/api:$SHORT_SHA
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/planforge/api:latest
+      - .
+
+  # ── Build Web image ──
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - apps/web/Dockerfile
+      - --build-arg
+      - NEXT_PUBLIC_API_URL=$_API_URL
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/planforge/web:$SHORT_SHA
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/planforge/web:latest
+      - .
+
+  # ── Push images ──
+  - name: gcr.io/cloud-builders/docker
+    args: [push, --all-tags, "$_REGION-docker.pkg.dev/$PROJECT_ID/planforge/api"]
+
+  - name: gcr.io/cloud-builders/docker
+    args: [push, --all-tags, "$_REGION-docker.pkg.dev/$PROJECT_ID/planforge/web"]
+
+  # ── Deploy API to Cloud Run ──
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - planforge-api
+      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/planforge/api:$SHORT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=3001
+      - --memory=512Mi
+
+  # ── Run database migrations ──
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - execute
+      - planforge-migrate
+      - --region=$_REGION
+      - --wait
+
+  # ── Deploy Web to Cloud Run ──
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - planforge-web
+      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/planforge/web:$SHORT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=3000
+      - --memory=256Mi
+
+substitutions:
+  _REGION: us-west1
+  _API_URL: https://planforge-api-REPLACE.a.run.app
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1200s
