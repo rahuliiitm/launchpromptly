@@ -16,7 +16,7 @@ describe('ProjectService', () => {
   const mockApiKey = {
     id: 'key-123',
     projectId: 'project-123',
-    keyPrefix: 'pf_live_abcdef',
+    keyPrefix: 'lp_live_abcdef',
     keyHash: 'hashed',
     name: 'Default',
     createdAt: new Date(),
@@ -85,7 +85,7 @@ describe('ProjectService', () => {
   describe('generateApiKey', () => {
     it('should create an API key and return raw key', async () => {
       const result = await service.generateApiKey('project-123', 'user-123', 'Test Key');
-      expect(result.rawKey).toMatch(/^pf_live_[a-f0-9]{64}$/);
+      expect(result.rawKey).toMatch(/^lp_live_[a-f0-9]{64}$/);
       expect(result.apiKey.id).toBe('key-123');
       expect(prisma.apiKey.create).toHaveBeenCalled();
     });

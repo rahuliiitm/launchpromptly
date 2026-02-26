@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import type { PlanTier } from '@aiecon/types';
+import type { PlanTier } from '@launchpromptly/types';
 
 /** Maps Lemon Squeezy variant IDs to plan tiers. Set in env. */
 interface VariantMap {

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../crypto/crypto.service';
-import type { LLMProvider } from '@aiecon/types';
+import type { LLMProvider } from '@launchpromptly/types';
 
 export interface ProviderKeyInfo {
   id: string;

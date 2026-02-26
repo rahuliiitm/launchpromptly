@@ -1,4 +1,4 @@
-# Deploying PlanForge
+# Deploying LaunchPromptly
 
 ## Quick Deploy with Docker Compose (VPS / Self-hosted)
 
@@ -41,7 +41,7 @@ gcloud services enable \
 
 ```bash
 # Create instance (db-f1-micro = ~$9/mo, good for starting)
-gcloud sql instances create planforge-db \
+gcloud sql instances create launchpromptly-db \
   --database-version=POSTGRES_16 \
   --tier=db-f1-micro \
   --region=us-west1 \
@@ -50,17 +50,17 @@ gcloud sql instances create planforge-db \
 
 # Set password
 gcloud sql users set-password postgres \
-  --instance=planforge-db \
+  --instance=launchpromptly-db \
   --password=YOUR_DB_PASSWORD
 
 # Create database
-gcloud sql databases create planforge --instance=planforge-db
+gcloud sql databases create launchpromptly --instance=launchpromptly-db
 ```
 
 ### 2. Create Artifact Registry repository
 
 ```bash
-gcloud artifacts repositories create planforge \
+gcloud artifacts repositories create launchpromptly \
   --repository-format=docker \
   --location=us-west1
 ```
@@ -83,14 +83,14 @@ echo -n "YOUR_ANTHROPIC_KEY" | gcloud secrets create anthropic-api-key --data-fi
 ```bash
 REGION=us-west1
 PROJECT_ID=$(gcloud config get-value project)
-REGISTRY=$REGION-docker.pkg.dev/$PROJECT_ID/planforge
+REGISTRY=$REGION-docker.pkg.dev/$PROJECT_ID/launchpromptly
 
 # Build & push API
 docker build -f apps/api/Dockerfile -t $REGISTRY/api:latest .
 docker push $REGISTRY/api:latest
 
 # Build & push Web (inject API URL at build time)
-API_URL=https://planforge-api-HASH-uw.a.run.app  # You'll get this after deploying API
+API_URL=https://launchpromptly-api-HASH-uw.a.run.app  # You'll get this after deploying API
 docker build -f apps/web/Dockerfile \
   --build-arg NEXT_PUBLIC_API_URL=$API_URL \
   -t $REGISTRY/web:latest .
@@ -100,9 +100,9 @@ docker push $REGISTRY/web:latest
 ### 5. Deploy API to Cloud Run
 
 ```bash
-INSTANCE_CONNECTION=$(gcloud sql instances describe planforge-db --format='value(connectionName)')
+INSTANCE_CONNECTION=$(gcloud sql instances describe launchpromptly-db --format='value(connectionName)')
 
-gcloud run deploy planforge-api \
+gcloud run deploy launchpromptly-api \
   --image=$REGISTRY/api:latest \
   --region=us-west1 \
   --platform=managed \
@@ -115,24 +115,24 @@ gcloud run deploy planforge-api \
   --add-cloudsql-instances=$INSTANCE_CONNECTION \
   --set-env-vars="API_PORT=3001" \
   --set-env-vars="NODE_ENV=production" \
-  --set-env-vars="DATABASE_URL=postgresql://postgres:YOUR_DB_PASSWORD@/planforge?host=/cloudsql/$INSTANCE_CONNECTION" \
+  --set-env-vars="DATABASE_URL=postgresql://postgres:YOUR_DB_PASSWORD@/launchpromptly?host=/cloudsql/$INSTANCE_CONNECTION" \
   --set-secrets="JWT_SECRET=jwt-secret:latest,ENCRYPTION_KEY=encryption-key:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest" \
-  --set-env-vars="CORS_ORIGIN=https://planforge-web-HASH-uw.a.run.app" \
-  --set-env-vars="APP_URL=https://planforge-web-HASH-uw.a.run.app"
+  --set-env-vars="CORS_ORIGIN=https://launchpromptly-web-HASH-uw.a.run.app" \
+  --set-env-vars="APP_URL=https://launchpromptly-web-HASH-uw.a.run.app"
 ```
 
 ### 6. Run database migrations
 
 ```bash
 # Get the API service URL
-API_URL=$(gcloud run services describe planforge-api --region=us-west1 --format='value(status.url)')
+API_URL=$(gcloud run services describe launchpromptly-api --region=us-west1 --format='value(status.url)')
 
 # Run migrations via Cloud Run job (one-off)
-gcloud run jobs create planforge-migrate \
+gcloud run jobs create launchpromptly-migrate \
   --image=$REGISTRY/api:latest \
   --region=us-west1 \
   --add-cloudsql-instances=$INSTANCE_CONNECTION \
-  --set-env-vars="DATABASE_URL=postgresql://postgres:YOUR_DB_PASSWORD@/planforge?host=/cloudsql/$INSTANCE_CONNECTION" \
+  --set-env-vars="DATABASE_URL=postgresql://postgres:YOUR_DB_PASSWORD@/launchpromptly?host=/cloudsql/$INSTANCE_CONNECTION" \
   --command="npx" \
   --args="prisma,migrate,deploy,--schema=../../prisma/schema.prisma" \
   --execute-now
@@ -142,7 +142,7 @@ gcloud run jobs create planforge-migrate \
 
 ```bash
 # Get API URL from step 5
-API_URL=$(gcloud run services describe planforge-api --region=us-west1 --format='value(status.url)')
+API_URL=$(gcloud run services describe launchpromptly-api --region=us-west1 --format='value(status.url)')
 
 # Rebuild web with correct API URL
 docker build -f apps/web/Dockerfile \
@@ -150,7 +150,7 @@ docker build -f apps/web/Dockerfile \
   -t $REGISTRY/web:latest .
 docker push $REGISTRY/web:latest
 
-gcloud run deploy planforge-web \
+gcloud run deploy launchpromptly-web \
   --image=$REGISTRY/web:latest \
   --region=us-west1 \
   --platform=managed \
@@ -162,8 +162,8 @@ gcloud run deploy planforge-web \
   --max-instances=3
 
 # Update API's CORS_ORIGIN with the actual web URL
-WEB_URL=$(gcloud run services describe planforge-web --region=us-west1 --format='value(status.url)')
-gcloud run services update planforge-api \
+WEB_URL=$(gcloud run services describe launchpromptly-web --region=us-west1 --format='value(status.url)')
+gcloud run services update launchpromptly-api \
   --region=us-west1 \
   --set-env-vars="CORS_ORIGIN=$WEB_URL,APP_URL=$WEB_URL"
 ```
@@ -172,13 +172,13 @@ gcloud run services update planforge-api \
 
 ```bash
 gcloud run domain-mappings create \
-  --service=planforge-web \
-  --domain=app.planforge.dev \
+  --service=launchpromptly-web \
+  --domain=app.launchpromptly.dev \
   --region=us-west1
 
 gcloud run domain-mappings create \
-  --service=planforge-api \
-  --domain=api.planforge.dev \
+  --service=launchpromptly-api \
+  --domain=api.launchpromptly.dev \
   --region=us-west1
 ```
 
@@ -204,7 +204,7 @@ gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
 
 # Connect repo and create trigger
 gcloud builds triggers create github \
-  --repo-name=plan-forge \
+  --repo-name=launchpromptly \
   --repo-owner=YOUR_GITHUB_USERNAME \
   --branch-pattern="^main$" \
   --build-config=cloudbuild.yaml

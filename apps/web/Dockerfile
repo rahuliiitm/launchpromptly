@@ -26,7 +26,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build shared packages + Web
-RUN npx turbo run build --filter=@aiecon/web...
+RUN npx turbo run build --filter=@launchpromptly/web...
 
 # ── Stage 3: Production ──
 FROM node:20-alpine AS runner

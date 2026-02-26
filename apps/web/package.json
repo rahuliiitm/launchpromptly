@@ -1,5 +1,5 @@
 {
-  "name": "@aiecon/web",
+  "name": "@launchpromptly/web",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aiecon/calculators": "*",
-    "@aiecon/types": "*",
+    "@launchpromptly/calculators": "*",
+    "@launchpromptly/types": "*",
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

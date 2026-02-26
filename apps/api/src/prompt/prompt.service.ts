@@ -10,12 +10,12 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
 import { TeamService } from '../team/team.service';
-import { selectVariant, MODEL_PRICING, calculatePerRequestCost } from '@aiecon/calculators';
+import { selectVariant, MODEL_PRICING, calculatePerRequestCost } from '@launchpromptly/calculators';
 import type { CreateManagedPromptDto } from './dto/create-managed-prompt.dto';
 import type { UpdateManagedPromptDto } from './dto/update-managed-prompt.dto';
 import type { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
 import type { CreateABTestDto } from './dto/create-ab-test.dto';
-import type { PromptAnalysis } from '@aiecon/types';
+import type { PromptAnalysis } from '@launchpromptly/types';
 import { extractTemplateVariables } from './template-utils';
 
 @Injectable()

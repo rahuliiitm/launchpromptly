@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken } from '@/lib/auth';
-import type { OrgProviderKey, LLMProvider } from '@aiecon/types';
+import type { OrgProviderKey, LLMProvider } from '@launchpromptly/types';
 
 const PROVIDERS: { id: LLMProvider; name: string; placeholder: string }[] = [
   { id: 'openai', name: 'OpenAI', placeholder: 'sk-...' },

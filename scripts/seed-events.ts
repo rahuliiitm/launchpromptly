@@ -1,12 +1,12 @@
 /**
  * Seed script: generates realistic LLM events simulating a SaaS company
- * using PlanForge over the last 14 days.
+ * using LaunchPromptly over the last 14 days.
  *
  * Usage: npx ts-node scripts/seed-events.ts
  */
 
-const API_KEY = process.env.PF_API_KEY!;
-const ENDPOINT = process.env.PF_ENDPOINT || 'http://localhost:3001';
+const API_KEY = process.env.LP_API_KEY!;
+const ENDPOINT = process.env.LP_ENDPOINT || 'http://localhost:3001';
 
 // ── Prompt IDs (from the managed prompts we created) ──
 const PROMPTS = {
@@ -456,7 +456,7 @@ function generateGenericEvent(): EventPayload {
 // ── Main ──
 async function main() {
   if (!API_KEY) {
-    console.error('Set PF_API_KEY environment variable');
+    console.error('Set LP_API_KEY environment variable');
     process.exit(1);
   }
 

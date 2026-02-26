@@ -1,5 +1,5 @@
 {
-  "name": "aiecon",
+  "name": "launchpromptly",
   "private": true,
   "workspaces": [
     "apps/*",

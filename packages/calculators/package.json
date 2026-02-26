@@ -1,5 +1,5 @@
 {
-  "name": "@aiecon/calculators",
+  "name": "@launchpromptly/calculators",
   "version": "0.0.1",
   "private": true,
   "main": "./dist/index.js",
@@ -11,7 +11,7 @@
     "lint": "echo 'no lint configured'"
   },
   "dependencies": {
-    "@aiecon/types": "*"
+    "@launchpromptly/types": "*"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",

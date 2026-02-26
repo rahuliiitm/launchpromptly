@@ -1,4 +1,4 @@
-import type { LLMProvider } from '@aiecon/types';
+import type { LLMProvider } from '@launchpromptly/types';
 import { MODEL_PRICING } from './unitEconomics';
 
 /**

@@ -16,9 +16,9 @@ export class ApiKeyGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const authHeader = request.headers['authorization'];
 
-    if (!authHeader?.startsWith('Bearer pf_live_')) {
+    if (!authHeader?.startsWith('Bearer lp_live_')) {
       throw new UnauthorizedException(
-        'Valid API key required. Send header: Authorization: Bearer pf_live_<your-key>. ' +
+        'Valid API key required. Send header: Authorization: Bearer lp_live_<your-key>. ' +
         'Generate one in Settings → API Keys.',
       );
     }

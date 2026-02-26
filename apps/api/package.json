@@ -1,5 +1,5 @@
 {
-  "name": "@aiecon/api",
+  "name": "@launchpromptly/api",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -13,8 +13,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@aiecon/calculators": "*",
-    "@aiecon/types": "*",
+    "@launchpromptly/calculators": "*",
+    "@launchpromptly/types": "*",
     "@anthropic-ai/sdk": "^0.78.0",
     "@nestjs/common": "^10.4.0",
     "@nestjs/config": "^3.3.0",

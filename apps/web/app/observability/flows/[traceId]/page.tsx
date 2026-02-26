@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import type { FlowDetail, FlowSpan, RagEvaluationResult } from '@aiecon/types';
+import type { FlowDetail, FlowSpan, RagEvaluationResult } from '@launchpromptly/types';
 
 function ScoreBadge({ score, size = 'md' }: { score: number | null; size?: 'sm' | 'md' | 'lg' }) {
   if (score === null) return <span className="text-gray-300">&mdash;</span>;

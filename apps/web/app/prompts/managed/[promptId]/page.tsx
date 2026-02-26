@@ -13,7 +13,7 @@ import type {
   PromptDeploymentInfo,
   EnvironmentUsageStats,
   Environment,
-} from '@aiecon/types';
+} from '@launchpromptly/types';
 
 function extractVariables(content: string): string[] {
   const vars = new Set<string>();

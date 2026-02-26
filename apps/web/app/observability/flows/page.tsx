@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import type { FlowListItem } from '@aiecon/types';
+import type { FlowListItem } from '@launchpromptly/types';
 
 function ScoreDot({ score }: { score: number | null }) {
   if (score === null) return null;

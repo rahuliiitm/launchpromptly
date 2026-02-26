@@ -6,9 +6,9 @@ steps:
       - -f
       - apps/api/Dockerfile
       - -t
-      - $_REGION-docker.pkg.dev/$PROJECT_ID/planforge/api:$SHORT_SHA
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/launchpromptly/api:$SHORT_SHA
       - -t
-      - $_REGION-docker.pkg.dev/$PROJECT_ID/planforge/api:latest
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/launchpromptly/api:latest
       - .
 
   # ── Build Web image ──
@@ -20,17 +20,17 @@ steps:
       - --build-arg
       - NEXT_PUBLIC_API_URL=$_API_URL
       - -t
-      - $_REGION-docker.pkg.dev/$PROJECT_ID/planforge/web:$SHORT_SHA
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/launchpromptly/web:$SHORT_SHA
       - -t
-      - $_REGION-docker.pkg.dev/$PROJECT_ID/planforge/web:latest
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/launchpromptly/web:latest
       - .
 
   # ── Push images ──
   - name: gcr.io/cloud-builders/docker
-    args: [push, --all-tags, "$_REGION-docker.pkg.dev/$PROJECT_ID/planforge/api"]
+    args: [push, --all-tags, "$_REGION-docker.pkg.dev/$PROJECT_ID/launchpromptly/api"]
 
   - name: gcr.io/cloud-builders/docker
-    args: [push, --all-tags, "$_REGION-docker.pkg.dev/$PROJECT_ID/planforge/web"]
+    args: [push, --all-tags, "$_REGION-docker.pkg.dev/$PROJECT_ID/launchpromptly/web"]
 
   # ── Deploy API to Cloud Run ──
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
@@ -38,8 +38,8 @@ steps:
     args:
       - run
       - deploy
-      - planforge-api
-      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/planforge/api:$SHORT_SHA
+      - launchpromptly-api
+      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/launchpromptly/api:$SHORT_SHA
       - --region=$_REGION
       - --platform=managed
       - --allow-unauthenticated
@@ -53,7 +53,7 @@ steps:
       - run
       - jobs
       - execute
-      - planforge-migrate
+      - launchpromptly-migrate
       - --region=$_REGION
       - --wait
 
@@ -63,8 +63,8 @@ steps:
     args:
       - run
       - deploy
-      - planforge-web
-      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/planforge/web:$SHORT_SHA
+      - launchpromptly-web
+      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/launchpromptly/web:$SHORT_SHA
       - --region=$_REGION
       - --platform=managed
       - --allow-unauthenticated
@@ -73,7 +73,7 @@ steps:
 
 substitutions:
   _REGION: us-west1
-  _API_URL: https://planforge-api-REPLACE.a.run.app
+  _API_URL: https://launchpromptly-api-REPLACE.a.run.app
 
 options:
   logging: CLOUD_LOGGING_ONLY

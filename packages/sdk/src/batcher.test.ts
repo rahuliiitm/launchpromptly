@@ -1,5 +1,5 @@
 import { EventBatcher } from './batcher';
-import type { IngestEventPayload } from '@aiecon/types';
+import type { IngestEventPayload } from './internal/event-types';
 
 const mockEvent: IngestEventPayload = {
   provider: 'openai',
@@ -25,7 +25,7 @@ describe('EventBatcher', () => {
   });
 
   it('should flush when flushAt threshold is reached', async () => {
-    const batcher = new EventBatcher('pf_test', 'http://localhost:3001', 3, 60000);
+    const batcher = new EventBatcher('lp_test', 'http://localhost:3001', 3, 60000);
 
     batcher.enqueue(mockEvent);
     batcher.enqueue(mockEvent);
@@ -40,7 +40,7 @@ describe('EventBatcher', () => {
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
-          Authorization: 'Bearer pf_test',
+          Authorization: 'Bearer lp_test',
         }),
       }),
     );
@@ -49,7 +49,7 @@ describe('EventBatcher', () => {
   });
 
   it('should schedule timer flush when below threshold', () => {
-    const batcher = new EventBatcher('pf_test', 'http://localhost:3001', 10, 60000);
+    const batcher = new EventBatcher('lp_test', 'http://localhost:3001', 10, 60000);
 
     batcher.enqueue(mockEvent);
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -60,7 +60,7 @@ describe('EventBatcher', () => {
 
   it('should flush on timer expiry', async () => {
     // Use a very short interval so the test runs fast
-    const batcher = new EventBatcher('pf_test', 'http://localhost:3001', 100, 50);
+    const batcher = new EventBatcher('lp_test', 'http://localhost:3001', 100, 50);
 
     batcher.enqueue(mockEvent);
 
@@ -74,7 +74,7 @@ describe('EventBatcher', () => {
   });
 
   it('should be a no-op when queue is empty', async () => {
-    const batcher = new EventBatcher('pf_test', 'http://localhost:3001', 10, 5000);
+    const batcher = new EventBatcher('lp_test', 'http://localhost:3001', 10, 5000);
 
     await batcher.flush();
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -83,7 +83,7 @@ describe('EventBatcher', () => {
   });
 
   it('should not start a second timer if one is already running', () => {
-    const batcher = new EventBatcher('pf_test', 'http://localhost:3001', 10, 60000);
+    const batcher = new EventBatcher('lp_test', 'http://localhost:3001', 10, 60000);
 
     batcher.enqueue(mockEvent);
     batcher.enqueue(mockEvent);
@@ -98,7 +98,7 @@ describe('EventBatcher', () => {
       .mockRejectedValueOnce(new Error('network error'))
       .mockResolvedValueOnce({ ok: true } as Response);
 
-    const batcher = new EventBatcher('pf_test', 'http://localhost:3001', 1, 60000);
+    const batcher = new EventBatcher('lp_test', 'http://localhost:3001', 1, 60000);
 
     batcher.enqueue(mockEvent);
 
@@ -111,7 +111,7 @@ describe('EventBatcher', () => {
   });
 
   it('should clear timer on destroy', async () => {
-    const batcher = new EventBatcher('pf_test', 'http://localhost:3001', 10, 100);
+    const batcher = new EventBatcher('lp_test', 'http://localhost:3001', 10, 100);
 
     batcher.enqueue(mockEvent);
     batcher.destroy();

@@ -13,7 +13,7 @@ import type {
   EvalRunWithResults,
   PromptVersion,
   ManagedPromptWithVersions,
-} from '@aiecon/types';
+} from '@launchpromptly/types';
 
 export default function EvalsPage() {
   const { promptId } = useParams<{ promptId: string }>();

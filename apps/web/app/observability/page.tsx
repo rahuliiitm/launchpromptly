@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import type { RagQualityOverview, RagQualityTimeSeriesPoint } from '@aiecon/types';
+import type { RagQualityOverview, RagQualityTimeSeriesPoint } from '@launchpromptly/types';
 
 function ScoreCard({
   label,

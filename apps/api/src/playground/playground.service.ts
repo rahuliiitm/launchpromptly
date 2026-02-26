@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProviderKeyService } from '../provider-key/provider-key.service';
 import { LlmGatewayService } from './llm-gateway.service';
-import { MODEL_PRICING, MODEL_PROVIDER, getModelProvider } from '@aiecon/calculators';
-import type { PlaygroundResponse, PlaygroundModelResult, LLMProvider } from '@aiecon/types';
+import { MODEL_PRICING, MODEL_PROVIDER, getModelProvider } from '@launchpromptly/calculators';
+import type { PlaygroundResponse, PlaygroundModelResult, LLMProvider } from '@launchpromptly/types';
 
 @Injectable()
 export class PlaygroundService {
@@ -62,7 +62,7 @@ export class PlaygroundService {
       if (key) {
         providerKeys.set(provider, key);
       } else if (provider === 'anthropic' && this.platformAnthropicKey) {
-        // Fallback to PlanForge's bundled Anthropic credits
+        // Fallback to LaunchPromptly's bundled Anthropic credits
         providerKeys.set(provider, this.platformAnthropicKey);
         usingPlatformCredits = true;
       } else {
@@ -107,7 +107,7 @@ export class PlaygroundService {
     const keys = await this.providerKeyService.listKeys(user.organizationId);
     const configuredProviders = new Set(keys.map((k) => k.provider));
 
-    // If PlanForge has a platform Anthropic key and the org doesn't have their own,
+    // If LaunchPromptly has a platform Anthropic key and the org doesn't have their own,
     // include Anthropic models via bundled credits
     let platformCredits = false;
     if (!configuredProviders.has('anthropic') && this.platformAnthropicKey) {

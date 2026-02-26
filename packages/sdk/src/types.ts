@@ -3,7 +3,7 @@ export interface CustomerContext {
   feature?: string;
 }
 
-export interface PlanForgeOptions {
+export interface LaunchPromptlyOptions {
   apiKey?: string;
   endpoint?: string;
   flushAt?: number;

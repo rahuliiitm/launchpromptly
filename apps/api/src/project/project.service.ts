@@ -80,7 +80,7 @@ export class ProjectService {
   ): Promise<CreateApiKeyResult> {
     await this.assertProjectAccess(projectId, userId);
 
-    const rawKey = `pf_live_${randomBytes(32).toString('hex')}`;
+    const rawKey = `lp_live_${randomBytes(32).toString('hex')}`;
     const keyPrefix = rawKey.slice(0, 16);
     const keyHash = await bcrypt.hash(rawKey, 10);
 

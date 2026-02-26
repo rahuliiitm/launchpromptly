@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import type { ManagedPromptWithVersions } from '@aiecon/types';
+import type { ManagedPromptWithVersions } from '@launchpromptly/types';
 
 interface TeamInfo {
   id: string;

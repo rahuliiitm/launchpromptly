@@ -110,15 +110,15 @@ const FAQ = [
   },
   {
     q: 'How does the SDK fetch prompts?',
-    a: 'Your app calls pf.getPrompt(\'slug\', { environment }) at runtime. PlanForge returns the active deployed version. Update prompts from the dashboard \u2014 no code changes needed.',
+    a: 'Your app calls pf.getPrompt(\'slug\', { environment }) at runtime. LaunchPromptly returns the active deployed version. Update prompts from the dashboard \u2014 no code changes needed.',
   },
   {
     q: 'Is observability required?',
-    a: 'No. Observability is a separate add-on. You can use PlanForge purely for prompt management without tracking LLM calls. Add observability only when you need call-level analytics.',
+    a: 'No. Observability is a separate add-on. You can use LaunchPromptly purely for prompt management without tracking LLM calls. Add observability only when you need call-level analytics.',
   },
   {
     q: 'What LLM providers are supported?',
-    a: 'PlanForge manages your prompts, not your LLM calls. Use the fetched prompt text with any provider \u2014 OpenAI, Anthropic, Cohere, or any other.',
+    a: 'LaunchPromptly manages your prompts, not your LLM calls. Use the fetched prompt text with any provider \u2014 OpenAI, Anthropic, Cohere, or any other.',
   },
 ];
 
@@ -242,7 +242,7 @@ export default function PricingPage() {
           <p className="mt-6 text-center text-sm text-gray-400">
             Need more? <span className="font-medium text-gray-600">Enterprise</span> plans with unlimited
             everything, SSO, and dedicated support are available.{' '}
-            <a href="mailto:hello@planforge.dev" className="text-blue-600 hover:underline">Contact us</a>
+            <a href="mailto:hello@launchpromptly.dev" className="text-blue-600 hover:underline">Contact us</a>
           </p>
         </div>
       </section>

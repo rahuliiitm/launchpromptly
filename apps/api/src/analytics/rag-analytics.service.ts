@@ -11,7 +11,7 @@ import type {
   FlowListItem,
   FlowDetail,
   FlowSpan,
-} from '@aiecon/types';
+} from '@launchpromptly/types';
 
 @Injectable()
 export class RagAnalyticsService {

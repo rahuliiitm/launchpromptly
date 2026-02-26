@@ -40,7 +40,7 @@ function TopNav() {
     <header className="border-b bg-white px-6 py-4">
       <div className="mx-auto flex max-w-7xl items-center gap-8">
         <Link href="/" className="text-xl font-bold">
-          PlanForge
+          LaunchPromptly
         </Link>
 
         <nav className="flex gap-4 text-sm font-medium">

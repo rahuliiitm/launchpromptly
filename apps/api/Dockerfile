@@ -25,7 +25,7 @@ COPY . .
 RUN npx prisma generate --schema=prisma/schema.prisma
 
 # Build shared packages + API
-RUN npx turbo run build --filter=@aiecon/api...
+RUN npx turbo run build --filter=@launchpromptly/api...
 
 # ── Stage 3: Production ──
 FROM node:20-alpine AS runner

@@ -14,19 +14,19 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: aiecon
-          POSTGRES_PASSWORD: aiecon
-          POSTGRES_DB: aiecon
+          POSTGRES_USER: launchpromptly
+          POSTGRES_PASSWORD: launchpromptly
+          POSTGRES_DB: launchpromptly
         ports:
           - 5433:5432
         options: >-
-          --health-cmd "pg_isready -U aiecon"
+          --health-cmd "pg_isready -U launchpromptly"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://aiecon:aiecon@localhost:5433/aiecon?schema=public
+      DATABASE_URL: postgresql://launchpromptly:launchpromptly@localhost:5433/launchpromptly?schema=public
       JWT_SECRET: ci-test-secret
       ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       API_PORT: 3001
@@ -87,28 +87,28 @@ jobs:
       - name: Build and push API image
         run: |
           docker build -f apps/api/Dockerfile \
-            -t ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/api:${{ github.sha }} \
-            -t ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/api:latest .
-          docker push --all-tags ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/api
+            -t ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/launchpromptly/api:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/launchpromptly/api:latest .
+          docker push --all-tags ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/launchpromptly/api
 
       - name: Build and push Web image
         run: |
           docker build -f apps/web/Dockerfile \
             --build-arg NEXT_PUBLIC_API_URL=${{ secrets.API_URL }} \
-            -t ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/web:${{ github.sha }} \
-            -t ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/web:latest .
-          docker push --all-tags ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/web
+            -t ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/launchpromptly/web:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/launchpromptly/web:latest .
+          docker push --all-tags ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/launchpromptly/web
 
       - name: Deploy API to Cloud Run
         run: |
-          gcloud run deploy planforge-api \
-            --image=${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/api:${{ github.sha }} \
+          gcloud run deploy launchpromptly-api \
+            --image=${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/launchpromptly/api:${{ github.sha }} \
             --region=${{ env.REGION }} \
             --platform=managed
 
       - name: Deploy Web to Cloud Run
         run: |
-          gcloud run deploy planforge-web \
-            --image=${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/planforge/web:${{ github.sha }} \
+          gcloud run deploy launchpromptly-web \
+            --image=${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/launchpromptly/web:${{ github.sha }} \
             --region=${{ env.REGION }} \
             --platform=managed

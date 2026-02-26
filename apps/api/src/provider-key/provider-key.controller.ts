@@ -16,7 +16,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ProviderKeyService } from './provider-key.service';
 import { SetProviderKeyDto } from './dto/set-provider-key.dto';
 import type { Request } from 'express';
-import type { LLMProvider } from '@aiecon/types';
+import type { LLMProvider } from '@launchpromptly/types';
 
 interface AuthUser {
   userId: string;

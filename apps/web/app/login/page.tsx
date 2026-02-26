@@ -67,7 +67,7 @@ function LoginForm() {
 
   return (
     <main className="mx-auto max-w-md px-6 py-16">
-      <h1 className="text-center text-2xl font-bold">Welcome to PlanForge</h1>
+      <h1 className="text-center text-2xl font-bold">Welcome to LaunchPromptly</h1>
       <p className="mt-2 text-center text-sm text-gray-500">
         Manage, test, and deploy your AI prompts.
       </p>

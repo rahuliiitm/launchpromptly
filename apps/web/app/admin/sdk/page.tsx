@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-const INSTALL_CMD = 'npm install @planforge/node';
+const INSTALL_CMD = 'npm install launchpromptly';
 
 const RAG_CODE = `// Track your RAG pipeline with retrieval context
 const startTime = performance.now();
@@ -32,12 +32,12 @@ pf.attachContext({
   responseText: response.choices[0].message.content,
 });`;
 
-const USAGE_CODE = `import { PlanForge } from '@planforge/node';
+const USAGE_CODE = `import { LaunchPromptly } from 'launchpromptly';
 import OpenAI from 'openai';
 
-const pf = new PlanForge({
+const pf = new LaunchPromptly({
   apiKey: 'YOUR_API_KEY_HERE',
-  endpoint: 'http://localhost:3001', // your PlanForge API
+  endpoint: 'http://localhost:3001', // your LaunchPromptly API
 });
 
 const openai = pf.wrap(new OpenAI(), {

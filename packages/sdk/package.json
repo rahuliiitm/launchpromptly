@@ -1,18 +1,45 @@
 {
-  "name": "@planforge/node",
+  "name": "launchpromptly",
   "version": "0.1.0",
-  "private": true,
+  "description": "LaunchPromptly Node.js SDK — manage, version, and deploy AI prompts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/launchpromptly/launchpromptly",
+    "directory": "packages/sdk"
+  },
+  "keywords": [
+    "launchpromptly",
+    "prompt-management",
+    "llm",
+    "ai",
+    "openai",
+    "anthropic",
+    "prompt-versioning",
+    "sdk"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "test": "jest --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'no lint configured'"
-  },
-  "dependencies": {
-    "@aiecon/calculators": "*",
-    "@aiecon/types": "*"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",

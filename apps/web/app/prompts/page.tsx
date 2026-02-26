@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import { MODEL_PRICING, calculatePerRequestCost } from '@aiecon/calculators';
-import type { PlaygroundModelResult, PlaygroundResponse, ManagedPromptWithVersions } from '@aiecon/types';
+import { MODEL_PRICING, calculatePerRequestCost } from '@launchpromptly/calculators';
+import type { PlaygroundModelResult, PlaygroundResponse, ManagedPromptWithVersions } from '@launchpromptly/types';
 
 function extractVariables(content: string): string[] {
   const vars = new Set<string>();
@@ -330,7 +330,7 @@ function PlaygroundContent() {
         </label>
         {platformCredits && (
           <div className="mb-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-            Using PlanForge credits for Anthropic models. Add your own API key in{' '}
+            Using LaunchPromptly credits for Anthropic models. Add your own API key in{' '}
             <Link href="/admin/providers" className="font-medium underline">Settings</Link>{' '}
             for unlimited usage.
           </div>

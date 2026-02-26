@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import type { EnvironmentWithKey } from '@aiecon/types';
+import type { EnvironmentWithKey } from '@launchpromptly/types';
 
 interface CreateForm {
   name: string;
@@ -495,12 +495,12 @@ export default function EnvironmentsPage() {
         <h3 className="text-sm font-semibold text-gray-700">Quick Start</h3>
         <pre className="mt-3 overflow-x-auto rounded bg-gray-900 p-4 text-xs text-gray-100">
 {`# Set the env var for your target environment:
-export PLANFORGE_API_KEY="pf_live_..."
+export LAUNCHPROMPTLY_API_KEY="lp_live_..."
 
 # In your code — no key needed, reads from env:
-import { PlanForge } from '@aiecon/sdk';
+import { LaunchPromptly } from '@launchpromptly/sdk';
 
-const pf = new PlanForge();
+const pf = new LaunchPromptly();
 const prompt = await pf.prompt('my-prompt');`}
         </pre>
         <p className="mt-2 text-xs text-gray-500">

@@ -1,17 +1,18 @@
 import { EventBatcher } from './batcher';
 import { PromptCache } from './prompt-cache';
 import { interpolate } from './template';
-import { calculateEventCost, fingerprintMessages } from '@aiecon/calculators';
+import { calculateEventCost } from './internal/cost';
+import { fingerprintMessages } from './internal/fingerprint';
 import type {
-  PlanForgeOptions,
+  LaunchPromptlyOptions,
   PromptOptions,
   WrapOptions,
   ChatCompletionCreateParams,
   ChatCompletion,
 } from './types';
-import type { IngestEventPayload } from '@aiecon/types';
+import type { IngestEventPayload } from './internal/event-types';
 
-const DEFAULT_ENDPOINT = 'https://api.planforge.dev';
+const DEFAULT_ENDPOINT = 'https://api.launchpromptly.dev';
 const DEFAULT_PROMPT_CACHE_TTL = 60000; // 60 seconds
 
 type CreateFn = (params: ChatCompletionCreateParams) => Promise<ChatCompletion>;
@@ -23,7 +24,7 @@ export class PromptNotFoundError extends Error {
   }
 }
 
-export class PlanForge {
+export class LaunchPromptly {
   private readonly batcher: EventBatcher;
   private readonly promptCache: PromptCache;
   private readonly apiKey: string;
@@ -35,19 +36,19 @@ export class PlanForge {
     { managedPromptId: string; promptVersionId: string }
   >();
 
-  constructor(options: PlanForgeOptions = {}) {
+  constructor(options: LaunchPromptlyOptions = {}) {
     const resolvedKey = options.apiKey
-      || (typeof process !== 'undefined' && process.env?.PLANFORGE_API_KEY)
-      || (typeof process !== 'undefined' && process.env?.PF_API_KEY)
+      || (typeof process !== 'undefined' && process.env?.LAUNCHPROMPTLY_API_KEY)
+      || (typeof process !== 'undefined' && process.env?.LP_API_KEY)
       || '';
 
     if (!resolvedKey) {
       throw new Error(
-        'PlanForge API key not found. Either:\n' +
-        '  1. Pass it directly: new PlanForge({ apiKey: "pf_live_..." })\n' +
-        '  2. Set PLANFORGE_API_KEY environment variable\n' +
-        '  3. Set PF_API_KEY environment variable\n' +
-        'Get your key from Settings → Environments in the PlanForge dashboard.',
+        'LaunchPromptly API key not found. Either:\n' +
+        '  1. Pass it directly: new LaunchPromptly({ apiKey: "lp_live_..." })\n' +
+        '  2. Set LAUNCHPROMPTLY_API_KEY environment variable\n' +
+        '  3. Set LP_API_KEY environment variable\n' +
+        'Get your key from Settings → Environments in the LaunchPromptly dashboard.',
       );
     }
 

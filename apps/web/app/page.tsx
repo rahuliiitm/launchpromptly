@@ -103,7 +103,7 @@ function Dashboard() {
     {
       key: 'apiKey',
       title: 'Generate an SDK API key',
-      description: 'Create an API key to integrate PlanForge into your application.',
+      description: 'Create an API key to integrate LaunchPromptly into your application.',
       href: '/admin/api-keys',
       linkText: 'Go to API Keys',
       done: checklist.apiKey,
@@ -375,7 +375,7 @@ function LandingPage() {
             <span className="text-blue-600">faster</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-500">
-            PlanForge gives you full control over your AI prompts &mdash; version, deploy, A/B test,
+            LaunchPromptly gives you full control over your AI prompts &mdash; version, deploy, A/B test,
             and evaluate &mdash; all without redeploying your app. Plus built-in observability and cost tracking.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
@@ -411,20 +411,20 @@ function LandingPage() {
             <pre className="overflow-x-auto p-5 text-sm leading-relaxed">
               <code>
                 <span className="text-purple-400">import</span>
-                <span className="text-gray-300">{' { PlanForge } '}</span>
+                <span className="text-gray-300">{' { LaunchPromptly } '}</span>
                 <span className="text-purple-400">from</span>
-                <span className="text-green-400">{" '@planforge/node'"}</span>
+                <span className="text-green-400">{" 'launchpromptly'"}</span>
                 <span className="text-gray-500">;</span>
                 {'\n\n'}
                 <span className="text-purple-400">const</span>
                 <span className="text-blue-300"> pf </span>
                 <span className="text-gray-500">= </span>
                 <span className="text-purple-400">new</span>
-                <span className="text-yellow-300"> PlanForge</span>
+                <span className="text-yellow-300"> LaunchPromptly</span>
                 <span className="text-gray-300">{'({ '}</span>
                 <span className="text-blue-300">apiKey</span>
                 <span className="text-gray-500">: </span>
-                <span className="text-green-400">process.env.PLANFORGE_KEY</span>
+                <span className="text-green-400">process.env.LAUNCHPROMPTLY_KEY</span>
                 <span className="text-gray-300">{' })'}</span>
                 <span className="text-gray-500">;</span>
                 {'\n\n'}
@@ -505,7 +505,7 @@ function LandingPage() {
             Everything you need to manage AI prompts in production
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            From first draft to production deployment &mdash; PlanForge covers the full prompt lifecycle.
+            From first draft to production deployment &mdash; LaunchPromptly covers the full prompt lifecycle.
           </p>
           <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => (
@@ -640,7 +640,7 @@ function LandingPage() {
       {/* ── Footer ── */}
       <footer className="border-t px-6 py-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between text-xs text-gray-400">
-          <span>&copy; {new Date().getFullYear()} PlanForge. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} LaunchPromptly. All rights reserved.</span>
           <div className="flex gap-6">
             <Link href="/pricing" className="hover:text-gray-600">Pricing</Link>
             <Link href="/login" className="hover:text-gray-600">Sign In</Link>

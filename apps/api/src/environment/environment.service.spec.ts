@@ -82,12 +82,12 @@ describe('EnvironmentService', () => {
       expect(prisma.apiKey.create).toHaveBeenCalledTimes(2);
     });
 
-    it('should generate keys with pf_live_ prefix', async () => {
+    it('should generate keys with lp_live_ prefix', async () => {
       await service.createDefaultEnvironments('proj-1');
 
       const calls = (prisma.apiKey.create as jest.Mock).mock.calls;
       for (const call of calls) {
-        expect(call[0].data.keyPrefix).toMatch(/^pf_live_/);
+        expect(call[0].data.keyPrefix).toMatch(/^lp_live_/);
         expect(call[0].data.environmentId).toBe('env-1');
       }
     });
@@ -96,14 +96,14 @@ describe('EnvironmentService', () => {
   describe('listEnvironments', () => {
     it('should return environments sorted by sortOrder with SDK key prefix', async () => {
       (prisma.environment.findMany as jest.Mock).mockResolvedValue([
-        { ...mockEnv, apiKeys: [{ keyPrefix: 'pf_live_abcdef' }] },
+        { ...mockEnv, apiKeys: [{ keyPrefix: 'lp_live_abcdef' }] },
       ]);
 
       const result = await service.listEnvironments('proj-1', 'user-1');
 
       expect(projectService.assertProjectAccess).toHaveBeenCalledWith('proj-1', 'user-1');
       expect(result).toHaveLength(1);
-      expect(result[0].sdkKeyPrefix).toBe('pf_live_abcdef');
+      expect(result[0].sdkKeyPrefix).toBe('lp_live_abcdef');
     });
   });
 
@@ -117,7 +117,7 @@ describe('EnvironmentService', () => {
 
       expect(result.name).toBe('Production'); // returns from mock
       expect(result.sdkKey).toBeDefined();
-      expect(result.sdkKey).toMatch(/^pf_live_/);
+      expect(result.sdkKey).toMatch(/^lp_live_/);
       expect(prisma.apiKey.create).toHaveBeenCalled();
     });
 
@@ -198,8 +198,8 @@ describe('EnvironmentService', () => {
         where: { environmentId: 'env-1', revokedAt: null },
         data: { revokedAt: expect.any(Date) },
       });
-      expect(result.sdkKey).toMatch(/^pf_live_/);
-      expect(result.sdkKeyPrefix).toMatch(/^pf_live_/);
+      expect(result.sdkKey).toMatch(/^lp_live_/);
+      expect(result.sdkKeyPrefix).toMatch(/^lp_live_/);
       expect(prisma.apiKey.create).toHaveBeenCalled();
     });
 

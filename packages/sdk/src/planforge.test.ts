@@ -1,4 +1,4 @@
-import { PlanForge, PromptNotFoundError } from './planforge';
+import { LaunchPromptly, PromptNotFoundError } from './planforge';
 
 // Mock fetch globally
 const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
@@ -28,14 +28,14 @@ function createMockClient() {
   };
 }
 
-describe('PlanForge', () => {
+describe('LaunchPromptly', () => {
   afterEach(() => {
     fetchSpy.mockClear();
   });
 
   it('should proxy chat.completions.create and return the original result', async () => {
-    const pf = new PlanForge({
-      apiKey: 'pf_live_test',
+    const pf = new LaunchPromptly({
+      apiKey: 'lp_live_test',
       endpoint: 'http://localhost:3001',
       flushAt: 100,
     });
@@ -57,8 +57,8 @@ describe('PlanForge', () => {
   });
 
   it('should enqueue an event after a successful call', async () => {
-    const pf = new PlanForge({
-      apiKey: 'pf_live_test',
+    const pf = new LaunchPromptly({
+      apiKey: 'lp_live_test',
       endpoint: 'http://localhost:3001',
       flushAt: 1, // flush immediately
     });
@@ -85,8 +85,8 @@ describe('PlanForge', () => {
   });
 
   it('should include customer info from customer function', async () => {
-    const pf = new PlanForge({
-      apiKey: 'pf_live_test',
+    const pf = new LaunchPromptly({
+      apiKey: 'lp_live_test',
       endpoint: 'http://localhost:3001',
       flushAt: 1,
     });
@@ -110,8 +110,8 @@ describe('PlanForge', () => {
   });
 
   it('should include traceId and spanName in event payload', async () => {
-    const pf = new PlanForge({
-      apiKey: 'pf_live_test',
+    const pf = new LaunchPromptly({
+      apiKey: 'lp_live_test',
       endpoint: 'http://localhost:3001',
       flushAt: 1,
     });
@@ -142,8 +142,8 @@ describe('PlanForge', () => {
   });
 
   it('should omit traceId and spanName when not provided', async () => {
-    const pf = new PlanForge({
-      apiKey: 'pf_live_test',
+    const pf = new LaunchPromptly({
+      apiKey: 'lp_live_test',
       endpoint: 'http://localhost:3001',
       flushAt: 1,
     });
@@ -169,8 +169,8 @@ describe('PlanForge', () => {
   });
 
   it('should not throw if the original create throws', async () => {
-    const pf = new PlanForge({
-      apiKey: 'pf_live_test',
+    const pf = new LaunchPromptly({
+      apiKey: 'lp_live_test',
       endpoint: 'http://localhost:3001',
     });
     const client = createMockClient();
@@ -188,8 +188,8 @@ describe('PlanForge', () => {
   });
 
   it('should pass through non-intercepted properties', async () => {
-    const pf = new PlanForge({
-      apiKey: 'pf_live_test',
+    const pf = new LaunchPromptly({
+      apiKey: 'lp_live_test',
       endpoint: 'http://localhost:3001',
     });
     const client = createMockClient();
@@ -202,8 +202,8 @@ describe('PlanForge', () => {
   });
 
   it('should flush pending events', async () => {
-    const pf = new PlanForge({
-      apiKey: 'pf_live_test',
+    const pf = new LaunchPromptly({
+      apiKey: 'lp_live_test',
       endpoint: 'http://localhost:3001',
       flushAt: 100, // won't auto-flush
     });
@@ -245,8 +245,8 @@ describe('PlanForge', () => {
     }
 
     it('should fetch from API and return content', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
       });
       mockResolveResponse(resolvedPromptData);
@@ -256,15 +256,15 @@ describe('PlanForge', () => {
       expect(fetchSpy).toHaveBeenCalledWith(
         'http://localhost:3001/v1/prompts/resolve/customer-support',
         expect.objectContaining({
-          headers: { Authorization: 'Bearer pf_live_test' },
+          headers: { Authorization: 'Bearer lp_live_test' },
         }),
       );
       pf.destroy();
     });
 
     it('should cache result and reuse on second call', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
         promptCacheTtl: 60000,
       });
@@ -283,8 +283,8 @@ describe('PlanForge', () => {
     });
 
     it('should re-fetch after TTL expires', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
         promptCacheTtl: 1, // 1ms TTL
       });
@@ -300,8 +300,8 @@ describe('PlanForge', () => {
     });
 
     it('should return stale cache on network error', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
         promptCacheTtl: 1,
       });
@@ -317,8 +317,8 @@ describe('PlanForge', () => {
     });
 
     it('should throw PromptNotFoundError on 404', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
       });
       mockResolveResponse({}, 404);
@@ -328,8 +328,8 @@ describe('PlanForge', () => {
     });
 
     it('should throw PromptNotFoundError on 404 even with stale cache', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
         promptCacheTtl: 1,
       });
@@ -344,8 +344,8 @@ describe('PlanForge', () => {
     });
 
     it('should pass customerId as query param', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
       });
       mockResolveResponse(resolvedPromptData);
@@ -359,8 +359,8 @@ describe('PlanForge', () => {
     });
 
     it('should include managedPromptId in event after prompt()', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
         flushAt: 1,
       });
@@ -391,8 +391,8 @@ describe('PlanForge', () => {
     });
 
     it('should reject with error when no cache and network fails', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
       });
       fetchSpy.mockRejectedValueOnce(new Error('Connection refused'));
@@ -404,8 +404,8 @@ describe('PlanForge', () => {
     // ── Template variable interpolation ──
 
     it('should interpolate variables in fetched prompt', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
       });
       mockResolveResponse({
@@ -423,8 +423,8 @@ describe('PlanForge', () => {
     });
 
     it('should return raw template when no variables provided', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
       });
       mockResolveResponse({
@@ -440,8 +440,8 @@ describe('PlanForge', () => {
     });
 
     it('should interpolate from cache on second call', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
         promptCacheTtl: 60000,
       });
@@ -472,8 +472,8 @@ describe('PlanForge', () => {
     });
 
     it('should track interpolated content for event metadata', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
         flushAt: 1,
       });
@@ -513,8 +513,8 @@ describe('PlanForge', () => {
     });
 
     it('should interpolate stale cache on network error', async () => {
-      const pf = new PlanForge({
-        apiKey: 'pf_live_test',
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
         endpoint: 'http://localhost:3001',
         promptCacheTtl: 1,
       });

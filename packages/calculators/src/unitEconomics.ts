@@ -1,4 +1,4 @@
-import type { LLMProvider } from '@aiecon/types';
+import type { LLMProvider } from '@launchpromptly/types';
 
 interface ModelPricing { input: number; output: number }
 type RiskLevel = 'Low' | 'Medium' | 'High';

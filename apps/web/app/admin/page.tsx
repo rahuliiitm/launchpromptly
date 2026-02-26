@@ -15,7 +15,7 @@ import {
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
 import { useAuth } from '@/lib/auth-context';
-import type { OverviewAnalytics, TimeSeriesPoint, PromptAnalyticsItem } from '@aiecon/types';
+import type { OverviewAnalytics, TimeSeriesPoint, PromptAnalyticsItem } from '@launchpromptly/types';
 import Link from 'next/link';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];

@@ -38,7 +38,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // Add helpful hints for common error codes
     let hint: string | undefined;
     if (status === 401) {
-      hint = 'Check your Authorization header. JWT tokens: "Bearer <jwt>". API keys: "Bearer pf_live_<key>".';
+      hint = 'Check your Authorization header. JWT tokens: "Bearer <jwt>". API keys: "Bearer lp_live_<key>".';
     } else if (status === 403) {
       hint = 'You do not have permission for this action. Check your role (admin vs member) in Settings → Team.';
     } else if (status === HttpStatus.INTERNAL_SERVER_ERROR && !(exception instanceof HttpException)) {

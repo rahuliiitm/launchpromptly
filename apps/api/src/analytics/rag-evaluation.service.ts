@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProviderKeyService } from '../provider-key/provider-key.service';
 import { ProjectService } from '../project/project.service';
-import type { RagEvaluationResult, RagQualityOverview, RagQualityTimeSeriesPoint } from '@aiecon/types';
+import type { RagEvaluationResult, RagQualityOverview, RagQualityTimeSeriesPoint } from '@launchpromptly/types';
 
 // Preferred evaluation models — cheap and fast
 const OPENAI_EVAL_MODEL = 'gpt-4o-mini';

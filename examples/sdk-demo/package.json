@@ -1,0 +1,19 @@
+{
+  "name": "launchpromptly-sdk-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "npx tsx src/demo.ts",
+    "demo:prompt": "npx tsx src/prompt-management.ts",
+    "demo:wrap": "npx tsx src/openai-wrap.ts"
+  },
+  "dependencies": {
+    "launchpromptly": "file:../../packages/sdk",
+    "openai": "^4.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}

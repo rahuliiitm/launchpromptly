@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import type { CustomerAnalyticsItem } from '@aiecon/types';
+import type { CustomerAnalyticsItem } from '@launchpromptly/types';
 
 const DAYS_OPTIONS = [7, 30, 90];
 

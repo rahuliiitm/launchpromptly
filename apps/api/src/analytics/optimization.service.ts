@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
-import type { OptimizationRecommendation } from '@aiecon/types';
-import { MODEL_PRICING } from '@aiecon/calculators';
+import type { OptimizationRecommendation } from '@launchpromptly/types';
+import { MODEL_PRICING } from '@launchpromptly/calculators';
 
 const EXPENSIVE_MODELS: Record<string, string> = {
   'gpt-4o': 'gpt-4o-mini',

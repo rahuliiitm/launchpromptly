@@ -7,7 +7,7 @@ import type {
   FeatureAnalyticsItem,
   TimeSeriesPoint,
   PromptAnalyticsItem,
-} from '@aiecon/types';
+} from '@launchpromptly/types';
 
 @Injectable()
 export class AnalyticsService {

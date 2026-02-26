@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import type { ApiKey } from '@aiecon/types';
+import type { ApiKey } from '@launchpromptly/types';
 
 export default function ApiKeysPage() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -60,7 +60,7 @@ export default function ApiKeysPage() {
     <div>
       <h1 className="text-2xl font-bold">API Keys</h1>
       <p className="mt-1 text-sm text-gray-500">
-        Use these keys to authenticate the PlanForge SDK.
+        Use these keys to authenticate the LaunchPromptly SDK.
       </p>
 
       <button

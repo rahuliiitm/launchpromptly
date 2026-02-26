@@ -1,4 +1,4 @@
-import type { IngestEventPayload, IngestBatchPayload } from '@aiecon/types';
+import type { IngestEventPayload, IngestBatchPayload } from './internal/event-types';
 
 const DEFAULT_FLUSH_AT = 10;
 const DEFAULT_FLUSH_INTERVAL_MS = 5000;

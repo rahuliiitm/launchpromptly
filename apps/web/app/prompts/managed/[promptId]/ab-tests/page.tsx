@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import type { ManagedPromptWithVersions, ABTest, PromptVersion } from '@aiecon/types';
+import type { ManagedPromptWithVersions, ABTest, PromptVersion } from '@launchpromptly/types';
 
 interface ABTestWithResults extends ABTest {
   results?: {

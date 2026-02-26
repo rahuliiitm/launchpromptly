@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import type { OptimizationRecommendation } from '@aiecon/types';
+import type { OptimizationRecommendation } from '@launchpromptly/types';
 
 const TYPE_BADGES: Record<string, { label: string; className: string }> = {
   model_downgrade: {

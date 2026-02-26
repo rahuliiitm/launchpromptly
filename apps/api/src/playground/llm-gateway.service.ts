@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { calculatePerRequestCost } from '@aiecon/calculators';
-import type { LLMProvider, PlaygroundModelResult } from '@aiecon/types';
+import { calculatePerRequestCost } from '@launchpromptly/calculators';
+import type { LLMProvider, PlaygroundModelResult } from '@launchpromptly/types';
 
 @Injectable()
 export class LlmGatewayService {
