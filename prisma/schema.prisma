@@ -50,16 +50,22 @@ model OrgProviderKey {
 }
 
 model Project {
-  id              String           @id @default(uuid())
-  organizationId  String
-  name            String
-  createdAt       DateTime         @default(now())
-  organization    Organization     @relation(fields: [organizationId], references: [id])
-  apiKeys         ApiKey[]
-  events          LLMEvent[]
-  managedPrompts  ManagedPrompt[]
-  environments    Environment[]
-  teams           Team[]
+  id               String             @id @default(uuid())
+  organizationId   String
+  name             String
+  createdAt        DateTime           @default(now())
+  organization     Organization       @relation(fields: [organizationId], references: [id])
+  retentionDays    Int                @default(90)
+  apiKeys          ApiKey[]
+  events           LLMEvent[]
+  managedPrompts   ManagedPrompt[]
+  environments     Environment[]
+  teams            Team[]
+  auditLogs        AuditLog[]
+  securityPolicies SecurityPolicy[]
+  consentRecords   ConsentRecord[]
+  alertRules       AlertRule[]
+  incidents        SecurityIncident[]
 
   @@index([organizationId])
 }
@@ -108,7 +114,24 @@ model LLMEvent {
   traceId          String?
   spanName         String?
   environmentId    String?
+  metadata         Json?
   createdAt        DateTime       @default(now())
+
+  // Security metadata (from SDK security pipeline)
+  piiDetectionCount   Int?
+  piiTypes            String[]     @default([])
+  injectionRiskScore  Float?
+  injectionAction     String?
+  redactionApplied    Boolean      @default(false)
+  securityMetadata    Json?
+
+  // Encrypted fields (AES-256-GCM via CryptoService)
+  encPromptPreview    String?
+  encResponseText     String?
+  encRagQuery         String?
+  encIv               String?
+  encAuthTag          String?
+
   project          Project        @relation(fields: [projectId], references: [id])
   managedPrompt    ManagedPrompt? @relation(fields: [managedPromptId], references: [id])
   promptVersion    PromptVersion? @relation("VersionEvents", fields: [promptVersionId], references: [id])
@@ -123,6 +146,8 @@ model LLMEvent {
   @@index([projectId, ragPipelineId])
   @@index([projectId, traceId])
   @@index([projectId, environmentId, managedPromptId])
+  @@index([projectId, injectionRiskScore])
+  @@index([projectId, redactionApplied])
 }
 
 model RagEvaluation {
@@ -358,4 +383,91 @@ model PromptFetchLog {
 
   @@unique([managedPromptId, promptVersionId, environmentId, date])
   @@index([managedPromptId, date])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  projectId   String
+  eventType   String
+  severity    String   @default("info")
+  details     Json
+  eventId     String?
+  customerId  String?
+  actorId     String?
+  hash        String?
+  prevHash    String?
+  createdAt   DateTime @default(now())
+  project     Project  @relation(fields: [projectId], references: [id])
+
+  @@index([projectId, createdAt])
+  @@index([projectId, eventType])
+  @@index([projectId, severity])
+}
+
+model SecurityPolicy {
+  id          String   @id @default(uuid())
+  projectId   String
+  name        String
+  description String   @default("")
+  rules       Json
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, name])
+  @@index([projectId, isActive])
+}
+
+model ConsentRecord {
+  id            String    @id @default(uuid())
+  projectId     String
+  customerId    String
+  policyVersion String
+  purpose       String    @default("llm_processing")
+  grantedAt     DateTime  @default(now())
+  revokedAt     DateTime?
+  metadata      Json?
+  project       Project   @relation(fields: [projectId], references: [id])
+
+  @@index([projectId, customerId])
+  @@index([projectId, customerId, revokedAt])
+}
+
+model AlertRule {
+  id              String   @id @default(uuid())
+  projectId       String
+  name            String
+  condition       Json
+  channel         String   @default("webhook")
+  webhookUrl      String?
+  email           String?
+  throttleMinutes Int      @default(60)
+  enabled         Boolean  @default(true)
+  lastFiredAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  project         Project  @relation(fields: [projectId], references: [id])
+
+  @@index([projectId, enabled])
+}
+
+model SecurityIncident {
+  id          String    @id @default(uuid())
+  projectId   String
+  severity    String    @default("medium")
+  title       String
+  description String    @default("")
+  status      String    @default("open")
+  source      String    @default("auto")
+  metadata    Json?
+  assigneeId  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  project     Project   @relation(fields: [projectId], references: [id])
+
+  @@index([projectId, status])
+  @@index([projectId, severity])
+  @@index([projectId, createdAt])
 }

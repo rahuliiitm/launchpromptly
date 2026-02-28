@@ -14,6 +14,12 @@ import { BillingModule } from './billing/billing.module';
 import { EnvironmentModule } from './environment/environment.module';
 import { EvalModule } from './eval/eval.module';
 import { TeamModule } from './team/team.module';
+import { AuditModule } from './audit/audit.module';
+import { AlertModule } from './alert/alert.module';
+import { SecurityPolicyModule } from './security-policy/security-policy.module';
+import { RetentionModule } from './retention/retention.module';
+import { ComplianceModule } from './compliance/compliance.module';
+import { IncidentModule } from './incident/incident.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -33,6 +39,12 @@ import { AppController } from './app.controller';
     EnvironmentModule,
     EvalModule,
     TeamModule,
+    AuditModule,
+    AlertModule,
+    SecurityPolicyModule,
+    RetentionModule,
+    ComplianceModule,
+    IncidentModule,
   ],
   controllers: [AppController],
 })

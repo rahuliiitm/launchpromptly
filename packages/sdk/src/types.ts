@@ -9,6 +9,8 @@ export interface LaunchPromptlyOptions {
   flushAt?: number;
   flushInterval?: number;
   promptCacheTtl?: number;
+  /** Maximum number of prompt entries to cache in memory (LRU eviction). Default: 1000 */
+  maxCacheSize?: number;
 }
 
 export interface PromptOptions {
@@ -21,6 +23,15 @@ export interface WrapOptions {
   feature?: string;
   traceId?: string;
   spanName?: string;
+}
+
+/** Context propagated via AsyncLocalStorage through withContext() */
+export interface RequestContext {
+  traceId?: string;
+  spanName?: string;
+  customerId?: string;
+  feature?: string;
+  metadata?: Record<string, string>;
 }
 
 export interface ChatMessage {

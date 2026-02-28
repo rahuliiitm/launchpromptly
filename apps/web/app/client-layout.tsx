@@ -10,6 +10,7 @@ const PUBLIC_LINKS = [
 ];
 
 const AUTH_LINKS = [
+  { href: '/admin/security', label: 'Security', adminOnly: false },
   { href: '/prompts', label: 'Prompts', adminOnly: false },
   { href: '/observability', label: 'Observability', adminOnly: false },
   { href: '/admin', label: 'Admin', adminOnly: true },

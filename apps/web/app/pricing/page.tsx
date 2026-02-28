@@ -12,18 +12,19 @@ const PLANS = [
     key: 'free',
     price: '$0',
     period: 'forever',
-    desc: 'For developers exploring prompt management.',
+    desc: 'For developers adding security to their first LLM app.',
     features: [
+      'PII redaction (9 regex patterns)',
+      'Prompt injection detection (5 rule categories)',
+      'Cost guard (per-request limits)',
+      '1,000 secured events / mo',
       '3 managed prompts',
-      '1,000 API fetches / mo',
-      '2 environments',
       'Prompt playground',
-      '50 eval runs / mo included',
       'Community support',
     ],
     limits: [
-      'No A/B testing',
-      'No eval gates',
+      'No content filtering',
+      'No compliance tooling',
     ],
     cta: 'Get Started Free',
     highlighted: false,
@@ -31,17 +32,17 @@ const PLANS = [
   {
     name: 'Growth',
     key: 'pro',
-    price: '$29',
+    price: '$49',
     period: '/ month',
-    desc: 'For teams shipping AI features to production.',
+    desc: 'For teams shipping secure AI to production.',
     features: [
+      'Everything in Starter',
+      'Content filtering (hate speech, violence, custom)',
+      'Compliance tooling (GDPR/CCPA consent, retention)',
+      '100,000 secured events / mo',
       '25 managed prompts',
-      '50,000 API fetches / mo',
-      'Unlimited environments',
+      'Security dashboard & audit log',
       'A/B testing & eval gates',
-      'Auto-generated eval datasets',
-      '500 eval runs / mo included',
-      'Prompt playground with model comparison',
       'Email support',
     ],
     limits: [],
@@ -49,20 +50,22 @@ const PLANS = [
     highlighted: true,
   },
   {
-    name: 'Scale',
+    name: 'Enterprise',
     key: 'team',
-    price: '$99',
+    price: '$199',
     period: '/ month',
-    desc: 'For organizations that need collaboration and governance.',
+    desc: 'For organizations with strict compliance and governance needs.',
     features: [
-      'Unlimited prompts',
-      '500,000 API fetches / mo',
       'Everything in Growth',
-      'Team management & RBAC',
-      'Eval gate enforcement',
-      '2,000 eval runs / mo included',
+      'ML-enhanced PII detection (names, orgs, addresses)',
+      'Semantic injection detection (ML classifier)',
+      'ML toxicity scoring',
+      'Unlimited secured events',
+      'Unlimited managed prompts',
+      'Security policies & RBAC',
+      'AES-256-GCM encrypted storage at rest',
+      'Geofencing & data residency',
       'Priority support & SLA',
-      'Dedicated onboarding',
     ],
     limits: [],
     cta: 'Start Free Trial',
@@ -70,55 +73,53 @@ const PLANS = [
   },
 ];
 
-const OBSERVABILITY_TIERS = [
+const ML_PLUGIN_FEATURES = [
   {
-    name: 'Free',
-    price: 'Included',
-    desc: '1,000 events / mo',
-    features: ['Cost & latency tracking', 'Basic analytics dashboard'],
+    name: 'NER-based PII',
+    desc: 'Detect person names, organization names, and free-form addresses using Presidio + spaCy NER models.',
   },
   {
-    name: 'Pro',
-    price: '+$19 / mo',
-    desc: '100,000 events / mo',
-    features: ['Everything in Free', 'Per-customer attribution', 'Pipeline tracing'],
+    name: 'Semantic Injection Detection',
+    desc: 'Catch rephrased and indirect injection attacks with a small DeBERTa classifier (5MB ONNX model).',
   },
   {
-    name: 'Enterprise',
-    price: 'Custom',
-    desc: 'Unlimited events',
-    features: ['Everything in Pro', 'Custom dashboards', 'Data export & API'],
+    name: 'ML Toxicity Scoring',
+    desc: 'Nuanced toxicity detection using toxic-bert for content that evades keyword-based filters.',
   },
 ];
 
 const FAQ = [
   {
-    q: 'What counts as a managed prompt?',
-    a: 'Each unique prompt you create and deploy counts as one managed prompt. Different versions of the same prompt count as one prompt.',
+    q: 'How does client-side PII redaction work?',
+    a: 'The SDK scans your LLM request messages in-process (inside your application) before they leave your environment. PII like emails, phone numbers, and SSNs are replaced with placeholders like [EMAIL_1]. The LLM never sees the real data. After the response, the SDK can optionally de-redact the output using an in-memory mapping that is never sent anywhere.',
   },
   {
-    q: 'What counts as an API fetch?',
-    a: 'Every time your application calls pf.getPrompt() to retrieve a prompt via the SDK, that counts as one API fetch. Cached responses on your side don\u2019t count.',
+    q: 'What PII types does the regex engine detect?',
+    a: 'The core SDK detects 9 PII types: emails, US/international phone numbers, SSNs, credit cards (with Luhn validation), IPv4 addresses, API keys/secrets (OpenAI, AWS, GitHub), dates of birth, and US street addresses. The optional ML plugin adds person names, organization names, and free-form addresses.',
   },
   {
-    q: 'What are included eval runs?',
-    a: 'Each plan includes LLM credits for running evaluations in the playground and eval system. You don\u2019t need your own API key to test prompts \u2014 we cover the cost. Need more? Bring your own key for unlimited runs.',
+    q: 'What counts as a "secured event"?',
+    a: 'Each LLM API call that passes through the SDK\'s security pipeline counts as one secured event. This includes the full pre-call scan (PII, injection, cost, content, compliance) and post-call scan (response PII, response content).',
   },
   {
-    q: 'Can I upgrade or downgrade at any time?',
-    a: 'Yes. Changes take effect immediately. When upgrading, you get prorated access to your new plan. When downgrading, you keep access until the end of your billing cycle.',
+    q: 'Do I need the ML plugin?',
+    a: 'No. The core SDK is zero-dependency and catches ~70% of PII with regex patterns. The ML plugin (launchpromptly-ml for Node, launchpromptly[ml] for Python) adds NER-based detection for person names, org names, and free-form addresses, plus semantic injection detection. It\'s optional and available on Enterprise plans.',
   },
   {
-    q: 'How does the SDK fetch prompts?',
-    a: 'Your app calls pf.getPrompt(\'slug\', { environment }) at runtime. LaunchPromptly returns the active deployed version. Update prompts from the dashboard \u2014 no code changes needed.',
+    q: 'What happens if PII detection errors?',
+    a: 'The SDK is fail-open by default — if detection errors, the LLM call proceeds normally with a warning in the event metadata. You can configure fail-closed behavior with blockOnHighRisk: true for any security module.',
   },
   {
-    q: 'Is observability required?',
-    a: 'No. Observability is a separate add-on. You can use LaunchPromptly purely for prompt management without tracking LLM calls. Add observability only when you need call-level analytics.',
+    q: 'Does the SDK add latency?',
+    a: 'The core regex-based scanning adds <1ms per LLM call. The ML plugin adds ~50-200ms depending on text length and model. Both are significantly faster than gateway-based solutions that require a network round-trip.',
+  },
+  {
+    q: 'Can I still use prompt management features?',
+    a: 'Yes. LaunchPromptly includes full prompt versioning, deployment, A/B testing, LLM-as-Judge evaluations, and a playground. Security and prompt management work together — your managed prompts are automatically protected by the security pipeline.',
   },
   {
     q: 'What LLM providers are supported?',
-    a: 'LaunchPromptly manages your prompts, not your LLM calls. Use the fetched prompt text with any provider \u2014 OpenAI, Anthropic, Cohere, or any other.',
+    a: 'The SDK wraps any OpenAI-compatible client. This includes OpenAI, Azure OpenAI, Anthropic (via OpenAI compatibility), and any provider that follows the OpenAI chat completions API format.',
   },
 ];
 
@@ -167,12 +168,12 @@ export default function PricingPage() {
 
   return (
     <div>
-      {/* ── Prompt Management Pricing ── */}
+      {/* ── Main Pricing ── */}
       <section className="px-6 pb-16 pt-12">
         <div className="mx-auto max-w-5xl">
           <h1 className="text-center text-4xl font-bold text-gray-900">Pricing</h1>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            Pay only for what you use. Scale up as your prompts go to production.
+            Start free with core security. Scale up as your LLM applications grow.
           </p>
 
           <div className="mt-12 grid gap-6 sm:grid-cols-3">
@@ -240,47 +241,109 @@ export default function PricingPage() {
           </div>
 
           <p className="mt-6 text-center text-sm text-gray-400">
-            Need more? <span className="font-medium text-gray-600">Enterprise</span> plans with unlimited
-            everything, SSO, and dedicated support are available.{' '}
+            Need a custom plan? <span className="font-medium text-gray-600">Custom Enterprise</span> with
+            dedicated infrastructure, SSO, and on-premise deployment available.{' '}
             <a href="mailto:hello@launchpromptly.dev" className="text-blue-600 hover:underline">Contact us</a>
           </p>
         </div>
       </section>
 
-      {/* ── Observability Add-on ── */}
+      {/* ── ML Plugin ── */}
       <section className="border-t bg-gray-50 px-6 py-16">
         <div className="mx-auto max-w-4xl">
           <h2 className="text-center text-2xl font-bold text-gray-900">
-            Observability Add-on
+            Optional ML Plugin
           </h2>
           <p className="mx-auto mt-2 max-w-lg text-center text-sm text-gray-500">
-            Track every LLM call &mdash; cost, latency, tokens. Add it independently to any prompt management plan.
+            Enhanced detection with machine learning. Install separately &mdash; keeps core SDK lightweight.
           </p>
 
+          <div className="mt-8 flex items-center justify-center gap-4">
+            <code className="rounded bg-gray-900 px-4 py-2 text-sm text-green-400">
+              npm install launchpromptly-ml
+            </code>
+            <span className="text-sm text-gray-400">or</span>
+            <code className="rounded bg-gray-900 px-4 py-2 text-sm text-green-400">
+              pip install launchpromptly[ml]
+            </code>
+          </div>
+
           <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            {OBSERVABILITY_TIERS.map((tier) => (
-              <div key={tier.name} className="rounded-xl border bg-white p-5">
-                <h3 className="font-semibold text-gray-900">{tier.name}</h3>
-                <div className="mt-1 text-lg font-bold text-gray-900">{tier.price}</div>
-                <p className="mt-1 text-xs text-gray-500">{tier.desc}</p>
-                <ul className="mt-4 space-y-2">
-                  {tier.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-xs text-gray-600">
-                      <svg className="mt-0.5 h-3 w-3 flex-shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                      </svg>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
+            {ML_PLUGIN_FEATURES.map((feat) => (
+              <div key={feat.name} className="rounded-xl border bg-white p-5">
+                <h3 className="font-semibold text-gray-900">{feat.name}</h3>
+                <p className="mt-2 text-sm text-gray-500">{feat.desc}</p>
               </div>
             ))}
+          </div>
+
+          <p className="mt-6 text-center text-xs text-gray-400">
+            ML plugin included with Enterprise plan. Available as an add-on for Growth plan at $29/mo.
+          </p>
+        </div>
+      </section>
+
+      {/* ── Comparison Table ── */}
+      <section className="border-t px-6 py-16">
+        <div className="mx-auto max-w-4xl">
+          <h2 className="text-center text-2xl font-bold text-gray-900">
+            Security Feature Comparison
+          </h2>
+          <div className="mt-8 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-3 pr-4 font-semibold text-gray-900">Feature</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-900">Starter</th>
+                  <th className="px-4 py-3 text-center font-semibold text-blue-600">Growth</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-900">Enterprise</th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-600">
+                {[
+                  ['PII Redaction (regex)', true, true, true],
+                  ['PII Redaction (ML/NER)', false, false, true],
+                  ['Prompt Injection (rules)', true, true, true],
+                  ['Prompt Injection (ML)', false, false, true],
+                  ['Cost Guard', true, true, true],
+                  ['Content Filtering', false, true, true],
+                  ['Toxicity Detection (ML)', false, false, true],
+                  ['GDPR/CCPA Compliance', false, true, true],
+                  ['Audit Log', false, true, true],
+                  ['Security Dashboard', false, true, true],
+                  ['Security Policies', false, false, true],
+                  ['Encrypted Storage', false, false, true],
+                  ['Geofencing', false, false, true],
+                  ['Managed Prompts', '3', '25', 'Unlimited'],
+                  ['Secured Events / mo', '1,000', '100,000', 'Unlimited'],
+                ].map((row) => (
+                  <tr key={row[0] as string} className="border-b">
+                    <td className="py-3 pr-4">{row[0]}</td>
+                    {[row[1], row[2], row[3]].map((val, i) => (
+                      <td key={i} className="px-4 py-3 text-center">
+                        {val === true ? (
+                          <svg className="mx-auto h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                          </svg>
+                        ) : val === false ? (
+                          <svg className="mx-auto h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        ) : (
+                          <span className="font-medium">{val}</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
 
       {/* ── FAQ ── */}
-      <section className="border-t px-6 py-16">
+      <section className="border-t bg-gray-50 px-6 py-16">
         <div className="mx-auto max-w-2xl">
           <h2 className="text-center text-2xl font-bold text-gray-900">
             Frequently Asked Questions
@@ -297,8 +360,8 @@ export default function PricingPage() {
       </section>
 
       {/* ── CTA ── */}
-      <section className="border-t bg-gray-50 px-6 py-16 text-center">
-        <h2 className="text-2xl font-bold text-gray-900">Ready to get started?</h2>
+      <section className="border-t px-6 py-16 text-center">
+        <h2 className="text-2xl font-bold text-gray-900">Ready to secure your LLM application?</h2>
         <p className="mt-2 text-gray-500">Starter plan is free forever. No credit card required.</p>
         <Link
           href={isAuthenticated ? '/' : '/login?redirect=/'}

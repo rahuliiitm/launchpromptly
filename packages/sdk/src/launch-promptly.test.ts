@@ -1,4 +1,4 @@
-import { LaunchPromptly, PromptNotFoundError } from './planforge';
+import { LaunchPromptly, PromptNotFoundError } from './launch-promptly';
 
 // Mock fetch globally
 const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
@@ -532,6 +532,252 @@ describe('LaunchPromptly', () => {
       const content = await pf.prompt('stale-var-slug', { variables: { name: 'Bob' } });
       expect(content).toBe('Hello Bob');
       pf.destroy();
+    });
+  });
+
+  // ── Singleton pattern ──
+
+  describe('singleton', () => {
+    afterEach(() => {
+      LaunchPromptly.reset();
+    });
+
+    it('init() creates a singleton', () => {
+      const lp = LaunchPromptly.init({
+        apiKey: 'lp_live_test',
+        endpoint: 'http://localhost:3001',
+      });
+      expect(lp).toBeInstanceOf(LaunchPromptly);
+      expect(LaunchPromptly.shared).toBe(lp);
+    });
+
+    it('init() returns existing instance on second call', () => {
+      const first = LaunchPromptly.init({
+        apiKey: 'lp_live_test',
+        endpoint: 'http://localhost:3001',
+      });
+      const second = LaunchPromptly.init({
+        apiKey: 'lp_live_other',
+        endpoint: 'http://localhost:9999',
+      });
+      expect(second).toBe(first);
+    });
+
+    it('shared throws before init()', () => {
+      expect(() => LaunchPromptly.shared).toThrow('LaunchPromptly has not been initialized');
+    });
+
+    it('reset() clears the singleton', () => {
+      LaunchPromptly.init({
+        apiKey: 'lp_live_test',
+        endpoint: 'http://localhost:3001',
+      });
+      LaunchPromptly.reset();
+      expect(() => LaunchPromptly.shared).toThrow();
+    });
+  });
+
+  // ── AsyncLocalStorage context propagation ──
+
+  describe('withContext()', () => {
+    const resolvedPromptData = {
+      content: 'You are helpful.',
+      managedPromptId: 'mp-ctx',
+      promptVersionId: 'pv-ctx',
+      version: 1,
+    };
+
+    function mockResolveResponse(data: any, status = 200) {
+      fetchSpy.mockResolvedValueOnce({
+        ok: status >= 200 && status < 300,
+        status,
+        json: () => Promise.resolve(data),
+      } as Response);
+    }
+
+    it('getContext() returns undefined outside withContext', () => {
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
+        endpoint: 'http://localhost:3001',
+      });
+      expect(pf.getContext()).toBeUndefined();
+      pf.destroy();
+    });
+
+    it('getContext() returns the context inside withContext', () => {
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
+        endpoint: 'http://localhost:3001',
+      });
+      pf.withContext({ traceId: 'trace-1', customerId: 'cust-1' }, () => {
+        expect(pf.getContext()).toEqual({ traceId: 'trace-1', customerId: 'cust-1' });
+      });
+      pf.destroy();
+    });
+
+    it('ALS traceId overrides WrapOptions traceId in events', async () => {
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
+        endpoint: 'http://localhost:3001',
+        flushAt: 1,
+      });
+      const client = createMockClient();
+      const wrapped = pf.wrap(client, { traceId: 'static-trace' });
+
+      await pf.withContext({ traceId: 'als-trace-42' }, async () => {
+        await wrapped.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: 'Hello' }],
+        });
+      });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      const batchCall = fetchSpy.mock.calls.find((c) =>
+        (c[0] as string).includes('/v1/events/batch'),
+      );
+      expect(batchCall).toBeDefined();
+      const body = JSON.parse(batchCall![1]!.body as string);
+      expect(body.events[0].traceId).toBe('als-trace-42');
+      pf.destroy();
+    });
+
+    it('ALS customerId is used when no customer function is set', async () => {
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
+        endpoint: 'http://localhost:3001',
+        flushAt: 1,
+      });
+      const client = createMockClient();
+      const wrapped = pf.wrap(client);
+
+      await pf.withContext({ customerId: 'als-cust-7' }, async () => {
+        await wrapped.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: 'Hello' }],
+        });
+      });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      const batchCall = fetchSpy.mock.calls.find((c) =>
+        (c[0] as string).includes('/v1/events/batch'),
+      );
+      const body = JSON.parse(batchCall![1]!.body as string);
+      expect(body.events[0].customerId).toBe('als-cust-7');
+      pf.destroy();
+    });
+
+    it('prompt() uses ALS customerId for A/B resolution', async () => {
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
+        endpoint: 'http://localhost:3001',
+      });
+      mockResolveResponse(resolvedPromptData);
+
+      await pf.withContext({ customerId: 'als-user-99' }, async () => {
+        await pf.prompt('greeting');
+      });
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'http://localhost:3001/v1/prompts/resolve/greeting?customerId=als-user-99',
+        expect.any(Object),
+      );
+      pf.destroy();
+    });
+
+    it('falls back to WrapOptions when no ALS context', async () => {
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
+        endpoint: 'http://localhost:3001',
+        flushAt: 1,
+      });
+      const client = createMockClient();
+      const wrapped = pf.wrap(client, {
+        traceId: 'fallback-trace',
+        spanName: 'fallback-span',
+      });
+
+      // NO withContext — should use static WrapOptions
+      await wrapped.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: 'Hello' }],
+      });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      const batchCall = fetchSpy.mock.calls.find((c) =>
+        (c[0] as string).includes('/v1/events/batch'),
+      );
+      const body = JSON.parse(batchCall![1]!.body as string);
+      expect(body.events[0].traceId).toBe('fallback-trace');
+      expect(body.events[0].spanName).toBe('fallback-span');
+      pf.destroy();
+    });
+
+    it('ALS metadata is included in events', async () => {
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
+        endpoint: 'http://localhost:3001',
+        flushAt: 1,
+      });
+      const client = createMockClient();
+      const wrapped = pf.wrap(client);
+
+      await pf.withContext({ metadata: { requestId: 'req-1', region: 'us-east-1' } }, async () => {
+        await wrapped.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: 'Hello' }],
+        });
+      });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      const batchCall = fetchSpy.mock.calls.find((c) =>
+        (c[0] as string).includes('/v1/events/batch'),
+      );
+      const body = JSON.parse(batchCall![1]!.body as string);
+      expect(body.events[0].metadata).toEqual({ requestId: 'req-1', region: 'us-east-1' });
+      pf.destroy();
+    });
+  });
+
+  // ── shutdown() ──
+
+  describe('shutdown()', () => {
+    it('flushes and destroys', async () => {
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
+        endpoint: 'http://localhost:3001',
+        flushAt: 100,
+      });
+      const client = createMockClient();
+      const wrapped = pf.wrap(client);
+
+      await wrapped.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: 'Hello' }],
+      });
+
+      await new Promise((r) => setTimeout(r, 50));
+      await pf.shutdown();
+
+      expect(pf.isDestroyed).toBe(true);
+      // Event batch should have been flushed
+      const batchCall = fetchSpy.mock.calls.find((c) =>
+        (c[0] as string).includes('/v1/events/batch'),
+      );
+      expect(batchCall).toBeDefined();
+    });
+
+    it('destroy is safe to call multiple times', () => {
+      const pf = new LaunchPromptly({
+        apiKey: 'lp_live_test',
+        endpoint: 'http://localhost:3001',
+      });
+      pf.destroy();
+      pf.destroy(); // should not throw
+      expect(pf.isDestroyed).toBe(true);
     });
   });
 });

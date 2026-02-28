@@ -3,59 +3,126 @@
 import { useState } from 'react';
 
 const INSTALL_CMD = 'npm install launchpromptly';
+const INSTALL_CMD_PY = 'pip install launchpromptly';
 
-const RAG_CODE = `// Track your RAG pipeline with retrieval context
-const startTime = performance.now();
-const chunks = await vectorStore.search(userQuery, { topK: 5 });
-const retrievalMs = Math.round(performance.now() - startTime);
-
-const response = await openai.chat.completions.create({
-  model: 'gpt-4o',
-  messages: [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: buildRAGPrompt(userQuery, chunks) },
-  ],
-});
-
-// Attach RAG context + response for quality evaluation
-pf.attachContext({
-  ragPipelineId: 'support-bot',
-  ragQuery: userQuery,
-  ragRetrievalMs: retrievalMs,
-  ragChunkCount: chunks.length,
-  ragContextTokens: countTokens(chunks),
-  ragChunks: chunks.map(c => ({
-    content: c.text,
-    source: c.metadata.docId,
-    score: c.score,
-  })),
-  responseText: response.choices[0].message.content,
-});`;
-
-const USAGE_CODE = `import { LaunchPromptly } from 'launchpromptly';
+const BASIC_SECURITY_CODE = `import { LaunchPromptly } from 'launchpromptly';
 import OpenAI from 'openai';
 
-const pf = new LaunchPromptly({
+const lp = new LaunchPromptly({
   apiKey: 'YOUR_API_KEY_HERE',
   endpoint: 'http://localhost:3001', // your LaunchPromptly API
+  security: {
+    pii: { enabled: true, redaction: 'placeholder' },
+    injection: { enabled: true, blockOnHighRisk: true },
+    costGuard: { maxCostPerRequest: 0.50 },
+  },
 });
 
-const openai = pf.wrap(new OpenAI(), {
+// Wrap your OpenAI client — all security features activate automatically
+const openai = lp.wrap(new OpenAI(), {
   customer: () => ({ id: getCurrentUser().id }),
   feature: 'chat',
 });
 
-// Use openai as normal — everything is tracked transparently
+// Use openai as normal — PII is redacted, injections are blocked
 const response = await openai.chat.completions.create({
   model: 'gpt-4o',
-  messages: [{ role: 'user', content: 'Hello' }],
+  messages: [{ role: 'user', content: userInput }],
 });
+// If userInput contains "john@acme.com", the LLM receives "[EMAIL_1]"
+// The response is de-redacted before being returned to your code
 
-// On server shutdown
-await pf.flush();`;
+await lp.flush(); // On server shutdown`;
+
+const FULL_SECURITY_CODE = `const lp = new LaunchPromptly({
+  apiKey: process.env.LP_KEY,
+  security: {
+    // PII Redaction — 9 built-in regex patterns
+    pii: {
+      enabled: true,
+      redaction: 'placeholder',  // or 'synthetic' | 'hash'
+      types: ['email', 'phone', 'ssn', 'credit_card', 'ip_address'],
+      scanResponse: true,  // also scan LLM responses for PII leakage
+      onDetect: (detections) => console.log(\`Found \${detections.length} PII entities\`),
+    },
+    // Prompt Injection Detection
+    injection: {
+      enabled: true,
+      blockThreshold: 0.7,     // 0-1 risk score threshold
+      blockOnHighRisk: true,   // throw PromptInjectionError above threshold
+      onDetect: (analysis) => console.log(\`Injection risk: \${analysis.riskScore}\`),
+    },
+    // Cost Controls
+    costGuard: {
+      maxCostPerRequest: 1.00,     // USD
+      maxCostPerMinute: 10.00,     // USD
+      maxCostPerHour: 50.00,       // USD
+      maxCostPerCustomer: 5.00,    // USD/hour
+      maxTokensPerRequest: 100000,
+      blockOnExceed: true,
+    },
+    // Content Filtering
+    contentFilter: {
+      enabled: true,
+      categories: ['hate_speech', 'violence', 'self_harm'],
+      blockOnViolation: false,  // warn only, don't block
+      customPatterns: [
+        { name: 'competitor_mention', pattern: /competitor_name/i, severity: 'warn' },
+      ],
+    },
+    // GDPR/CCPA Compliance
+    compliance: {
+      consentTracking: { enabled: true, requireConsent: true },
+      dataRetention: { enabled: true, maxAgeDays: 90 },
+      geofencing: { allowedRegions: ['us', 'eu'] },
+    },
+    // Audit Logging
+    audit: { logLevel: 'detailed' },
+  },
+});`;
+
+const PYTHON_CODE = `from launchpromptly import LaunchPromptly
+from openai import OpenAI
+
+lp = LaunchPromptly(
+    api_key="YOUR_API_KEY_HERE",
+    security={
+        "pii": {"enabled": True, "redaction": "placeholder"},
+        "injection": {"enabled": True, "block_on_high_risk": True},
+        "cost_guard": {"max_cost_per_request": 0.50},
+    },
+)
+
+openai = lp.wrap(OpenAI())
+
+response = openai.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": user_input}],
+)
+# PII is redacted before the API call, response is de-redacted after`;
+
+const ML_PLUGIN_CODE = `// Optional: Enhanced ML-based detection
+import { LaunchPromptly } from 'launchpromptly';
+import { PresidioPIIDetector, MLInjectionDetector } from 'launchpromptly-ml';
+
+const lp = new LaunchPromptly({
+  apiKey: process.env.LP_KEY,
+  security: {
+    pii: {
+      enabled: true,
+      redaction: 'placeholder',
+      providers: [new PresidioPIIDetector()],  // Adds NER: names, orgs, locations
+    },
+    injection: {
+      enabled: true,
+      providers: [new MLInjectionDetector()],  // Adds semantic detection
+    },
+  },
+});`;
 
 export default function SDKSetupPage() {
   const [copied, setCopied] = useState('');
+  const [activeTab, setActiveTab] = useState<'node' | 'python'>('node');
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -68,7 +135,7 @@ export default function SDKSetupPage() {
     <div>
       <h1 className="text-2xl font-bold">SDK Setup</h1>
       <p className="mt-1 text-sm text-gray-500">
-        Get started tracking your AI costs in under 5 minutes.
+        Add LLM security to your application in under 5 minutes.
       </p>
 
       {/* Step 1 */}
@@ -79,19 +146,37 @@ export default function SDKSetupPage() {
           <a href="/admin/api-keys" className="text-blue-600 underline">
             API Keys
           </a>{' '}
-          and generate a new API key.
+          and generate a new key for your environment.
         </p>
       </div>
 
       {/* Step 2 */}
       <div className="mt-8">
         <h2 className="text-lg font-semibold">2. Install the SDK</h2>
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => setActiveTab('node')}
+            className={`rounded px-3 py-1.5 text-sm font-medium ${
+              activeTab === 'node' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Node.js
+          </button>
+          <button
+            onClick={() => setActiveTab('python')}
+            className={`rounded px-3 py-1.5 text-sm font-medium ${
+              activeTab === 'python' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Python
+          </button>
+        </div>
         <div className="relative mt-2">
           <pre className="rounded-lg bg-gray-900 p-4 text-sm text-green-400">
-            {INSTALL_CMD}
+            {activeTab === 'node' ? INSTALL_CMD : INSTALL_CMD_PY}
           </pre>
           <button
-            onClick={() => copyToClipboard(INSTALL_CMD, 'install')}
+            onClick={() => copyToClipboard(activeTab === 'node' ? INSTALL_CMD : INSTALL_CMD_PY, 'install')}
             className="absolute right-2 top-2 rounded bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
           >
             {copied === 'install' ? 'Copied!' : 'Copy'}
@@ -101,53 +186,125 @@ export default function SDKSetupPage() {
 
       {/* Step 3 */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold">3. Wrap your OpenAI client</h2>
+        <h2 className="text-lg font-semibold">3. Wrap your LLM client with security</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Initialize LaunchPromptly with security options and wrap your OpenAI client.
+          PII redaction, injection detection, and cost guards activate on every call.
+        </p>
         <div className="relative mt-2">
           <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-green-400">
-            {USAGE_CODE}
+            {activeTab === 'node' ? BASIC_SECURITY_CODE : PYTHON_CODE}
           </pre>
           <button
-            onClick={() => copyToClipboard(USAGE_CODE, 'code')}
+            onClick={() => copyToClipboard(activeTab === 'node' ? BASIC_SECURITY_CODE : PYTHON_CODE, 'basic')}
             className="absolute right-2 top-2 rounded bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
           >
-            {copied === 'code' ? 'Copied!' : 'Copy'}
+            {copied === 'basic' ? 'Copied!' : 'Copy'}
           </button>
         </div>
       </div>
 
-      {/* Step 4 — RAG */}
+      {/* Step 4 — Full Security Config */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold">4. Track RAG Pipelines (Optional)</h2>
+        <h2 className="text-lg font-semibold">4. Full Security Configuration (Optional)</h2>
         <p className="mt-1 text-sm text-gray-500">
-          If you have a RAG pipeline, attach retrieval context to get quality metrics.
+          Configure all security modules: PII types, injection thresholds, cost limits, content filtering, and compliance.
         </p>
         <div className="relative mt-2">
           <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-green-400">
-            {RAG_CODE}
+            {FULL_SECURITY_CODE}
           </pre>
           <button
-            onClick={() => copyToClipboard(RAG_CODE, 'rag')}
+            onClick={() => copyToClipboard(FULL_SECURITY_CODE, 'full')}
             className="absolute right-2 top-2 rounded bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
           >
-            {copied === 'rag' ? 'Copied!' : 'Copy'}
+            {copied === 'full' ? 'Copied!' : 'Copy'}
           </button>
         </div>
       </div>
 
-      {/* Step 5 */}
+      {/* Step 5 — ML Plugin */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold">5. View Your Data</h2>
+        <h2 className="text-lg font-semibold">5. ML-Enhanced Detection (Optional)</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Once events are flowing, check{' '}
-          <a href="/admin" className="text-blue-600 underline">
-            Billing
-          </a>{' '}
-          to see your costs, or{' '}
-          <a href="/observability" className="text-blue-600 underline">
-            Observability
-          </a>{' '}
-          to evaluate RAG quality and debug individual traces.
+          Install the ML plugin for NER-based PII detection (person names, orgs, addresses) and semantic injection detection.
         </p>
+        <div className="relative mt-2">
+          <pre className="rounded-lg bg-gray-900 p-4 text-sm text-green-400">
+            {activeTab === 'node' ? 'npm install launchpromptly-ml' : 'pip install launchpromptly[ml]'}
+          </pre>
+        </div>
+        <div className="relative mt-2">
+          <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-green-400">
+            {ML_PLUGIN_CODE}
+          </pre>
+          <button
+            onClick={() => copyToClipboard(ML_PLUGIN_CODE, 'ml')}
+            className="absolute right-2 top-2 rounded bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
+          >
+            {copied === 'ml' ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+      </div>
+
+      {/* Step 6 */}
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold">6. Monitor & Configure</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Once events are flowing, check your{' '}
+          <a href="/admin/security" className="text-blue-600 underline">
+            Security Dashboard
+          </a>{' '}
+          to monitor PII detections and injection attempts. Review the{' '}
+          <a href="/admin/security/audit" className="text-blue-600 underline">
+            Audit Log
+          </a>{' '}
+          for a complete trail of security decisions, and configure{' '}
+          <a href="/admin/security/policies" className="text-blue-600 underline">
+            Security Policies
+          </a>{' '}
+          per project.
+        </p>
+      </div>
+
+      {/* Security Behavior Reference */}
+      <div className="mt-10 rounded-lg border bg-blue-50 p-5">
+        <h3 className="font-semibold text-gray-900">Security Pipeline Order</h3>
+        <p className="mt-1 text-sm text-gray-500">
+          On every LLM call, the SDK runs these checks in order:
+        </p>
+        <ol className="mt-3 space-y-1 text-sm text-gray-600">
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">1.</span> Compliance check (consent, geofencing)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">2.</span> Cost guard (estimate cost, check budgets)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">3.</span> PII scan & redact (replace PII with placeholders)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">4.</span> Injection detection (score risk, warn/block)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">5.</span> Content filter (check input policy violations)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">6.</span> <strong>LLM API Call</strong> (with redacted content)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">7.</span> Response PII scan (defense-in-depth)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">8.</span> Response content filter
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">9.</span> De-redact response (restore original values)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">10.</span> Send enriched event to dashboard
+          </li>
+        </ol>
       </div>
     </div>
   );

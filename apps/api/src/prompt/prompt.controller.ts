@@ -57,6 +57,21 @@ export class PromptController {
     return this.promptService.listPrompts(projectId, user.userId);
   }
 
+  // Must be before :projectId/:promptId to prevent "fetch-stats" matching as a promptId
+  @Get(':projectId/fetch-stats')
+  async getProjectFetchStats(
+    @Param('projectId') projectId: string,
+    @Query('days') days: string | undefined,
+    @Req() req: Request,
+  ) {
+    const user = req.user as AuthUser;
+    return this.promptService.getProjectFetchStats(
+      projectId,
+      user.userId,
+      days ? parseInt(days, 10) : 30,
+    );
+  }
+
   @Get(':projectId/:promptId')
   async get(
     @Param('projectId') projectId: string,
@@ -289,20 +304,6 @@ export class PromptController {
     return this.promptService.getPromptTimeSeries(
       projectId,
       promptId,
-      user.userId,
-      days ? parseInt(days, 10) : 30,
-    );
-  }
-
-  @Get(':projectId/fetch-stats')
-  async getProjectFetchStats(
-    @Param('projectId') projectId: string,
-    @Query('days') days: string | undefined,
-    @Req() req: Request,
-  ) {
-    const user = req.user as AuthUser;
-    return this.promptService.getProjectFetchStats(
-      projectId,
       user.userId,
       days ? parseInt(days, 10) : 30,
     );

@@ -5,6 +5,7 @@ import { AnalyticsService } from './analytics.service';
 import { OptimizationService } from './optimization.service';
 import { RagAnalyticsService } from './rag-analytics.service';
 import { RagEvaluationService } from './rag-evaluation.service';
+import { SecurityAnalyticsService } from './security-analytics.service';
 import type { AuthUser } from '../auth/jwt.strategy';
 
 @Controller('analytics')
@@ -15,6 +16,7 @@ export class AnalyticsController {
     private readonly optimizationService: OptimizationService,
     private readonly ragAnalyticsService: RagAnalyticsService,
     private readonly ragEvaluationService: RagEvaluationService,
+    private readonly securityAnalyticsService: SecurityAnalyticsService,
   ) {}
 
   private parseDays(days?: string): number {
@@ -79,6 +81,38 @@ export class AnalyticsController {
   ): Promise<unknown> {
     const user = req.user as AuthUser;
     return this.optimizationService.getRecommendations(projectId, user.userId);
+  }
+
+  // ── Security Analytics ──
+
+  @Get(':projectId/security/overview')
+  async securityOverview(
+    @Param('projectId') projectId: string,
+    @Query('days') days: string,
+    @Req() req: Request,
+  ): Promise<unknown> {
+    const user = req.user as AuthUser;
+    return this.securityAnalyticsService.getSecurityOverview(projectId, user.userId, this.parseDays(days));
+  }
+
+  @Get(':projectId/security/timeseries')
+  async securityTimeseries(
+    @Param('projectId') projectId: string,
+    @Query('days') days: string,
+    @Req() req: Request,
+  ): Promise<unknown> {
+    const user = req.user as AuthUser;
+    return this.securityAnalyticsService.getSecurityTimeSeries(projectId, user.userId, this.parseDays(days));
+  }
+
+  @Get(':projectId/security/injections')
+  async injectionBreakdown(
+    @Param('projectId') projectId: string,
+    @Query('days') days: string,
+    @Req() req: Request,
+  ): Promise<unknown> {
+    const user = req.user as AuthUser;
+    return this.securityAnalyticsService.getInjectionBreakdown(projectId, user.userId, this.parseDays(days));
   }
 
   // ── RAG Operational ──

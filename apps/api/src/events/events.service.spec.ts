@@ -1,18 +1,34 @@
 import { EventsService } from './events.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CryptoService } from '../crypto/crypto.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('EventsService', () => {
   let service: EventsService;
   let prisma: PrismaService;
+  let crypto: CryptoService;
+  let audit: AuditService;
 
   beforeEach(() => {
     prisma = {
       lLMEvent: {
         createMany: jest.fn().mockResolvedValue({ count: 2 }),
       },
+      auditLog: {
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
     } as unknown as PrismaService;
 
-    service = new EventsService(prisma);
+    crypto = {
+      encrypt: jest.fn().mockReturnValue({ encrypted: 'enc', iv: 'iv', authTag: 'tag' }),
+      decrypt: jest.fn().mockReturnValue('decrypted'),
+    } as unknown as CryptoService;
+
+    audit = {
+      log: jest.fn().mockResolvedValue(undefined),
+    } as unknown as AuditService;
+
+    service = new EventsService(prisma, crypto, audit);
   });
 
   const baseEvent = {

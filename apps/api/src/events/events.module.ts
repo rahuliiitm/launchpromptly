@@ -2,8 +2,11 @@ import { Module } from '@nestjs/common';
 import { EventsController } from './events.controller';
 import { EventsService } from './events.service';
 import { ApiKeyGuard } from '../auth/api-key.guard';
+import { AuditModule } from '../audit/audit.module';
+import { AlertModule } from '../alert/alert.module';
 
 @Module({
+  imports: [AuditModule, AlertModule],
   controllers: [EventsController],
   providers: [EventsService, ApiKeyGuard],
 })

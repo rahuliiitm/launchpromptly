@@ -5,14 +5,37 @@ import { usePathname } from 'next/navigation';
 import { RequireAdmin } from '@/components/require-admin';
 
 const NAV_ITEMS = [
-  { href: '/admin', label: 'Billing' },
+  { href: '/admin/security', label: 'Security Overview' },
+  { href: '/admin/security/policies', label: 'Security Policies' },
+  { href: '/admin/security/audit', label: 'Audit Logs' },
+  { href: '/admin/sdk', label: 'SDK Setup' },
+  { href: '/admin/api-keys', label: 'API Keys' },
+  { href: '/admin/providers', label: 'LLM Providers' },
   { href: '/admin/environments', label: 'Environments' },
   { href: '/admin/teams', label: 'Teams' },
   { href: '/admin/team', label: 'Members' },
-  { href: '/admin/api-keys', label: 'API Keys' },
-  { href: '/admin/providers', label: 'LLM Providers' },
-  { href: '/admin/sdk', label: 'SDK Setup' },
+  { href: '/admin', label: 'Billing' },
 ];
+
+function isActiveLink(pathname: string, href: string): boolean {
+  // Exact match always wins
+  if (pathname === href) return true;
+  // The root /admin route only matches exactly
+  if (href === '/admin') return false;
+  // For prefix matches, ensure no other nav item is a more specific match.
+  // e.g. when on /admin/security/audit, /admin/security should NOT match
+  // because /admin/security/audit is a more specific match.
+  const isPrefix = pathname.startsWith(href + '/') || pathname.startsWith(href + '?');
+  if (!isPrefix) return false;
+  // Check if a more specific nav item matches
+  const hasMoreSpecific = NAV_ITEMS.some(
+    (other) =>
+      other.href !== href &&
+      other.href.startsWith(href + '/') &&
+      (pathname === other.href || pathname.startsWith(other.href + '/') || pathname.startsWith(other.href + '?')),
+  );
+  return !hasMoreSpecific;
+}
 
 export default function AdminLayout({
   children,
@@ -34,7 +57,7 @@ export default function AdminLayout({
                 key={item.href}
                 href={item.href}
                 className={`block rounded px-3 py-2 text-sm font-medium transition-colors ${
-                  pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href))
+                  isActiveLink(pathname, item.href)
                     ? 'bg-blue-50 text-blue-700'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}

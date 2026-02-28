@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsOptional,
   IsIn,
+  IsObject,
   Min,
   Max,
   ArrayMaxSize,
@@ -116,6 +117,53 @@ export class IngestEventDto {
   @IsOptional()
   @IsString()
   environmentId?: string;
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, string>;
+
+  // Security metadata from SDK
+  @IsOptional()
+  @IsObject()
+  piiDetections?: {
+    inputCount: number;
+    outputCount: number;
+    types: string[];
+    redactionApplied: boolean;
+    detectorUsed: string;
+  };
+
+  @IsOptional()
+  @IsObject()
+  injectionRisk?: {
+    score: number;
+    triggered: string[];
+    action: string;
+    detectorUsed: string;
+  };
+
+  @IsOptional()
+  @IsObject()
+  costGuard?: {
+    estimatedCost: number;
+    budgetRemaining: number;
+    limitTriggered?: string;
+  };
+
+  @IsOptional()
+  @IsObject()
+  contentViolations?: {
+    inputViolations: Array<{ category: string; matched: string; severity: string }>;
+    outputViolations: Array<{ category: string; matched: string; severity: string }>;
+  };
+
+  @IsOptional()
+  @IsObject()
+  compliance?: {
+    consentRecorded: boolean;
+    dataRegion?: string;
+    retentionDays?: number;
+  };
 }
 
 export class IngestBatchDto {

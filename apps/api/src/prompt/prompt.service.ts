@@ -513,16 +513,25 @@ export class PromptService {
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
+    // The first environment (by sortOrder) also collects events that have
+    // no environmentId (legacy events from before API keys were linked to envs).
+    const defaultEnvId = environments[0]?.id;
+
     const stats = await Promise.all(
-      environments.map(async (env) => {
+      environments.map(async (env, idx) => {
         const deployment = deploymentByEnv.get(env.id);
+
+        // For the default env, also include events with null environmentId
+        const envFilter = idx === 0
+          ? { OR: [{ environmentId: env.id }, { environmentId: null }] }
+          : { environmentId: env.id };
 
         // 24h stats
         const agg24h = await this.prisma.lLMEvent.aggregate({
           where: {
             projectId,
             managedPromptId: promptId,
-            environmentId: env.id,
+            ...envFilter,
             createdAt: { gte: oneDayAgo },
           },
           _count: true,
@@ -535,7 +544,7 @@ export class PromptService {
           where: {
             projectId,
             managedPromptId: promptId,
-            environmentId: env.id,
+            ...envFilter,
             createdAt: { gte: oneHourAgo },
           },
           _count: true,
@@ -546,7 +555,7 @@ export class PromptService {
           where: {
             projectId,
             managedPromptId: promptId,
-            environmentId: env.id,
+            ...envFilter,
           },
           orderBy: { createdAt: 'desc' },
           select: { createdAt: true },

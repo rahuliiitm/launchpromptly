@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 interface ApiKeyInfo {
   id: string;
   projectId: string;
+  environmentId: string | null;
   keyPrefix: string;
   name: string;
   createdAt: Date;
@@ -64,6 +65,7 @@ export class ProjectService {
       select: {
         id: true,
         projectId: true,
+        environmentId: true,
         keyPrefix: true,
         name: true,
         createdAt: true,
@@ -77,21 +79,33 @@ export class ProjectService {
     projectId: string,
     userId: string,
     name: string,
+    environmentId?: string,
   ): Promise<CreateApiKeyResult> {
     await this.assertProjectAccess(projectId, userId);
+
+    // Auto-default to the first environment if none specified
+    let envId = environmentId;
+    if (!envId) {
+      const defaultEnv = await this.prisma.environment.findFirst({
+        where: { projectId },
+        orderBy: { sortOrder: 'asc' },
+      });
+      envId = defaultEnv?.id;
+    }
 
     const rawKey = `lp_live_${randomBytes(32).toString('hex')}`;
     const keyPrefix = rawKey.slice(0, 16);
     const keyHash = await bcrypt.hash(rawKey, 10);
 
     const created = await this.prisma.apiKey.create({
-      data: { projectId, keyHash, keyPrefix, name },
+      data: { projectId, keyHash, keyPrefix, name, ...(envId && { environmentId: envId }) },
     });
 
     return {
       apiKey: {
         id: created.id,
         projectId: created.projectId,
+        environmentId: created.environmentId,
         keyPrefix: created.keyPrefix,
         name: created.name,
         createdAt: created.createdAt,

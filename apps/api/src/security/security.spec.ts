@@ -13,6 +13,8 @@
  * protect against injection attacks, and that the app handles edge cases gracefully.
  */
 import { EventsService } from '../events/events.service';
+import { CryptoService } from '../crypto/crypto.service';
+import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
 import { PromptService } from '../prompt/prompt.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -109,8 +111,17 @@ describe('EventsService — Security & i18n', () => {
       lLMEvent: {
         createMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
+      auditLog: {
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
     } as unknown as PrismaService;
-    service = new EventsService(prisma);
+    const crypto = {
+      encrypt: jest.fn().mockReturnValue({ encrypted: 'enc', iv: 'iv', authTag: 'tag' }),
+    } as unknown as CryptoService;
+    const audit = {
+      log: jest.fn().mockResolvedValue(undefined),
+    } as unknown as AuditService;
+    service = new EventsService(prisma, crypto, audit);
   });
 
   describe('SQL injection via event fields', () => {

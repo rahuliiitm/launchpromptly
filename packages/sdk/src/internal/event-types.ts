@@ -21,6 +21,7 @@ export interface IngestEventPayload {
   traceId?: string;
   spanName?: string;
   environmentId?: string;
+  metadata?: Record<string, string>;
 }
 
 /**

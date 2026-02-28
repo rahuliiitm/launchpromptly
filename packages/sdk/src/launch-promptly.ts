@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { EventBatcher } from './batcher';
 import { PromptCache } from './prompt-cache';
 import { interpolate } from './template';
@@ -7,6 +8,7 @@ import type {
   LaunchPromptlyOptions,
   PromptOptions,
   WrapOptions,
+  RequestContext,
   ChatCompletionCreateParams,
   ChatCompletion,
 } from './types';
@@ -25,12 +27,51 @@ export class PromptNotFoundError extends Error {
 }
 
 export class LaunchPromptly {
+  // ── Singleton ───────────────────────────────────────────────────────────────
+  private static _instance: LaunchPromptly | null = null;
+
+  /**
+   * Initialize the global singleton instance.
+   * Subsequent calls return the existing instance (logs a warning).
+   */
+  static init(options: LaunchPromptlyOptions): LaunchPromptly {
+    if (LaunchPromptly._instance) {
+      return LaunchPromptly._instance;
+    }
+    LaunchPromptly._instance = new LaunchPromptly(options);
+    return LaunchPromptly._instance;
+  }
+
+  /** Access the global singleton. Throws if init() hasn't been called. */
+  static get shared(): LaunchPromptly {
+    if (!LaunchPromptly._instance) {
+      throw new Error(
+        'LaunchPromptly has not been initialized. Call LaunchPromptly.init({ apiKey }) first.',
+      );
+    }
+    return LaunchPromptly._instance;
+  }
+
+  /** Reset the singleton (primarily for testing). */
+  static reset(): void {
+    if (LaunchPromptly._instance) {
+      LaunchPromptly._instance.destroy();
+      LaunchPromptly._instance = null;
+    }
+  }
+
+  // ── AsyncLocalStorage for context propagation ───────────────────────────────
+  private readonly als = new AsyncLocalStorage<RequestContext>();
+
+  // ── Instance fields ─────────────────────────────────────────────────────────
   private readonly batcher: EventBatcher;
   private readonly promptCache: PromptCache;
   private readonly apiKey: string;
   private readonly endpoint: string;
   private readonly promptCacheTtl: number;
-  /** Maps content hash → { managedPromptId, promptVersionId } for event metadata injection */
+  private _destroyed = false;
+
+  /** Maps interpolated content → { managedPromptId, promptVersionId } for event metadata injection */
   private readonly resolvedPrompts = new Map<
     string,
     { managedPromptId: string; promptVersionId: string }
@@ -55,7 +96,7 @@ export class LaunchPromptly {
     this.apiKey = resolvedKey;
     this.endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
     this.promptCacheTtl = options.promptCacheTtl ?? DEFAULT_PROMPT_CACHE_TTL;
-    this.promptCache = new PromptCache();
+    this.promptCache = new PromptCache(options.maxCacheSize);
     this.batcher = new EventBatcher(
       resolvedKey,
       this.endpoint,
@@ -64,7 +105,33 @@ export class LaunchPromptly {
     );
   }
 
+  /**
+   * Run a callback with request-scoped context that automatically propagates
+   * traceId, customerId, feature, and spanName to all SDK calls within.
+   *
+   * Context flows across async/await boundaries via AsyncLocalStorage.
+   *
+   * @example
+   * ```ts
+   * await lp.withContext({ traceId: req.id, customerId: user.id }, async () => {
+   *   const prompt = await lp.prompt('greeting');
+   *   await wrapped.chat.completions.create({ ... });
+   * });
+   * ```
+   */
+  withContext<T>(context: RequestContext, fn: () => T): T {
+    return this.als.run(context, fn);
+  }
+
+  /** Get the current AsyncLocalStorage context (or undefined if none). */
+  getContext(): RequestContext | undefined {
+    return this.als.getStore();
+  }
+
   async prompt(slug: string, options?: PromptOptions): Promise<string> {
+    const alsCtx = this.als.getStore();
+    const effectiveCustomerId = options?.customerId ?? alsCtx?.customerId;
+
     // Check cache first
     const cached = this.promptCache.get(slug);
     if (cached) {
@@ -82,8 +149,8 @@ export class LaunchPromptly {
     }
 
     // Fetch from API
-    const queryParams = options?.customerId
-      ? `?customerId=${encodeURIComponent(options.customerId)}`
+    const queryParams = effectiveCustomerId
+      ? `?customerId=${encodeURIComponent(effectiveCustomerId)}`
       : '';
     const url = `${this.endpoint}/v1/prompts/resolve/${encodeURIComponent(slug)}${queryParams}`;
 
@@ -151,6 +218,7 @@ export class LaunchPromptly {
     const traceIdTag = options.traceId;
     const spanNameTag = options.spanName;
     const resolvedPrompts = this.resolvedPrompts;
+    const als = this.als;
 
     return new Proxy(client, {
       get(target, prop) {
@@ -174,6 +242,9 @@ export class LaunchPromptly {
                           params,
                         );
                         const latencyMs = Date.now() - startMs;
+
+                        // Capture ALS context at call time (not at wrap time)
+                        const alsCtx = als.getStore();
 
                         void (async () => {
                           try {
@@ -201,14 +272,19 @@ export class LaunchPromptly {
                               systemMsg?.content,
                             );
 
-                            let customerId: string | undefined;
-                            let feature: string | undefined = featureTag;
+                            // Resolve customer: ALS context > WrapOptions.customer() > undefined
+                            let customerId: string | undefined = alsCtx?.customerId;
+                            let feature: string | undefined = alsCtx?.feature ?? featureTag;
 
-                            if (customerFn) {
+                            if (!customerId && customerFn) {
                               const ctx = await customerFn();
                               customerId = ctx.id;
-                              feature = ctx.feature ?? featureTag;
+                              feature = ctx.feature ?? feature;
                             }
+
+                            // Resolve trace: ALS context > WrapOptions > undefined
+                            const traceId = alsCtx?.traceId ?? traceIdTag;
+                            const spanName = alsCtx?.spanName ?? spanNameTag;
 
                             // Check if system message matches a resolved managed prompt
                             const promptMeta = systemMsg?.content
@@ -231,8 +307,9 @@ export class LaunchPromptly {
                               statusCode: 200,
                               managedPromptId: promptMeta?.managedPromptId,
                               promptVersionId: promptMeta?.promptVersionId,
-                              traceId: traceIdTag,
-                              spanName: spanNameTag,
+                              traceId,
+                              spanName,
+                              metadata: alsCtx?.metadata,
                             };
 
                             batcher.enqueue(event);
@@ -264,11 +341,29 @@ export class LaunchPromptly {
     }) as T;
   }
 
+  /** Flush all pending events to the API. */
   async flush(): Promise<void> {
     await this.batcher.flush();
   }
 
+  /** Stop timers and release resources. Safe to call multiple times. */
   destroy(): void {
+    if (this._destroyed) return;
+    this._destroyed = true;
     this.batcher.destroy();
+  }
+
+  /**
+   * Graceful shutdown: flush pending events, then destroy.
+   * Use this in server shutdown hooks (SIGTERM, process.on('beforeExit')).
+   */
+  async shutdown(): Promise<void> {
+    await this.flush();
+    this.destroy();
+  }
+
+  /** Whether this instance has been destroyed. */
+  get isDestroyed(): boolean {
+    return this._destroyed;
   }
 }

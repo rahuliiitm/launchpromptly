@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useIsAdmin } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
@@ -10,40 +9,26 @@ import { getToken, getProjectId } from '@/lib/auth';
 // ── Authenticated Dashboard ──
 
 interface ChecklistState {
-  providerKey: boolean;
-  prompt: boolean;
   apiKey: boolean;
+  sdkInstalled: boolean;
+  securityPolicy: boolean;
 }
 
-interface DashboardStats {
-  activePrompts: number;
-  totalApiKeys: number;
-}
-
-interface FetchStats {
-  totalFetches: number;
-  promptCount: number;
-  prompts: { id: string; name: string; slug: string; fetchCount: number }[];
-  dailyFetches: { date: string; fetches: number }[];
-}
-
-interface EvalUsage {
-  used: number;
-  limit: number;
-  plan: string;
+interface SecurityStats {
+  piiDetections: number;
+  injectionAttempts: number;
+  eventsProtected: number;
 }
 
 function Dashboard() {
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
   const [checklist, setChecklist] = useState<ChecklistState>({
-    providerKey: false,
-    prompt: false,
     apiKey: false,
+    sdkInstalled: false,
+    securityPolicy: false,
   });
-  const [stats, setStats] = useState<DashboardStats>({ activePrompts: 0, totalApiKeys: 0 });
-  const [fetchStats, setFetchStats] = useState<FetchStats | null>(null);
-  const [evalUsage, setEvalUsage] = useState<EvalUsage | null>(null);
+  const [securityStats, setSecurityStats] = useState<SecurityStats | null>(null);
   const [loadingChecklist, setLoadingChecklist] = useState(true);
 
   useEffect(() => {
@@ -56,57 +41,60 @@ function Dashboard() {
     const headers = { Authorization: `Bearer ${token}` };
 
     Promise.allSettled([
-      apiFetch<{ id: string }[]>('/provider-keys', { headers }),
-      apiFetch<{ id: string; slug: string }[]>(`/prompt/${projectId}`, { headers }),
       apiFetch<{ id: string }[]>(`/project/${projectId}/api-keys`, { headers }),
-      apiFetch<FetchStats>(`/prompt/${projectId}/fetch-stats?days=30`, { headers }),
-      apiFetch<{ evalRuns: EvalUsage }>('/billing/info', { headers }),
-    ]).then(([providerRes, promptRes, apiKeyRes, fetchRes, billingRes]) => {
-      const hasProviderKey = providerRes.status === 'fulfilled' && providerRes.value.length > 0;
-      const prompts = promptRes.status === 'fulfilled' ? promptRes.value : [];
+      apiFetch<unknown>(`/analytics/${projectId}/overview?days=30`, { headers }),
+      apiFetch<unknown[]>(`/v1/security/policies/${projectId}`, { headers }),
+      apiFetch<{ piiDetections?: number; injectionAttempts?: number; totalEvents?: number }>(`/analytics/${projectId}/security/overview?days=30`, { headers }),
+    ]).then(([apiKeyRes, eventsRes, policyRes, securityRes]) => {
       const apiKeys = apiKeyRes.status === 'fulfilled' ? apiKeyRes.value : [];
+      const hasEvents = eventsRes.status === 'fulfilled';
+      const policies = policyRes.status === 'fulfilled' ? policyRes.value : [];
 
       setChecklist({
-        providerKey: hasProviderKey,
-        prompt: prompts.length > 0,
         apiKey: apiKeys.length > 0,
+        sdkInstalled: hasEvents,
+        securityPolicy: policies.length > 0,
       });
-      setStats({
-        activePrompts: prompts.length,
-        totalApiKeys: apiKeys.length,
-      });
-      if (fetchRes.status === 'fulfilled') setFetchStats(fetchRes.value);
-      if (billingRes.status === 'fulfilled') setEvalUsage(billingRes.value.evalRuns);
+
+      if (securityRes.status === 'fulfilled') {
+        const data = securityRes.value;
+        setSecurityStats({
+          piiDetections: data.piiDetections ?? 0,
+          injectionAttempts: data.injectionAttempts ?? 0,
+          eventsProtected: data.totalEvents ?? 0,
+        });
+      }
+
       setLoadingChecklist(false);
     });
   }, [user?.projectId]);
 
-  const allComplete = !isAdmin || (checklist.providerKey && checklist.prompt && checklist.apiKey);
+  const allComplete = !isAdmin || (checklist.apiKey && checklist.sdkInstalled && checklist.securityPolicy);
 
   const steps = [
     {
-      key: 'providerKey',
-      title: 'Add an LLM provider key',
-      description: 'Connect your OpenAI or Anthropic API key so you can test prompts.',
-      href: '/admin/providers',
-      linkText: 'Go to LLM Providers',
-      done: checklist.providerKey,
-    },
-    {
-      key: 'prompt',
-      title: 'Test a prompt in the Playground',
-      description: 'Write a system prompt, test it against models, and publish as a managed prompt.',
-      href: '/prompts',
-      linkText: 'Open Playground',
-      done: checklist.prompt,
-    },
-    {
       key: 'apiKey',
       title: 'Generate an SDK API key',
-      description: 'Create an API key to integrate LaunchPromptly into your application.',
+      description: 'Create an API key to connect the LaunchPromptly SDK to your project.',
       href: '/admin/api-keys',
       linkText: 'Go to API Keys',
       done: checklist.apiKey,
+    },
+    {
+      key: 'sdkInstalled',
+      title: 'Install the SDK & enable security',
+      description: 'Add lp.wrap(openaiClient) to get automatic PII redaction, injection detection, and cost controls.',
+      href: '/admin/sdk',
+      linkText: 'View SDK Setup Guide',
+      done: checklist.sdkInstalled,
+    },
+    {
+      key: 'securityPolicy',
+      title: 'Configure a security policy',
+      description: 'Set PII redaction rules, injection thresholds, and cost limits for your project.',
+      href: '/admin/security/policies',
+      linkText: 'Create Security Policy',
+      done: checklist.securityPolicy,
     },
   ];
 
@@ -120,84 +108,64 @@ function Dashboard() {
         <div className="mt-8 text-gray-400">Loading setup status...</div>
       ) : allComplete ? (
         <div className="mt-8">
-          <p className="text-gray-600">Your setup is complete. Here&apos;s a quick overview.</p>
+          <p className="text-gray-600">Your security setup is active. Here&apos;s a quick overview.</p>
 
           <div className="mt-6 grid grid-cols-2 gap-4">
             <Link
-              href="/prompts/managed"
+              href="/admin/security"
               className="rounded-lg border bg-white p-5 transition hover:border-blue-300"
             >
-              <div className="text-2xl font-bold">{stats.activePrompts}</div>
-              <div className="mt-1 text-sm text-gray-500">Managed Prompts</div>
+              <div className="text-2xl font-bold">
+                {securityStats ? securityStats.eventsProtected.toLocaleString() : <span className="text-gray-400">&mdash;</span>}
+              </div>
+              <div className="mt-1 text-sm text-gray-500">Events Protected (30d)</div>
             </Link>
             <div className="rounded-lg border bg-white p-5">
-              <div className="text-2xl font-bold">
-                {fetchStats ? fetchStats.totalFetches.toLocaleString() : <span className="text-gray-400">&mdash;</span>}
+              <div className="text-2xl font-bold text-orange-600">
+                {securityStats ? securityStats.piiDetections.toLocaleString() : <span className="text-gray-400">&mdash;</span>}
               </div>
-              <div className="mt-1 text-sm text-gray-500">API Fetches (30d)</div>
+              <div className="mt-1 text-sm text-gray-500">PII Detections (30d)</div>
             </div>
-            {evalUsage && (
-              <div className="rounded-lg border bg-white p-5">
-                <div className="text-2xl font-bold">
-                  {evalUsage.used} <span className="text-base font-normal text-gray-400">/ {evalUsage.limit}</span>
-                </div>
-                <div className="mt-1 text-sm text-gray-500">Eval Runs This Month</div>
-                <div className="mt-2 h-1.5 w-full rounded-full bg-gray-100">
-                  <div
-                    className={`h-1.5 rounded-full ${evalUsage.used / evalUsage.limit > 0.8 ? 'bg-orange-500' : 'bg-blue-500'}`}
-                    style={{ width: `${Math.min(100, (evalUsage.used / evalUsage.limit) * 100)}%` }}
-                  />
-                </div>
+            <div className="rounded-lg border bg-white p-5">
+              <div className="text-2xl font-bold text-red-600">
+                {securityStats ? securityStats.injectionAttempts.toLocaleString() : <span className="text-gray-400">&mdash;</span>}
               </div>
-            )}
+              <div className="mt-1 text-sm text-gray-500">Injection Attempts Blocked</div>
+            </div>
             <Link
-              href="/observability"
+              href="/admin/security/audit"
               className="rounded-lg border bg-white p-5 transition hover:border-blue-300"
             >
               <div className="text-2xl font-bold text-gray-400">&mdash;</div>
-              <div className="mt-1 text-sm text-gray-500">Analytics & Observability</div>
+              <div className="mt-1 text-sm text-gray-500">Audit Log & Compliance</div>
             </Link>
           </div>
 
-          {/* Prompt Fetch Breakdown */}
-          {fetchStats && fetchStats.prompts.length > 0 && (
-            <div className="mt-6 rounded-lg border bg-white p-5">
-              <h3 className="text-sm font-semibold text-gray-700">Prompt Fetches (Last 30 Days)</h3>
-              <div className="mt-3 space-y-2">
-                {fetchStats.prompts
-                  .sort((a, b) => b.fetchCount - a.fetchCount)
-                  .slice(0, 5)
-                  .map((p) => (
-                    <div key={p.id} className="flex items-center justify-between text-sm">
-                      <Link href={`/prompts/managed/${p.id}`} className="text-blue-600 hover:underline">
-                        {p.name}
-                      </Link>
-                      <span className="font-mono text-gray-600">{p.fetchCount.toLocaleString()}</span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
-
           <div className="mt-6 flex gap-3">
             <Link
-              href="/prompts"
+              href="/admin/security"
               className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
-              Open Playground
+              Security Dashboard
             </Link>
             <Link
-              href="/prompts/managed"
+              href="/admin/security/policies"
               className="rounded border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Manage Prompts
+              Manage Policies
+            </Link>
+            <Link
+              href="/prompts"
+              className="rounded border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Prompt Playground
             </Link>
           </div>
         </div>
       ) : (
         <div className="mt-8">
           <p className="text-gray-600">
-            Complete these steps to start managing your AI prompts.
+            Complete these steps to start protecting your LLM application.
           </p>
 
           <div className="mt-6 space-y-3">
@@ -254,26 +222,44 @@ function Dashboard() {
 
 const FEATURES = [
   {
-    title: 'Prompt Versioning & Deploy',
-    desc: 'Version your prompts like code. Deploy to staging or production with one click, roll back instantly.',
+    title: 'PII Redaction',
+    desc: 'Automatically detect and redact emails, phone numbers, SSNs, credit cards, and API keys before they reach your LLM provider. Client-side, zero network exposure.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
       </svg>
     ),
   },
   {
-    title: 'A/B Testing',
-    desc: 'Split traffic between prompt versions. Measure which performs better before committing to production.',
+    title: 'Prompt Injection Detection',
+    desc: 'Block instruction overrides, role manipulation, delimiter injection, and data exfiltration attempts with rule-based + optional ML detection.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
       </svg>
     ),
   },
   {
-    title: 'LLM-as-Judge Evaluations',
-    desc: 'Auto-evaluate prompt quality with AI-powered judging. Generate test datasets, set quality gates.',
+    title: 'Cost Controls',
+    desc: 'Set per-request, per-minute, and per-customer spend limits. Block runaway LLM costs before they happen with pre-call budget estimation.',
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Content Filtering',
+    desc: 'Detect hate speech, violence, self-harm, and custom policy violations in both LLM inputs and outputs. Configurable warn or block modes.',
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Compliance & Audit',
+    desc: 'GDPR/CCPA/HIPAA-ready with consent tracking, data retention policies, geofencing, and a complete audit trail of every security decision.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
@@ -281,29 +267,11 @@ const FEATURES = [
     ),
   },
   {
-    title: 'Playground',
-    desc: 'Test prompts against multiple models side-by-side. Compare responses, tweak, and publish — all in your browser.',
+    title: 'Prompt Management',
+    desc: 'Version, deploy, and A/B test your prompts without redeploying. Built-in playground for multi-model testing and LLM-as-Judge evaluations.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
-      </svg>
-    ),
-  },
-  {
-    title: 'Team Collaboration',
-    desc: 'Manage prompts across teams with role-based access. Viewers, editors, and leads with clear permissions.',
-    icon: (
-      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-      </svg>
-    ),
-  },
-  {
-    title: 'Observability & Cost Tracking',
-    desc: 'Track every LLM call — cost, latency, tokens. Per-customer attribution and analytics included.',
-    icon: (
-      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
       </svg>
     ),
   },
@@ -314,13 +282,13 @@ const PRICING = [
     name: 'Starter',
     price: '$0',
     period: 'forever',
-    desc: 'For developers exploring prompt management.',
+    desc: 'For developers adding security to their LLM apps.',
     features: [
+      'PII redaction (regex, 9 patterns)',
+      'Prompt injection detection',
+      'Cost guard (per-request limits)',
+      '1,000 events / mo',
       '3 managed prompts',
-      '1,000 API fetches / mo',
-      '2 environments',
-      'Prompt playground',
-      '50 eval runs included',
       'Community support',
     ],
     cta: 'Get Started Free',
@@ -328,31 +296,34 @@ const PRICING = [
   },
   {
     name: 'Growth',
-    price: '$29',
+    price: '$49',
     period: '/ month',
-    desc: 'For teams shipping AI features to production.',
+    desc: 'For teams shipping secure AI to production.',
     features: [
+      'Everything in Starter',
+      'Content filtering',
+      'Compliance tooling (GDPR/CCPA)',
+      '100,000 events / mo',
       '25 managed prompts',
-      '50,000 API fetches / mo',
-      'Unlimited environments',
-      'A/B testing & eval gates',
-      '500 eval runs included',
+      'Audit log & security dashboard',
       'Email support',
     ],
     cta: 'Start Free Trial',
     highlighted: true,
   },
   {
-    name: 'Scale',
-    price: '$99',
+    name: 'Enterprise',
+    price: '$199',
     period: '/ month',
-    desc: 'For organizations that need collaboration and governance.',
+    desc: 'For organizations with strict compliance requirements.',
     features: [
+      'Everything in Growth',
+      'ML-enhanced PII (names, orgs, addresses)',
+      'Semantic injection detection',
+      'Unlimited events',
       'Unlimited prompts',
-      '500,000 API fetches / mo',
-      'Teams & RBAC',
-      'Eval gate enforcement',
-      '2,000 eval runs included',
+      'Security policies & RBAC',
+      'Encrypted storage at rest',
       'Priority support & SLA',
     ],
     cta: 'Start Free Trial',
@@ -367,16 +338,17 @@ function LandingPage() {
       <section className="px-6 pb-20 pt-16 text-center">
         <div className="mx-auto max-w-3xl">
           <div className="mb-6 inline-block rounded-full border border-blue-200 bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-700">
-            Open-source prompt management platform
+            Client-side LLM security &mdash; zero dependencies
           </div>
           <h1 className="text-5xl font-bold leading-tight tracking-tight text-gray-900">
-            Ship better prompts,
+            Secure your LLM apps
             <br />
-            <span className="text-blue-600">faster</span>
+            <span className="text-blue-600">in 2 lines of code</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-500">
-            LaunchPromptly gives you full control over your AI prompts &mdash; version, deploy, A/B test,
-            and evaluate &mdash; all without redeploying your app. Plus built-in observability and cost tracking.
+            LaunchPromptly is a drop-in SDK that adds PII redaction, prompt injection detection,
+            cost controls, and compliance tooling to any LLM application.
+            PII is redacted client-side &mdash; before it ever leaves your environment.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <Link
@@ -399,7 +371,7 @@ function LandingPage() {
       <section className="border-y bg-gray-900 px-6 py-16">
         <div className="mx-auto max-w-2xl">
           <h2 className="text-center text-sm font-semibold uppercase tracking-wider text-gray-400">
-            Fetch prompts in 2 lines
+            Add security in 2 lines
           </h2>
           <div className="mt-6 overflow-hidden rounded-xl border border-gray-700 bg-gray-950">
             <div className="flex items-center gap-2 border-b border-gray-700 px-4 py-3">
@@ -417,51 +389,84 @@ function LandingPage() {
                 <span className="text-gray-500">;</span>
                 {'\n\n'}
                 <span className="text-purple-400">const</span>
-                <span className="text-blue-300"> pf </span>
+                <span className="text-blue-300"> lp </span>
                 <span className="text-gray-500">= </span>
                 <span className="text-purple-400">new</span>
                 <span className="text-yellow-300"> LaunchPromptly</span>
                 <span className="text-gray-300">{'({ '}</span>
-                <span className="text-blue-300">apiKey</span>
-                <span className="text-gray-500">: </span>
-                <span className="text-green-400">process.env.LAUNCHPROMPTLY_KEY</span>
-                <span className="text-gray-300">{' })'}</span>
-                <span className="text-gray-500">;</span>
-                {'\n\n'}
-                <span className="text-gray-500">{'// Fetch your managed prompt — always the latest deployed version'}</span>
-                {'\n'}
-                <span className="text-purple-400">const</span>
-                <span className="text-blue-300"> prompt </span>
-                <span className="text-gray-500">= </span>
-                <span className="text-purple-400">await</span>
-                <span className="text-gray-300"> pf.</span>
-                <span className="text-yellow-300">getPrompt</span>
-                <span className="text-gray-300">(</span>
-                <span className="text-green-400">{`'onboarding-assistant'`}</span>
-                <span className="text-gray-300">, {'{ '}</span>
                 {'\n'}
                 <span className="text-gray-300">{'  '}</span>
-                <span className="text-blue-300">environment</span>
+                <span className="text-blue-300">apiKey</span>
                 <span className="text-gray-500">: </span>
-                <span className="text-green-400">{`'production'`}</span>
+                <span className="text-green-400">process.env.LP_KEY</span>
                 <span className="text-gray-500">,</span>
                 {'\n'}
                 <span className="text-gray-300">{'  '}</span>
-                <span className="text-blue-300">variables</span>
+                <span className="text-blue-300">security</span>
                 <span className="text-gray-500">: </span>
                 <span className="text-gray-300">{'{ '}</span>
-                <span className="text-blue-300">userName</span>
+                {'\n'}
+                <span className="text-gray-300">{'    '}</span>
+                <span className="text-blue-300">pii</span>
                 <span className="text-gray-500">: </span>
-                <span className="text-gray-300">user.name</span>
+                <span className="text-gray-300">{'{ '}</span>
+                <span className="text-blue-300">enabled</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-orange-400">true</span>
+                <span className="text-gray-500">, </span>
+                <span className="text-blue-300">redaction</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-green-400">{`'placeholder'`}</span>
                 <span className="text-gray-300">{' }'}</span>
+                <span className="text-gray-500">,</span>
+                {'\n'}
+                <span className="text-gray-300">{'    '}</span>
+                <span className="text-blue-300">injection</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-gray-300">{'{ '}</span>
+                <span className="text-blue-300">enabled</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-orange-400">true</span>
+                <span className="text-gray-500">, </span>
+                <span className="text-blue-300">blockOnHighRisk</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-orange-400">true</span>
+                <span className="text-gray-300">{' }'}</span>
+                <span className="text-gray-500">,</span>
+                {'\n'}
+                <span className="text-gray-300">{'    '}</span>
+                <span className="text-blue-300">costGuard</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-gray-300">{'{ '}</span>
+                <span className="text-blue-300">maxCostPerRequest</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-orange-400">0.50</span>
+                <span className="text-gray-300">{' }'}</span>
+                <span className="text-gray-500">,</span>
+                {'\n'}
+                <span className="text-gray-300">{'  }'}</span>
                 {'\n'}
                 <span className="text-gray-300">{'})'}</span>
                 <span className="text-gray-500">;</span>
                 {'\n\n'}
-                <span className="text-gray-500">{'// Use it with any LLM provider'}</span>
+                <span className="text-gray-500">{'// Wrap your OpenAI client — security is automatic'}</span>
                 {'\n'}
                 <span className="text-purple-400">const</span>
-                <span className="text-blue-300"> response </span>
+                <span className="text-blue-300"> openai </span>
+                <span className="text-gray-500">= </span>
+                <span className="text-gray-300">lp.</span>
+                <span className="text-yellow-300">wrap</span>
+                <span className="text-gray-300">(</span>
+                <span className="text-purple-400">new</span>
+                <span className="text-yellow-300"> OpenAI</span>
+                <span className="text-gray-300">()</span>
+                <span className="text-gray-300">)</span>
+                <span className="text-gray-500">;</span>
+                {'\n\n'}
+                <span className="text-gray-500">{'// Use as normal — PII is redacted, injections are blocked'}</span>
+                {'\n'}
+                <span className="text-purple-400">const</span>
+                <span className="text-blue-300"> res </span>
                 <span className="text-gray-500">= </span>
                 <span className="text-purple-400">await</span>
                 <span className="text-gray-300"> openai.chat.completions.</span>
@@ -480,21 +485,54 @@ function LandingPage() {
                 <span className="text-gray-300">{'[{ '}</span>
                 <span className="text-blue-300">role</span>
                 <span className="text-gray-500">: </span>
-                <span className="text-green-400">{`'system'`}</span>
+                <span className="text-green-400">{`'user'`}</span>
                 <span className="text-gray-500">, </span>
                 <span className="text-blue-300">content</span>
                 <span className="text-gray-500">: </span>
-                <span className="text-gray-300">prompt</span>
+                <span className="text-gray-300">userInput</span>
                 <span className="text-gray-300">{' }]'}</span>
                 {'\n'}
                 <span className="text-gray-300">{'})'}</span>
                 <span className="text-gray-500">;</span>
+                {'\n'}
+                <span className="text-gray-500">{'// userInput had "email me at john@acme.com"'}</span>
+                {'\n'}
+                <span className="text-gray-500">{'// LLM received "email me at [EMAIL_1]" — PII never left your server'}</span>
               </code>
             </pre>
           </div>
           <p className="mt-4 text-center text-sm text-gray-400">
-            Update prompts instantly from your dashboard &mdash; no code changes, no redeployment.
+            PII is redacted in-process before the API call. The mapping stays in memory &mdash; never sent anywhere.
           </p>
+        </div>
+      </section>
+
+      {/* ── Why Client-Side ── */}
+      <section className="bg-blue-50 px-6 py-16">
+        <div className="mx-auto max-w-4xl">
+          <h2 className="text-center text-2xl font-bold text-gray-900">
+            Why client-side security matters
+          </h2>
+          <div className="mt-8 grid gap-6 sm:grid-cols-3">
+            <div className="rounded-xl border border-blue-100 bg-white p-5">
+              <div className="text-lg font-bold text-blue-600">In-process</div>
+              <p className="mt-2 text-sm text-gray-500">
+                PII is redacted inside your application before it reaches any network boundary. No proxy, no gateway, no extra hop.
+              </p>
+            </div>
+            <div className="rounded-xl border border-blue-100 bg-white p-5">
+              <div className="text-lg font-bold text-blue-600">Zero dependencies</div>
+              <p className="mt-2 text-sm text-gray-500">
+                Core SDK uses regex-based detection only. No ML models, no external services, no binary dependencies to install.
+              </p>
+            </div>
+            <div className="rounded-xl border border-blue-100 bg-white p-5">
+              <div className="text-lg font-bold text-blue-600">Sub-millisecond</div>
+              <p className="mt-2 text-sm text-gray-500">
+                Regex scanning adds &lt;1ms to each LLM call. No latency penalty, no round-trip to a security gateway.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -502,10 +540,10 @@ function LandingPage() {
       <section className="px-6 py-20">
         <div className="mx-auto max-w-5xl">
           <h2 className="text-center text-3xl font-bold text-gray-900">
-            Everything you need to manage AI prompts in production
+            Everything you need to secure LLM applications
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            From first draft to production deployment &mdash; LaunchPromptly covers the full prompt lifecycle.
+            From PII protection to compliance tooling &mdash; LaunchPromptly covers the full security lifecycle.
           </p>
           <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => (
@@ -525,24 +563,24 @@ function LandingPage() {
       <section className="border-y bg-gray-50 px-6 py-20">
         <div className="mx-auto max-w-3xl">
           <h2 className="text-center text-3xl font-bold text-gray-900">
-            From draft to production in minutes
+            Secure in under 5 minutes
           </h2>
           <div className="mt-12 space-y-8">
             {[
               {
                 step: '1',
-                title: 'Create a prompt',
-                desc: 'Write your system prompt in the Playground. Test it against models, iterate until it\u2019s right.',
+                title: 'Install the SDK',
+                desc: 'npm install launchpromptly (or pip install launchpromptly). Zero native dependencies, works everywhere.',
               },
               {
                 step: '2',
-                title: 'Deploy to an environment',
-                desc: 'Publish to staging or production. Your app fetches the latest version via the SDK \u2014 no redeploy needed.',
+                title: 'Wrap your LLM client',
+                desc: 'Call lp.wrap(openaiClient) with your security options. PII redaction, injection detection, and cost guards activate automatically.',
               },
               {
                 step: '3',
-                title: 'Iterate with confidence',
-                desc: 'A/B test new versions, run evals, review results. Deploy the winner with one click.',
+                title: 'Ship with confidence',
+                desc: 'Every LLM call is protected. Monitor detections in the security dashboard, review audit logs, and adjust policies as needed.',
               },
             ].map((s) => (
               <div key={s.step} className="flex gap-4">
@@ -566,7 +604,7 @@ function LandingPage() {
             Simple, transparent pricing
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            Pay only for what you use. Scale up as your prompts go to production.
+            Start free. Scale security as your LLM usage grows.
           </p>
           <div className="mt-12 grid gap-6 sm:grid-cols-3">
             {PRICING.map((plan) => (
@@ -619,11 +657,11 @@ function LandingPage() {
       <section className="border-t bg-gray-900 px-6 py-20 text-center">
         <div className="mx-auto max-w-2xl">
           <h2 className="text-3xl font-bold text-white">
-            Take control of your AI prompts
+            Stop exposing PII to your LLM provider
           </h2>
           <p className="mt-4 text-gray-400">
-            Join developers who version, test, and deploy prompts
-            without touching their codebase.
+            Join developers who protect their users&apos; data with client-side
+            PII redaction, injection detection, and cost controls.
           </p>
           <Link
             href="/login?redirect=/"

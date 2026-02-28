@@ -49,6 +49,7 @@ export class ProjectController {
       projectId,
       user.userId,
       dto.name ?? 'Default',
+      dto.environmentId,
     );
   }
 
