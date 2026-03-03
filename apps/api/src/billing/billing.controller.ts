@@ -11,7 +11,6 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
 import { BillingService } from './billing.service';
-import { EvalService } from '../eval/eval.service';
 
 @Controller('billing')
 export class BillingController {
@@ -19,7 +18,6 @@ export class BillingController {
 
   constructor(
     private readonly billingService: BillingService,
-    private readonly evalService: EvalService,
   ) {}
 
   /**
@@ -44,7 +42,7 @@ export class BillingController {
       return res.status(401).json({ error: 'Missing signature' });
     }
 
-    const rawBody = (req as any).rawBody as Buffer | undefined;
+    const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
     const bodyStr = rawBody ? rawBody.toString('utf8') : JSON.stringify(req.body);
 
     if (!this.billingService.verifySignature(bodyStr, signature)) {
@@ -68,13 +66,9 @@ export class BillingController {
   @Get('info')
   async getBillingInfo(@Req() req: Request) {
     const user = req.user as { organizationId: string };
-    const [info, evalUsage] = await Promise.all([
-      this.billingService.getBillingInfo(user.organizationId),
-      this.evalService.getEvalUsage(user.organizationId),
-    ]);
+    const info = await this.billingService.getBillingInfo(user.organizationId);
     return {
       ...(info ?? { plan: 'free', hasSubscription: false, checkoutUrls: { pro: '', team: '' } }),
-      evalRuns: evalUsage,
     };
   }
 }

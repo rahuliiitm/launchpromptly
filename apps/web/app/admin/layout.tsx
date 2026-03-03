@@ -10,24 +10,12 @@ const NAV_ITEMS = [
   { href: '/admin/security/audit', label: 'Audit Logs' },
   { href: '/admin/sdk', label: 'SDK Setup' },
   { href: '/admin/api-keys', label: 'API Keys' },
-  { href: '/admin/providers', label: 'LLM Providers' },
-  { href: '/admin/environments', label: 'Environments' },
-  { href: '/admin/teams', label: 'Teams' },
-  { href: '/admin/team', label: 'Members' },
-  { href: '/admin', label: 'Billing' },
 ];
 
 function isActiveLink(pathname: string, href: string): boolean {
-  // Exact match always wins
   if (pathname === href) return true;
-  // The root /admin route only matches exactly
-  if (href === '/admin') return false;
-  // For prefix matches, ensure no other nav item is a more specific match.
-  // e.g. when on /admin/security/audit, /admin/security should NOT match
-  // because /admin/security/audit is a more specific match.
   const isPrefix = pathname.startsWith(href + '/') || pathname.startsWith(href + '?');
   if (!isPrefix) return false;
-  // Check if a more specific nav item matches
   const hasMoreSpecific = NAV_ITEMS.some(
     (other) =>
       other.href !== href &&

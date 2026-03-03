@@ -16,6 +16,7 @@ interface ApiKeyInfo {
   createdAt: Date;
   lastUsedAt: Date | null;
   revokedAt: Date | null;
+  expiresAt: Date | null;
 }
 
 interface CreateApiKeyResult {
@@ -71,6 +72,7 @@ export class ProjectService {
         createdAt: true,
         lastUsedAt: true,
         revokedAt: true,
+        expiresAt: true,
       },
     });
   }
@@ -80,6 +82,7 @@ export class ProjectService {
     userId: string,
     name: string,
     environmentId?: string,
+    expiresInDays?: number,
   ): Promise<CreateApiKeyResult> {
     await this.assertProjectAccess(projectId, userId);
 
@@ -97,8 +100,19 @@ export class ProjectService {
     const keyPrefix = rawKey.slice(0, 16);
     const keyHash = await bcrypt.hash(rawKey, 10);
 
+    const expiresAt = expiresInDays
+      ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
+      : null;
+
     const created = await this.prisma.apiKey.create({
-      data: { projectId, keyHash, keyPrefix, name, ...(envId && { environmentId: envId }) },
+      data: {
+        projectId,
+        keyHash,
+        keyPrefix,
+        name,
+        ...(envId && { environmentId: envId }),
+        ...(expiresAt && { expiresAt }),
+      },
     });
 
     return {
@@ -111,6 +125,7 @@ export class ProjectService {
         createdAt: created.createdAt,
         lastUsedAt: created.lastUsedAt,
         revokedAt: created.revokedAt,
+        expiresAt: created.expiresAt,
       },
       rawKey,
     };

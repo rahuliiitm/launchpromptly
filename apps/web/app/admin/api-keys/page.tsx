@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
+import { PageLoader } from '@/components/spinner';
 import type { ApiKey, Environment } from '@launchpromptly/types';
 
 export default function ApiKeysPage() {
@@ -69,7 +70,7 @@ export default function ApiKeysPage() {
   const envNameById = new Map(environments.map((e) => [e.id, e.name]));
 
   if (loading) {
-    return <div className="py-20 text-center text-gray-400">Loading...</div>;
+    return <PageLoader message="Loading API keys..." />;
   }
 
   return (

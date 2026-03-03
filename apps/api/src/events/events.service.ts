@@ -38,7 +38,6 @@ export class EventsService {
     // Encrypt sensitive fields
     let encPromptPreview: string | null = null;
     let encResponseText: string | null = null;
-    let encRagQuery: string | null = null;
     let encIv: string | null = null;
     let encAuthTag: string | null = null;
 
@@ -53,11 +52,6 @@ export class EventsService {
       encResponseText = enc.encrypted;
       if (!encIv) { encIv = enc.iv; encAuthTag = enc.authTag; }
     }
-    if (e.ragQuery) {
-      const enc = this.crypto.encrypt(e.ragQuery);
-      encRagQuery = enc.encrypted;
-      if (!encIv) { encIv = enc.iv; encAuthTag = enc.authTag; }
-    }
 
     // Build security metadata
     const securityMetadata: Record<string, unknown> = {};
@@ -65,8 +59,6 @@ export class EventsService {
     if (e.injectionRisk) securityMetadata.injectionRisk = e.injectionRisk;
     if (e.costGuard) securityMetadata.costGuard = e.costGuard;
     if (e.contentViolations) securityMetadata.contentViolations = e.contentViolations;
-    if (e.compliance) securityMetadata.compliance = e.compliance;
-
     return {
       projectId,
       environmentId: e.environmentId ?? environmentId ?? null,
@@ -83,14 +75,6 @@ export class EventsService {
       fullHash: e.fullHash ?? null,
       promptPreview: e.promptPreview ?? null,
       statusCode: e.statusCode ?? 200,
-      managedPromptId: e.managedPromptId ?? null,
-      promptVersionId: e.promptVersionId ?? null,
-      ragPipelineId: e.ragPipelineId ?? null,
-      ragQuery: e.ragQuery ?? null,
-      ragRetrievalMs: e.ragRetrievalMs ?? null,
-      ragChunkCount: e.ragChunkCount ?? null,
-      ragContextTokens: e.ragContextTokens ?? null,
-      ragChunks: (e.ragChunks as Prisma.InputJsonValue) ?? undefined,
       responseText: e.responseText ?? null,
       traceId: e.traceId ?? randomUUID(),
       spanName: e.spanName ?? null,
@@ -107,7 +91,6 @@ export class EventsService {
       // Encrypted fields
       encPromptPreview,
       encResponseText,
-      encRagQuery,
       encIv,
       encAuthTag,
     };
@@ -193,19 +176,6 @@ export class EventsService {
           });
         }
 
-        if (e.compliance && e.compliance.consentRecorded === false) {
-          entries.push({
-            projectId,
-            eventType: 'compliance_issue',
-            severity: 'info',
-            details: {
-              consentRecorded: e.compliance.consentRecorded,
-              dataRegion: e.compliance.dataRegion,
-              retentionDays: e.compliance.retentionDays,
-            },
-            customerId: e.customerId,
-          });
-        }
       }
 
       // Write all audit entries individually (AuditService.log uses create, not createMany)

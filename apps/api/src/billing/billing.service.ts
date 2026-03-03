@@ -58,7 +58,7 @@ export class BillingService {
   }
 
   /** Get Lemon Squeezy customer portal URL */
-  getPortalUrl(lsCustomerId: string): string {
+  getPortalUrl(_lsCustomerId: string): string {
     return `https://app.lemonsqueezy.com/my-orders`;
   }
 
@@ -105,7 +105,7 @@ export class BillingService {
     subscriptionId: string;
     endsAt: string | null;
   }): Promise<void> {
-    const { organizationId, subscriptionId, endsAt } = data;
+    const { organizationId, endsAt } = data;
 
     // Keep current plan until endsAt, then cron or next webhook will downgrade
     await this.prisma.organization.update({
@@ -173,21 +173,23 @@ export class BillingService {
   }
 
   /** Process a verified webhook event body. Returns { handled, error? } */
-  async processWebhookEvent(body: Record<string, any>): Promise<{ handled: boolean; error?: string }> {
-    const eventName = body?.meta?.event_name;
-    const customData = body?.meta?.custom_data;
-    const organizationId = customData?.org_id;
+  async processWebhookEvent(body: Record<string, unknown>): Promise<{ handled: boolean; error?: string }> {
+    const meta = body?.meta as Record<string, unknown> | undefined;
+    const eventName = meta?.event_name as string | undefined;
+    const customData = meta?.custom_data as Record<string, unknown> | undefined;
+    const organizationId = customData?.org_id as string | undefined;
 
     if (!organizationId) {
       return { handled: false, error: 'no org_id in custom_data' };
     }
 
-    const attrs = body?.data?.attributes;
-    const subscriptionId = String(body?.data?.id ?? '');
+    const data = body?.data as Record<string, unknown> | undefined;
+    const attrs = data?.attributes as Record<string, unknown> | undefined;
+    const subscriptionId = String(data?.id ?? '');
     const customerId = String(attrs?.customer_id ?? '');
     const variantId = String(attrs?.variant_id ?? '');
-    const status = attrs?.status ?? '';
-    const endsAt = attrs?.ends_at ?? null;
+    const status = String(attrs?.status ?? '');
+    const endsAt = (attrs?.ends_at as string | null) ?? null;
 
     switch (eventName) {
       case 'subscription_created':

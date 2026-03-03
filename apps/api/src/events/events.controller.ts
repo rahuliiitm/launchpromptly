@@ -16,7 +16,7 @@ export class EventsController {
     @Req() req: Request,
   ): Promise<{ accepted: number }> {
     const projectId = (req as Request & { projectId: string }).projectId;
-    const environmentId = (req as any).environmentId as string | undefined;
+    const environmentId = (req as Request & { environmentId?: string }).environmentId;
     return this.eventsService.ingestBatch(projectId, dto, environmentId);
   }
 }

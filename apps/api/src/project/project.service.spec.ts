@@ -22,6 +22,7 @@ describe('ProjectService', () => {
     createdAt: new Date(),
     lastUsedAt: null,
     revokedAt: null,
+    expiresAt: null,
   };
 
   beforeEach(() => {
@@ -42,6 +43,9 @@ describe('ProjectService', () => {
         findFirst: jest.fn().mockResolvedValue(mockApiKey),
         create: jest.fn().mockResolvedValue(mockApiKey),
         update: jest.fn().mockResolvedValue({ ...mockApiKey, revokedAt: new Date() }),
+      },
+      environment: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'env-123', name: 'Production' }),
       },
     } as unknown as PrismaService;
 

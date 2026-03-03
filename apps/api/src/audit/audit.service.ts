@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { createHash } from 'crypto';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
@@ -32,8 +31,7 @@ export class AuditService {
 
   /**
    * Write an audit log entry. Used internally by other services (e.g. EventsService)
-   * to record security-relevant events.
-   * After creation, computes a SHA-256 hash chain linking to the previous entry.
+   * to record guardrail trigger events.
    */
   async log(entry: {
     projectId: string;
@@ -44,7 +42,7 @@ export class AuditService {
     customerId?: string;
     actorId?: string;
   }): Promise<void> {
-    const created = await this.prisma.auditLog.create({
+    await this.prisma.auditLog.create({
       data: {
         projectId: entry.projectId,
         eventType: entry.eventType,
@@ -54,25 +52,6 @@ export class AuditService {
         ...(entry.customerId !== undefined && { customerId: entry.customerId }),
         ...(entry.actorId !== undefined && { actorId: entry.actorId }),
       },
-    });
-
-    // Find the previous log entry for this project (excluding the one just created)
-    const previous = await this.prisma.auditLog.findFirst({
-      where: {
-        projectId: entry.projectId,
-        id: { not: created.id },
-      },
-      orderBy: { createdAt: 'desc' },
-      select: { hash: true },
-    });
-
-    const prevHash = previous?.hash ?? 'GENESIS';
-    const hashInput = `${created.id}|${created.projectId}|${created.eventType}|${created.severity}|${JSON.stringify(created.details)}|${prevHash}`;
-    const hash = createHash('sha256').update(hashInput).digest('hex');
-
-    await this.prisma.auditLog.update({
-      where: { id: created.id },
-      data: { hash, prevHash },
     });
   }
 
@@ -149,53 +128,4 @@ export class AuditService {
     };
   }
 
-  /**
-   * Verify the integrity of the audit log hash chain for a project.
-   * Walks the most recent `limit` entries and verifies each hash matches
-   * the expected computed value.
-   */
-  async verifyIntegrity(
-    projectId: string,
-    userId: string,
-    limit: number = 100,
-  ): Promise<{ verified: number; valid: boolean; firstInvalidId?: string }> {
-    await this.projectService.assertProjectAccess(projectId, userId);
-
-    const entries = await this.prisma.auditLog.findMany({
-      where: { projectId },
-      orderBy: { createdAt: 'asc' },
-      take: limit,
-      select: {
-        id: true,
-        projectId: true,
-        eventType: true,
-        severity: true,
-        details: true,
-        hash: true,
-        prevHash: true,
-      },
-    });
-
-    let verified = 0;
-
-    for (const entry of entries) {
-      if (!entry.hash) {
-        // Entry created before hash chain was implemented; skip
-        verified++;
-        continue;
-      }
-
-      const prevHash = entry.prevHash ?? 'GENESIS';
-      const hashInput = `${entry.id}|${entry.projectId}|${entry.eventType}|${entry.severity}|${JSON.stringify(entry.details)}|${prevHash}`;
-      const expectedHash = createHash('sha256').update(hashInput).digest('hex');
-
-      if (expectedHash !== entry.hash) {
-        return { verified, valid: false, firstInvalidId: entry.id };
-      }
-
-      verified++;
-    }
-
-    return { verified, valid: true };
-  }
 }

@@ -36,6 +36,12 @@ export class ApiKeyGuard implements CanActivate {
       );
     }
 
+    if (apiKey.expiresAt && apiKey.expiresAt < new Date()) {
+      throw new UnauthorizedException(
+        'API key has expired. Generate a new key in Settings → API Keys.',
+      );
+    }
+
     const isValid = await bcrypt.compare(rawKey, apiKey.keyHash);
     if (!isValid) {
       throw new UnauthorizedException(

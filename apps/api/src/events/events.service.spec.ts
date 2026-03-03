@@ -2,12 +2,14 @@ import { EventsService } from './events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../crypto/crypto.service';
 import { AuditService } from '../audit/audit.service';
+import { AlertService } from '../alert/alert.service';
 
 describe('EventsService', () => {
   let service: EventsService;
   let prisma: PrismaService;
   let crypto: CryptoService;
   let audit: AuditService;
+  let alertService: AlertService;
 
   beforeEach(() => {
     prisma = {
@@ -28,7 +30,11 @@ describe('EventsService', () => {
       log: jest.fn().mockResolvedValue(undefined),
     } as unknown as AuditService;
 
-    service = new EventsService(prisma, crypto, audit);
+    alertService = {
+      evaluateAlerts: jest.fn().mockResolvedValue(undefined),
+    } as unknown as AlertService;
+
+    service = new EventsService(prisma, crypto, audit, alertService);
   });
 
   const baseEvent = {
@@ -66,11 +72,6 @@ describe('EventsService', () => {
     expect(eventData.feature).toBeNull();
     expect(eventData.systemHash).toBeNull();
     expect(eventData.statusCode).toBe(200);
-    expect(eventData.ragPipelineId).toBeNull();
-    expect(eventData.ragQuery).toBeNull();
-    expect(eventData.ragRetrievalMs).toBeNull();
-    expect(eventData.ragChunkCount).toBeNull();
-    expect(eventData.ragContextTokens).toBeNull();
   });
 
   it('should pass through optional fields when provided', async () => {
@@ -130,30 +131,4 @@ describe('EventsService', () => {
     expect(eventData.environmentId).toBeNull();
   });
 
-  it('should pass through RAG context fields when provided', async () => {
-    const ragChunks = [
-      { content: 'chunk text', source: 'doc-1', score: 0.87 },
-      { content: 'another chunk', source: 'doc-2', score: 0.72 },
-    ];
-    await service.ingestBatch('project-123', {
-      events: [{
-        ...baseEvent,
-        ragPipelineId: 'support-bot',
-        ragQuery: 'How do I reset my password?',
-        ragRetrievalMs: 45,
-        ragChunkCount: 2,
-        ragContextTokens: 350,
-        ragChunks,
-      }],
-    });
-
-    const createManyCall = (prisma.lLMEvent.createMany as jest.Mock).mock.calls[0][0];
-    const eventData = createManyCall.data[0];
-    expect(eventData.ragPipelineId).toBe('support-bot');
-    expect(eventData.ragQuery).toBe('How do I reset my password?');
-    expect(eventData.ragRetrievalMs).toBe(45);
-    expect(eventData.ragChunkCount).toBe(2);
-    expect(eventData.ragContextTokens).toBe(350);
-    expect(eventData.ragChunks).toEqual(ragChunks);
-  });
 });

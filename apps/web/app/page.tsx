@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth, useIsAdmin } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
+import { PageLoader, Spinner } from '@/components/spinner';
 
 // ── Authenticated Dashboard ──
 
@@ -18,6 +19,7 @@ interface SecurityStats {
   piiDetections: number;
   injectionAttempts: number;
   eventsProtected: number;
+  auditLogCount: number;
 }
 
 function Dashboard() {
@@ -45,7 +47,8 @@ function Dashboard() {
       apiFetch<unknown>(`/analytics/${projectId}/overview?days=30`, { headers }),
       apiFetch<unknown[]>(`/v1/security/policies/${projectId}`, { headers }),
       apiFetch<{ piiDetections?: number; injectionAttempts?: number; totalEvents?: number }>(`/analytics/${projectId}/security/overview?days=30`, { headers }),
-    ]).then(([apiKeyRes, eventsRes, policyRes, securityRes]) => {
+      apiFetch<{ total: number }>(`/v1/security/audit/${projectId}/summary?days=30`, { headers }),
+    ]).then(([apiKeyRes, eventsRes, policyRes, securityRes, auditRes]) => {
       const apiKeys = apiKeyRes.status === 'fulfilled' ? apiKeyRes.value : [];
       const hasEvents = eventsRes.status === 'fulfilled';
       const policies = policyRes.status === 'fulfilled' ? policyRes.value : [];
@@ -56,12 +59,22 @@ function Dashboard() {
         securityPolicy: policies.length > 0,
       });
 
+      const auditTotal = auditRes.status === 'fulfilled' ? auditRes.value.total ?? 0 : 0;
+
       if (securityRes.status === 'fulfilled') {
         const data = securityRes.value;
         setSecurityStats({
           piiDetections: data.piiDetections ?? 0,
           injectionAttempts: data.injectionAttempts ?? 0,
           eventsProtected: data.totalEvents ?? 0,
+          auditLogCount: auditTotal,
+        });
+      } else {
+        setSecurityStats({
+          piiDetections: 0,
+          injectionAttempts: 0,
+          eventsProtected: 0,
+          auditLogCount: auditTotal,
         });
       }
 
@@ -105,7 +118,10 @@ function Dashboard() {
       </h1>
 
       {loadingChecklist ? (
-        <div className="mt-8 text-gray-400">Loading setup status...</div>
+        <div className="mt-8 flex items-center gap-2 text-gray-400">
+          <Spinner className="h-4 w-4" />
+          Loading setup status...
+        </div>
       ) : allComplete ? (
         <div className="mt-8">
           <p className="text-gray-600">Your security setup is active. Here&apos;s a quick overview.</p>
@@ -120,24 +136,32 @@ function Dashboard() {
               </div>
               <div className="mt-1 text-sm text-gray-500">Events Protected (30d)</div>
             </Link>
-            <div className="rounded-lg border bg-white p-5">
+            <Link
+              href="/admin/security"
+              className="rounded-lg border bg-white p-5 transition hover:border-orange-300"
+            >
               <div className="text-2xl font-bold text-orange-600">
                 {securityStats ? securityStats.piiDetections.toLocaleString() : <span className="text-gray-400">&mdash;</span>}
               </div>
               <div className="mt-1 text-sm text-gray-500">PII Detections (30d)</div>
-            </div>
-            <div className="rounded-lg border bg-white p-5">
+            </Link>
+            <Link
+              href="/admin/security"
+              className="rounded-lg border bg-white p-5 transition hover:border-red-300"
+            >
               <div className="text-2xl font-bold text-red-600">
                 {securityStats ? securityStats.injectionAttempts.toLocaleString() : <span className="text-gray-400">&mdash;</span>}
               </div>
               <div className="mt-1 text-sm text-gray-500">Injection Attempts Blocked</div>
-            </div>
+            </Link>
             <Link
               href="/admin/security/audit"
               className="rounded-lg border bg-white p-5 transition hover:border-blue-300"
             >
-              <div className="text-2xl font-bold text-gray-400">&mdash;</div>
-              <div className="mt-1 text-sm text-gray-500">Audit Log & Compliance</div>
+              <div className="text-2xl font-bold">
+                {securityStats ? securityStats.auditLogCount.toLocaleString() : <span className="text-gray-400">&mdash;</span>}
+              </div>
+              <div className="mt-1 text-sm text-gray-500">Audit Logs (30d)</div>
             </Link>
           </div>
 
@@ -155,10 +179,10 @@ function Dashboard() {
               Manage Policies
             </Link>
             <Link
-              href="/prompts"
+              href="/admin/sdk"
               className="rounded border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Prompt Playground
+              SDK Setup
             </Link>
           </div>
         </div>
@@ -241,7 +265,7 @@ const FEATURES = [
   },
   {
     title: 'Cost Controls',
-    desc: 'Set per-request, per-minute, and per-customer spend limits. Block runaway LLM costs before they happen with pre-call budget estimation.',
+    desc: 'Set per-request, hourly, daily, and per-customer spend limits. Block runaway LLM costs before they happen with pre-call budget estimation.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -258,20 +282,20 @@ const FEATURES = [
     ),
   },
   {
-    title: 'Compliance & Audit',
-    desc: 'GDPR/CCPA/HIPAA-ready with consent tracking, data retention policies, geofencing, and a complete audit trail of every security decision.',
+    title: 'Streaming Guard',
+    desc: 'Real-time security scanning during LLM streaming. Detect PII and injection attacks mid-stream with rolling window analysis and configurable abort.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
       </svg>
     ),
   },
   {
-    title: 'Prompt Management',
-    desc: 'Version, deploy, and A/B test your prompts without redeploying. Built-in playground for multi-model testing and LLM-as-Judge evaluations.',
+    title: 'Audit Trail',
+    desc: 'Complete audit log of every guardrail decision — PII redactions, injection blocks, cost overages, and content violations. Searchable and exportable.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
       </svg>
     ),
   },
@@ -279,51 +303,51 @@ const FEATURES = [
 
 const PRICING = [
   {
-    name: 'Starter',
-    price: '$0',
-    period: 'forever',
-    desc: 'For developers adding security to their LLM apps.',
+    name: 'Indie',
+    price: '$29',
+    period: '/ month',
+    desc: 'For solo developers adding guardrails to LLM apps.',
     features: [
-      'PII redaction (regex, 9 patterns)',
+      'PII redaction (16 regex patterns)',
       'Prompt injection detection',
-      'Cost guard (per-request limits)',
-      '1,000 events / mo',
-      '3 managed prompts',
+      'Cost guard (per-request & daily budgets)',
+      'Guardrail event callbacks',
+      '10,000 events / mo',
+      'Security dashboard',
       'Community support',
     ],
-    cta: 'Get Started Free',
+    cta: 'Start Free Trial',
     highlighted: false,
   },
   {
-    name: 'Growth',
-    price: '$49',
+    name: 'Startup',
+    price: '$79',
     period: '/ month',
     desc: 'For teams shipping secure AI to production.',
     features: [
-      'Everything in Starter',
-      'Content filtering',
-      'Compliance tooling (GDPR/CCPA)',
+      'Everything in Indie',
+      'Streaming guard (mid-stream PII & injection)',
+      'Content filtering (11 categories)',
+      'Model policy enforcement',
+      'Schema validation',
       '100,000 events / mo',
-      '25 managed prompts',
-      'Audit log & security dashboard',
+      'Audit log & alerts',
       'Email support',
     ],
     cta: 'Start Free Trial',
     highlighted: true,
   },
   {
-    name: 'Enterprise',
+    name: 'Growth',
     price: '$199',
     period: '/ month',
-    desc: 'For organizations with strict compliance requirements.',
+    desc: 'For organizations with strict safety requirements.',
     features: [
-      'Everything in Growth',
+      'Everything in Startup',
       'ML-enhanced PII (names, orgs, addresses)',
       'Semantic injection detection',
       'Unlimited events',
-      'Unlimited prompts',
       'Security policies & RBAC',
-      'Encrypted storage at rest',
       'Priority support & SLA',
     ],
     cta: 'Start Free Trial',
@@ -347,7 +371,7 @@ function LandingPage() {
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-500">
             LaunchPromptly is a drop-in SDK that adds PII redaction, prompt injection detection,
-            cost controls, and compliance tooling to any LLM application.
+            cost controls, content filtering, and real-time streaming guard to any LLM application.
             PII is redacted client-side &mdash; before it ever leaves your environment.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
@@ -543,7 +567,7 @@ function LandingPage() {
             Everything you need to secure LLM applications
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            From PII protection to compliance tooling &mdash; LaunchPromptly covers the full security lifecycle.
+            From PII redaction to injection defense &mdash; LaunchPromptly covers the full runtime safety lifecycle.
           </p>
           <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => (
@@ -680,7 +704,8 @@ function LandingPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between text-xs text-gray-400">
           <span>&copy; {new Date().getFullYear()} LaunchPromptly. All rights reserved.</span>
           <div className="flex gap-6">
-            <Link href="/pricing" className="hover:text-gray-600">Pricing</Link>
+            <a href="#pricing" className="hover:text-gray-600">Pricing</a>
+            <Link href="/admin/sdk" className="hover:text-gray-600">Docs</Link>
             <Link href="/login" className="hover:text-gray-600">Sign In</Link>
           </div>
         </div>
@@ -695,7 +720,7 @@ export default function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return <div className="py-20 text-center text-gray-400">Loading...</div>;
+    return <PageLoader />;
   }
 
   if (isAuthenticated) {

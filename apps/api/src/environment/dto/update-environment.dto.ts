@@ -20,7 +20,4 @@ export class UpdateEnvironmentDto {
   @IsBoolean()
   isCritical?: boolean;
 
-  @IsOptional()
-  @IsBoolean()
-  evalGateEnabled?: boolean;
 }

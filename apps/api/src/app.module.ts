@@ -1,51 +1,58 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { validate } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ProjectModule } from './project/project.module';
 import { EventsModule } from './events/events.module';
-import { AnalyticsModule } from './analytics/analytics.module';
-import { PromptModule } from './prompt/prompt.module';
 import { CryptoModule } from './crypto/crypto.module';
 import { ProviderKeyModule } from './provider-key/provider-key.module';
-import { PlaygroundModule } from './playground/playground.module';
 import { InvitationModule } from './invitation/invitation.module';
 import { BillingModule } from './billing/billing.module';
 import { EnvironmentModule } from './environment/environment.module';
-import { EvalModule } from './eval/eval.module';
-import { TeamModule } from './team/team.module';
 import { AuditModule } from './audit/audit.module';
 import { AlertModule } from './alert/alert.module';
 import { SecurityPolicyModule } from './security-policy/security-policy.module';
-import { RetentionModule } from './retention/retention.module';
-import { ComplianceModule } from './compliance/compliance.module';
-import { IncidentModule } from './incident/incident.module';
+import { SecurityAnalyticsModule } from './security-analytics/security-analytics.module';
 import { AppController } from './app.controller';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, validate }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 1000,   // 1 second window
+        limit: 20,   // 20 requests per second per IP
+      },
+      {
+        name: 'medium',
+        ttl: 60000,  // 1 minute window
+        limit: 200,  // 200 requests per minute per IP
+      },
+    ]),
     PrismaModule,
     CryptoModule,
     AuthModule,
     ProjectModule,
     EventsModule,
-    AnalyticsModule,
-    PromptModule,
     ProviderKeyModule,
-    PlaygroundModule,
     InvitationModule,
     BillingModule,
     EnvironmentModule,
-    EvalModule,
-    TeamModule,
     AuditModule,
     AlertModule,
     SecurityPolicyModule,
-    RetentionModule,
-    ComplianceModule,
-    IncidentModule,
+    SecurityAnalyticsModule,
   ],
   controllers: [AppController],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

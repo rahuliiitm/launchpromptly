@@ -2,13 +2,15 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { PageLoader, Spinner } from '@/components/spinner';
 
 type Tab = 'signin' | 'signup';
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="py-20 text-center text-gray-400">Loading...</div>}>
+    <Suspense fallback={<PageLoader />}>
       <LoginForm />
     </Suspense>
   );
@@ -58,7 +60,7 @@ function LoginForm() {
   };
 
   if (isLoading) {
-    return <div className="py-20 text-center text-gray-400">Loading...</div>;
+    return <PageLoader />;
   }
 
   if (isAuthenticated) {
@@ -69,7 +71,7 @@ function LoginForm() {
     <main className="mx-auto max-w-md px-6 py-16">
       <h1 className="text-center text-2xl font-bold">Welcome to LaunchPromptly</h1>
       <p className="mt-2 text-center text-sm text-gray-500">
-        Manage, test, and deploy your AI prompts.
+        Runtime safety layer for your LLM applications.
       </p>
 
       {/* Tabs */}
@@ -154,14 +156,23 @@ function LoginForm() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
+          {submitting && <Spinner className="h-4 w-4 text-white" />}
           {submitting
             ? 'Please wait...'
             : tab === 'signin'
               ? 'Sign In'
               : 'Create Account'}
         </button>
+
+        {tab === 'signin' && (
+          <div className="text-right">
+            <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+        )}
       </form>
 
       <p className="mt-6 text-center text-xs text-gray-400">

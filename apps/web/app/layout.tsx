@@ -6,18 +6,18 @@ import { ClientLayout } from './client-layout';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'LaunchPromptly — LLM Privacy & Security SDK',
+  title: 'LaunchPromptly — Runtime Safety Layer for LLM Applications',
   description:
-    'Protect your LLM applications with client-side PII redaction, prompt injection detection, cost controls, and compliance tooling. Zero-dependency SDK, 2-line integration.',
+    'Protect your LLM applications with client-side PII redaction, prompt injection detection, cost controls, and content filtering. Zero-dependency SDK, 2-line integration.',
   openGraph: {
-    title: 'LaunchPromptly — LLM Privacy & Security SDK',
+    title: 'LaunchPromptly — Runtime Safety Layer for LLM Applications',
     description:
       'Client-side PII redaction, prompt injection detection, and cost controls for LLM applications. Drop-in SDK with zero dependencies.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'LaunchPromptly — LLM Privacy & Security SDK',
+    title: 'LaunchPromptly — Runtime Safety Layer for LLM Applications',
     description:
       'Client-side PII redaction, prompt injection detection, and cost controls for LLM applications. Drop-in SDK with zero dependencies.',
   },

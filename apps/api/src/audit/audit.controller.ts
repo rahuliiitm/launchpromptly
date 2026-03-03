@@ -31,14 +31,4 @@ export class AuditController {
     return this.auditService.getSummary(projectId, user.userId, parsedDays);
   }
 
-  @Get(':projectId/verify')
-  async verify(
-    @Param('projectId') projectId: string,
-    @Query('limit') limit: string,
-    @Req() req: Request,
-  ) {
-    const user = req.user as AuthUser;
-    const parsedLimit = limit ? parseInt(limit, 10) : 100;
-    return this.auditService.verifyIntegrity(projectId, user.userId, parsedLimit);
-  }
 }

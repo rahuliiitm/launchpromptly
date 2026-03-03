@@ -45,9 +45,6 @@ describe('EnvironmentService', () => {
         create: jest.fn().mockResolvedValue({}),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
-      promptDeployment: {
-        count: jest.fn().mockResolvedValue(0),
-      },
     } as unknown as PrismaService;
 
     projectService = {
@@ -171,14 +168,6 @@ describe('EnvironmentService', () => {
       expect(prisma.environment.delete).toHaveBeenCalledWith({
         where: { id: 'env-1' },
       });
-    });
-
-    it('should throw BadRequestException if deployments exist', async () => {
-      (prisma.promptDeployment.count as jest.Mock).mockResolvedValue(3);
-
-      await expect(
-        service.deleteEnvironment('proj-1', 'env-1', 'user-1'),
-      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if last environment', async () => {

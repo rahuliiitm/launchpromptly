@@ -8,14 +8,15 @@ datasource db {
 }
 
 model User {
-  id              String        @id @default(uuid())
-  email           String        @unique
-  passwordHash    String?
-  organizationId  String?
-  role            String        @default("admin")
-  createdAt       DateTime      @default(now())
-  organization    Organization? @relation(fields: [organizationId], references: [id])
-  teamMemberships TeamMember[]
+  id                    String        @id @default(uuid())
+  email                 String        @unique
+  passwordHash          String?
+  organizationId        String?
+  role                  String        @default("admin")
+  passwordResetToken    String?       @unique
+  passwordResetExpires  DateTime?
+  createdAt             DateTime      @default(now())
+  organization          Organization? @relation(fields: [organizationId], references: [id])
 }
 
 model Organization {
@@ -58,14 +59,10 @@ model Project {
   retentionDays    Int                @default(90)
   apiKeys          ApiKey[]
   events           LLMEvent[]
-  managedPrompts   ManagedPrompt[]
   environments     Environment[]
-  teams            Team[]
   auditLogs        AuditLog[]
   securityPolicies SecurityPolicy[]
-  consentRecords   ConsentRecord[]
   alertRules       AlertRule[]
-  incidents        SecurityIncident[]
 
   @@index([organizationId])
 }
@@ -80,6 +77,7 @@ model ApiKey {
   createdAt     DateTime     @default(now())
   lastUsedAt    DateTime?
   revokedAt     DateTime?
+  expiresAt     DateTime?
   project       Project      @relation(fields: [projectId], references: [id])
   environment   Environment? @relation(fields: [environmentId], references: [id])
 
@@ -102,14 +100,6 @@ model LLMEvent {
   fullHash        String?
   promptPreview   String?
   statusCode      Int            @default(200)
-  managedPromptId  String?
-  promptVersionId  String?
-  ragPipelineId    String?
-  ragQuery         String?
-  ragRetrievalMs   Int?
-  ragChunkCount    Int?
-  ragContextTokens Int?
-  ragChunks        Json?
   responseText     String?
   traceId          String?
   spanName         String?
@@ -128,110 +118,19 @@ model LLMEvent {
   // Encrypted fields (AES-256-GCM via CryptoService)
   encPromptPreview    String?
   encResponseText     String?
-  encRagQuery         String?
   encIv               String?
   encAuthTag          String?
 
   project          Project        @relation(fields: [projectId], references: [id])
-  managedPrompt    ManagedPrompt? @relation(fields: [managedPromptId], references: [id])
-  promptVersion    PromptVersion? @relation("VersionEvents", fields: [promptVersionId], references: [id])
-  ragEvaluation    RagEvaluation?
 
   @@index([projectId, createdAt])
   @@index([projectId, customerId])
   @@index([projectId, systemHash])
   @@index([projectId, feature])
   @@index([projectId, model])
-  @@index([projectId, managedPromptId])
-  @@index([projectId, ragPipelineId])
   @@index([projectId, traceId])
-  @@index([projectId, environmentId, managedPromptId])
   @@index([projectId, injectionRiskScore])
   @@index([projectId, redactionApplied])
-}
-
-model RagEvaluation {
-  id                        String   @id @default(uuid())
-  eventId                   String   @unique
-  faithfulnessScore         Float?
-  faithfulnessReasoning     String?
-  relevanceScore            Float?
-  relevanceReasoning        String?
-  contextRelevanceScore     Float?
-  contextRelevanceReasoning String?
-  chunkRelevanceScores      Json?
-  evaluationModel           String
-  evaluationCostUsd         Float    @default(0)
-  status                    String   @default("completed")
-  error                     String?
-  createdAt                 DateTime @default(now())
-  event                     LLMEvent @relation(fields: [eventId], references: [id])
-}
-
-model ManagedPrompt {
-  id               String          @id @default(uuid())
-  projectId        String
-  teamId           String?
-  slug             String
-  name             String
-  description      String          @default("")
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  project          Project              @relation(fields: [projectId], references: [id])
-  team             Team?                @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  versions         PromptVersion[]
-  abTests          ABTest[]
-  events           LLMEvent[]
-  deployments      PromptDeployment[]
-  evalDatasets     EvalDataset[]
-  fetchLogs        PromptFetchLog[]
-
-  @@unique([projectId, slug])
-  @@index([projectId])
-  @@index([teamId])
-}
-
-model PromptVersion {
-  id              String          @id @default(uuid())
-  managedPromptId String
-  version         Int
-  content         String
-  status          String          @default("draft")
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  managedPrompt   ManagedPrompt        @relation(fields: [managedPromptId], references: [id], onDelete: Cascade)
-  abTestVariants  ABTestVariant[]
-  events          LLMEvent[]           @relation("VersionEvents")
-  deployments     PromptDeployment[]
-  evalRuns        EvalRun[]
-
-  @@unique([managedPromptId, version])
-  @@index([managedPromptId, status])
-}
-
-model ABTest {
-  id              String          @id @default(uuid())
-  managedPromptId String
-  name            String
-  status          String          @default("draft")
-  startedAt       DateTime?
-  completedAt     DateTime?
-  createdAt       DateTime        @default(now())
-  managedPrompt   ManagedPrompt   @relation(fields: [managedPromptId], references: [id], onDelete: Cascade)
-  variants        ABTestVariant[]
-
-  @@index([managedPromptId, status])
-}
-
-model ABTestVariant {
-  id              String        @id @default(uuid())
-  abTestId        String
-  promptVersionId String
-  trafficPercent  Int
-  abTest          ABTest        @relation(fields: [abTestId], references: [id], onDelete: Cascade)
-  promptVersion   PromptVersion @relation(fields: [promptVersionId], references: [id])
-
-  @@unique([abTestId, promptVersionId])
 }
 
 model Invitation {
@@ -258,131 +157,12 @@ model Environment {
   color       String              @default("#6B7280")
   sortOrder   Int                 @default(0)
   isCritical      Boolean             @default(false)
-  evalGateEnabled Boolean             @default(false)
   createdAt       DateTime            @default(now())
   project     Project             @relation(fields: [projectId], references: [id])
   apiKeys     ApiKey[]
-  deployments PromptDeployment[]
 
   @@unique([projectId, slug])
   @@index([projectId])
-}
-
-model PromptDeployment {
-  id              String        @id @default(uuid())
-  managedPromptId String
-  environmentId   String
-  promptVersionId String
-  deployedAt      DateTime      @default(now())
-  deployedBy      String?
-  managedPrompt   ManagedPrompt @relation(fields: [managedPromptId], references: [id], onDelete: Cascade)
-  environment     Environment   @relation(fields: [environmentId], references: [id])
-  promptVersion   PromptVersion @relation(fields: [promptVersionId], references: [id])
-
-  @@unique([managedPromptId, environmentId])
-  @@index([environmentId])
-}
-
-model EvalDataset {
-  id              String        @id @default(uuid())
-  managedPromptId String
-  name            String
-  description     String        @default("")
-  passThreshold   Float         @default(3.5)
-  createdAt       DateTime      @default(now())
-  managedPrompt   ManagedPrompt @relation(fields: [managedPromptId], references: [id], onDelete: Cascade)
-  cases           EvalCase[]
-  runs            EvalRun[]
-
-  @@index([managedPromptId])
-}
-
-model EvalCase {
-  id             String      @id @default(uuid())
-  datasetId      String
-  input          String
-  expectedOutput String?
-  variables      Json?
-  criteria       String?
-  sortOrder      Int         @default(0)
-  createdAt      DateTime    @default(now())
-  dataset        EvalDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  results        EvalResult[]
-
-  @@index([datasetId])
-}
-
-model EvalRun {
-  id              String        @id @default(uuid())
-  datasetId       String
-  promptVersionId String
-  status          String        @default("pending")
-  score           Float?
-  passed          Boolean?
-  createdAt       DateTime      @default(now())
-  completedAt     DateTime?
-  dataset         EvalDataset   @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  promptVersion   PromptVersion @relation(fields: [promptVersionId], references: [id])
-  results         EvalResult[]
-
-  @@index([datasetId])
-  @@index([promptVersionId])
-}
-
-model EvalResult {
-  id         String   @id @default(uuid())
-  evalRunId  String
-  evalCaseId String
-  score      Float
-  reasoning  String
-  response   String   @default("")
-  createdAt  DateTime @default(now())
-  evalRun    EvalRun  @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
-  evalCase   EvalCase @relation(fields: [evalCaseId], references: [id], onDelete: Cascade)
-
-  @@index([evalRunId])
-}
-
-model Team {
-  id          String          @id @default(uuid())
-  projectId   String
-  name        String
-  slug        String
-  description String          @default("")
-  color       String          @default("#6B7280")
-  createdAt   DateTime        @default(now())
-  project     Project         @relation(fields: [projectId], references: [id])
-  members     TeamMember[]
-  prompts     ManagedPrompt[]
-
-  @@unique([projectId, slug])
-  @@index([projectId])
-}
-
-model TeamMember {
-  id        String   @id @default(uuid())
-  teamId    String
-  userId    String
-  role      String   @default("editor")
-  createdAt DateTime @default(now())
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id])
-
-  @@unique([teamId, userId])
-  @@index([userId])
-}
-
-model PromptFetchLog {
-  id              String        @id @default(uuid())
-  managedPromptId String
-  promptVersionId String        @default("")
-  environmentId   String        @default("")
-  date            DateTime      @db.Date
-  fetchCount      Int           @default(1)
-  managedPrompt   ManagedPrompt @relation(fields: [managedPromptId], references: [id], onDelete: Cascade)
-
-  @@unique([managedPromptId, promptVersionId, environmentId, date])
-  @@index([managedPromptId, date])
 }
 
 model AuditLog {
@@ -394,8 +174,6 @@ model AuditLog {
   eventId     String?
   customerId  String?
   actorId     String?
-  hash        String?
-  prevHash    String?
   createdAt   DateTime @default(now())
   project     Project  @relation(fields: [projectId], references: [id])
 
@@ -419,21 +197,6 @@ model SecurityPolicy {
   @@index([projectId, isActive])
 }
 
-model ConsentRecord {
-  id            String    @id @default(uuid())
-  projectId     String
-  customerId    String
-  policyVersion String
-  purpose       String    @default("llm_processing")
-  grantedAt     DateTime  @default(now())
-  revokedAt     DateTime?
-  metadata      Json?
-  project       Project   @relation(fields: [projectId], references: [id])
-
-  @@index([projectId, customerId])
-  @@index([projectId, customerId, revokedAt])
-}
-
 model AlertRule {
   id              String   @id @default(uuid())
   projectId       String
@@ -450,24 +213,4 @@ model AlertRule {
   project         Project  @relation(fields: [projectId], references: [id])
 
   @@index([projectId, enabled])
-}
-
-model SecurityIncident {
-  id          String    @id @default(uuid())
-  projectId   String
-  severity    String    @default("medium")
-  title       String
-  description String    @default("")
-  status      String    @default("open")
-  source      String    @default("auto")
-  metadata    Json?
-  assigneeId  String?
-  resolvedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  project     Project   @relation(fields: [projectId], references: [id])
-
-  @@index([projectId, status])
-  @@index([projectId, severity])
-  @@index([projectId, createdAt])
 }

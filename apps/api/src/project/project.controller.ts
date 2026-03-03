@@ -50,6 +50,7 @@ export class ProjectController {
       user.userId,
       dto.name ?? 'Default',
       dto.environmentId,
+      dto.expiresInDays,
     );
   }
 
