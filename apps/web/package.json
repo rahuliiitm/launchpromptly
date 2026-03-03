@@ -12,7 +12,9 @@
   "dependencies": {
     "@launchpromptly/calculators": "*",
     "@launchpromptly/types": "*",
+    "@sentry/nextjs": "^10.40.0",
     "next": "^14.2.0",
+    "posthog-js": "^1.356.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "recharts": "^3.7.0"

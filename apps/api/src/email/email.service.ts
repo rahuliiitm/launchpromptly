@@ -1,0 +1,50 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Resend } from 'resend';
+
+@Injectable()
+export class EmailService {
+  private readonly logger = new Logger(EmailService.name);
+  private readonly resend: Resend | null;
+  private readonly from: string;
+  private readonly appUrl: string;
+
+  constructor(private readonly config: ConfigService) {
+    const apiKey = this.config.get<string>('RESEND_API_KEY');
+    this.resend = apiKey ? new Resend(apiKey) : null;
+    this.from = this.config.get<string>('EMAIL_FROM') ?? 'LaunchPromptly <noreply@launchpromptly.dev>';
+    this.appUrl = this.config.get<string>('APP_URL') ?? 'http://localhost:3000';
+
+    if (!this.resend) {
+      this.logger.warn('RESEND_API_KEY not set — password reset emails will be logged to console only.');
+    }
+  }
+
+  async sendPasswordReset(email: string, token: string): Promise<void> {
+    const resetUrl = `${this.appUrl}/reset-password?token=${token}`;
+
+    const subject = 'Reset your LaunchPromptly password';
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+        <h2 style="color: #111827; margin-bottom: 16px;">Reset your password</h2>
+        <p style="color: #6B7280; line-height: 1.6;">
+          You requested a password reset for your LaunchPromptly account. Click the button below to set a new password.
+          This link expires in 1 hour.
+        </p>
+        <a href="${resetUrl}" style="display: inline-block; background: #2563EB; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 500; margin: 16px 0;">
+          Reset Password
+        </a>
+        <p style="color: #9CA3AF; font-size: 13px; margin-top: 24px;">
+          If you didn't request this, you can safely ignore this email.
+        </p>
+      </div>
+    `;
+
+    if (this.resend) {
+      await this.resend.emails.send({ from: this.from, to: email, subject, html });
+      this.logger.log(`Password reset email sent to ${email}`);
+    } else {
+      this.logger.log(`[DEV] Password reset link for ${email}: ${resetUrl}`);
+    }
+  }
+}

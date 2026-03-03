@@ -24,6 +24,10 @@ packages/*/src/**/*.js
 packages/*/src/**/*.js.map
 packages/*/src/**/*.d.ts
 packages/*/src/**/*.d.ts.map
+examples/*/src/**/*.js
+examples/*/src/**/*.js.map
+examples/*/src/**/*.d.ts
+examples/*/src/**/*.d.ts.map
 apps/*/test/**/*.js
 
 # Compiled config files (jest.config, tailwind.config, playwright.config, etc.)

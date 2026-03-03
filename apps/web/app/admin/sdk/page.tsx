@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 
 const INSTALL_CMD = 'npm install launchpromptly';
 const INSTALL_CMD_PY = 'pip install launchpromptly';
@@ -37,7 +38,7 @@ await lp.flush(); // On server shutdown`;
 const FULL_SECURITY_CODE = `const lp = new LaunchPromptly({
   apiKey: process.env.LP_KEY,
   security: {
-    // PII Redaction — 9 built-in regex patterns
+    // PII Redaction — 16 built-in regex patterns
     pii: {
       enabled: true,
       redaction: 'placeholder',  // or 'synthetic' | 'hash'
@@ -70,14 +71,6 @@ const FULL_SECURITY_CODE = `const lp = new LaunchPromptly({
         { name: 'competitor_mention', pattern: /competitor_name/i, severity: 'warn' },
       ],
     },
-    // GDPR/CCPA Compliance
-    compliance: {
-      consentTracking: { enabled: true, requireConsent: true },
-      dataRetention: { enabled: true, maxAgeDays: 90 },
-      geofencing: { allowedRegions: ['us', 'eu'] },
-    },
-    // Audit Logging
-    audit: { logLevel: 'detailed' },
   },
 });`;
 
@@ -143,9 +136,9 @@ export default function SDKSetupPage() {
         <h2 className="text-lg font-semibold">1. Generate an API Key</h2>
         <p className="mt-1 text-sm text-gray-500">
           Go to{' '}
-          <a href="/admin/api-keys" className="text-blue-600 underline">
+          <Link href="/admin/api-keys" className="text-blue-600 underline">
             API Keys
-          </a>{' '}
+          </Link>{' '}
           and generate a new key for your environment.
         </p>
       </div>
@@ -208,7 +201,7 @@ export default function SDKSetupPage() {
       <div className="mt-8">
         <h2 className="text-lg font-semibold">4. Full Security Configuration (Optional)</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Configure all security modules: PII types, injection thresholds, cost limits, content filtering, and compliance.
+          Configure all security modules: PII types, injection thresholds, cost limits, and content filtering.
         </p>
         <div className="relative mt-2">
           <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-green-400">
@@ -223,9 +216,37 @@ export default function SDKSetupPage() {
         </div>
       </div>
 
-      {/* Step 5 — ML Plugin */}
+      {/* Step 5 — Server-Side Policies */}
+      <div className="mt-8 rounded-lg border border-blue-200 bg-blue-50 p-5">
+        <h2 className="text-lg font-semibold">5. Server-Side Policies (Recommended)</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Instead of hardcoding security rules in your SDK config, you can manage policies from the dashboard
+          and have the SDK fetch them at startup. This lets you update PII types, injection thresholds,
+          cost limits, and content filters without redeploying your application.
+        </p>
+        <div className="relative mt-3">
+          <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-green-400">{`const lp = new LaunchPromptly({
+  apiKey: process.env.LP_KEY,
+  // Omit local "security" config — the SDK will fetch
+  // the active policy from your LaunchPromptly project.
+  // Any rules you set in Admin → Security → Policies
+  // are applied automatically on every LLM call.
+});`}</pre>
+        </div>
+        <p className="mt-3 text-sm text-gray-600">
+          Configure your rules in{' '}
+          <Link href="/admin/security/policies" className="font-medium text-blue-600 underline">
+            Security Policies
+          </Link>
+          . The SDK calls <code className="rounded bg-gray-200 px-1 text-xs">GET /v1/sdk/policy</code>{' '}
+          on init and caches the active policy locally.
+          Local SDK config (if provided) is merged on top as an override.
+        </p>
+      </div>
+
+      {/* Step 6 — ML Plugin */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold">5. ML-Enhanced Detection (Optional)</h2>
+        <h2 className="text-lg font-semibold">6. ML-Enhanced Detection (Optional)</h2>
         <p className="mt-1 text-sm text-gray-500">
           Install the ML plugin for NER-based PII detection (person names, orgs, addresses) and semantic injection detection.
         </p>
@@ -247,22 +268,22 @@ export default function SDKSetupPage() {
         </div>
       </div>
 
-      {/* Step 6 */}
+      {/* Step 7 */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold">6. Monitor & Configure</h2>
+        <h2 className="text-lg font-semibold">7. Monitor & Configure</h2>
         <p className="mt-1 text-sm text-gray-500">
           Once events are flowing, check your{' '}
-          <a href="/admin/security" className="text-blue-600 underline">
+          <Link href="/admin/security" className="text-blue-600 underline">
             Security Dashboard
-          </a>{' '}
+          </Link>{' '}
           to monitor PII detections and injection attempts. Review the{' '}
-          <a href="/admin/security/audit" className="text-blue-600 underline">
+          <Link href="/admin/security/audit" className="text-blue-600 underline">
             Audit Log
-          </a>{' '}
+          </Link>{' '}
           for a complete trail of security decisions, and configure{' '}
-          <a href="/admin/security/policies" className="text-blue-600 underline">
+          <Link href="/admin/security/policies" className="text-blue-600 underline">
             Security Policies
-          </a>{' '}
+          </Link>{' '}
           per project.
         </p>
       </div>
@@ -275,34 +296,31 @@ export default function SDKSetupPage() {
         </p>
         <ol className="mt-3 space-y-1 text-sm text-gray-600">
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">1.</span> Compliance check (consent, geofencing)
+            <span className="font-mono text-blue-600">1.</span> Cost guard (estimate cost, check budgets)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">2.</span> Cost guard (estimate cost, check budgets)
+            <span className="font-mono text-blue-600">2.</span> PII scan & redact (replace PII with placeholders)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">3.</span> PII scan & redact (replace PII with placeholders)
+            <span className="font-mono text-blue-600">3.</span> Injection detection (score risk, warn/block)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">4.</span> Injection detection (score risk, warn/block)
+            <span className="font-mono text-blue-600">4.</span> Content filter (check input policy violations)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">5.</span> Content filter (check input policy violations)
+            <span className="font-mono text-blue-600">5.</span> <strong>LLM API Call</strong> (with redacted content)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">6.</span> <strong>LLM API Call</strong> (with redacted content)
+            <span className="font-mono text-blue-600">6.</span> Response PII scan (defense-in-depth)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">7.</span> Response PII scan (defense-in-depth)
+            <span className="font-mono text-blue-600">7.</span> Response content filter
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">8.</span> Response content filter
+            <span className="font-mono text-blue-600">8.</span> De-redact response (restore original values)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">9.</span> De-redact response (restore original values)
-          </li>
-          <li className="flex gap-2">
-            <span className="font-mono text-blue-600">10.</span> Send enriched event to dashboard
+            <span className="font-mono text-blue-600">9.</span> Send enriched event to dashboard
           </li>
         </ol>
       </div>

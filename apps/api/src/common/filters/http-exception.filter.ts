@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import * as Sentry from '@sentry/nestjs';
 import type { Response } from 'express';
 
 @Catch()
@@ -34,6 +35,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
       `HTTP ${status} error`,
       exception instanceof Error ? exception.stack : undefined,
     );
+
+    // Report 5xx errors to Sentry
+    if (status >= 500) {
+      Sentry.captureException(exception);
+    }
 
     // Add helpful hints for common error codes
     let hint: string | undefined;

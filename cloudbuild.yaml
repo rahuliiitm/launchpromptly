@@ -73,7 +73,7 @@ steps:
 
 substitutions:
   _REGION: us-west1
-  _API_URL: https://launchpromptly-api-REPLACE.a.run.app
+  _API_URL: https://launchpromptly-api-${PROJECT_ID}.a.run.app
 
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -9,6 +9,7 @@ import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EnvironmentService } from '../environment/environment.service';
+import { EmailService } from '../email/email.service';
 
 jest.mock('bcrypt');
 
@@ -17,6 +18,7 @@ describe('AuthService', () => {
   let prisma: PrismaService;
   let jwtService: JwtService;
   let environmentService: EnvironmentService;
+  let emailService: EmailService;
 
   const mockOrg = {
     id: 'org-123',
@@ -82,7 +84,11 @@ describe('AuthService', () => {
       createDefaultEnvironments: jest.fn().mockResolvedValue(undefined),
     } as unknown as EnvironmentService;
 
-    service = new AuthService(prisma, environmentService, jwtService);
+    emailService = {
+      sendPasswordReset: jest.fn().mockResolvedValue(undefined),
+    } as unknown as EmailService;
+
+    service = new AuthService(prisma, environmentService, jwtService, emailService);
   });
 
   describe('register', () => {

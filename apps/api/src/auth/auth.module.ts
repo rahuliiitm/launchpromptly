@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { EnvironmentModule } from '../environment/environment.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -13,12 +14,18 @@ import { EnvironmentModule } from '../environment/environment.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET', 'dev-secret'),
-        signOptions: { expiresIn: '7d' },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_SECRET');
+        if (!secret) {
+          throw new Error(
+            'JWT_SECRET environment variable is required. Set it before starting the server.',
+          );
+        }
+        return { secret, signOptions: { expiresIn: '7d' } };
+      },
     }),
     forwardRef(() => EnvironmentModule),
+    EmailModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

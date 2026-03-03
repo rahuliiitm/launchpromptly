@@ -4,16 +4,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { PostHogProvider } from '@/lib/posthog';
 
-const PUBLIC_LINKS = [
-  { href: '/pricing', label: 'Pricing' },
-];
+const PUBLIC_LINKS: Array<{ href: string; label: string }> = [];
 
 const AUTH_LINKS = [
   { href: '/admin/security', label: 'Security', adminOnly: false },
-  { href: '/prompts', label: 'Prompts', adminOnly: false },
-  { href: '/observability', label: 'Observability', adminOnly: false },
-  { href: '/admin', label: 'Admin', adminOnly: true },
+  { href: '/admin/sdk', label: 'SDK Setup', adminOnly: false },
+  { href: '/admin/api-keys', label: 'API Keys', adminOnly: true },
 ];
 
 function TopNav() {
@@ -134,9 +132,11 @@ function TopNav() {
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AuthProvider>
-      <TopNav />
-      {children}
-    </AuthProvider>
+    <PostHogProvider>
+      <AuthProvider>
+        <TopNav />
+        {children}
+      </AuthProvider>
+    </PostHogProvider>
   );
 }

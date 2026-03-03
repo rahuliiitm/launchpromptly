@@ -5,7 +5,10 @@ import {
   IsObject,
   MinLength,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { PolicyRulesDto } from './create-policy.dto';
 
 export class UpdatePolicyDto {
   @IsOptional()
@@ -21,7 +24,9 @@ export class UpdatePolicyDto {
 
   @IsOptional()
   @IsObject()
-  rules?: Record<string, unknown>;
+  @ValidateNested()
+  @Type(() => PolicyRulesDto)
+  rules?: PolicyRulesDto;
 
   @IsOptional()
   @IsBoolean()

@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
+import { PageLoader } from '@/components/spinner';
 
 interface SecurityOverview {
   totalEvents: number;
@@ -94,11 +95,18 @@ export default function SecurityOverviewPage() {
   }, [days]);
 
   if (loading) {
-    return <div className="py-20 text-center text-gray-400">Loading...</div>;
+    return <PageLoader message="Loading security data..." />;
   }
 
   if (error) {
-    return <div className="py-20 text-center text-red-500">Error: {error}</div>;
+    return (
+      <div className="flex flex-col items-center py-20">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-6 py-4 text-center">
+          <p className="font-medium text-red-700">Failed to load security data</p>
+          <p className="mt-1 text-sm text-red-500">{error}</p>
+        </div>
+      </div>
+    );
   }
 
   const piiRateColor =

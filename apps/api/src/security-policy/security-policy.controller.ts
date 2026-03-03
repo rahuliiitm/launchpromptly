@@ -11,10 +11,13 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ApiKeyGuard } from '../auth/api-key.guard';
 import { SecurityPolicyService } from './security-policy.service';
 import { CreatePolicyDto } from './dto/create-policy.dto';
 import { UpdatePolicyDto } from './dto/update-policy.dto';
 import type { AuthUser } from '../auth/jwt.strategy';
+
+// ── Admin endpoints (JWT auth) ─────────────────────────────────────────────
 
 @Controller('v1/security/policies')
 @UseGuards(JwtAuthGuard)
@@ -74,5 +77,23 @@ export class SecurityPolicyController {
   ) {
     const user = req.user as AuthUser;
     return this.securityPolicyService.remove(projectId, user.userId, policyId);
+  }
+}
+
+// ── SDK endpoint (API key auth) ────────────────────────────────────────────
+
+@Controller('v1/sdk/policy')
+@UseGuards(ApiKeyGuard)
+export class SDKPolicyController {
+  constructor(private readonly securityPolicyService: SecurityPolicyService) {}
+
+  @Get()
+  async getActivePolicy(@Req() req: Request) {
+    const projectId = (req as Request & { projectId: string }).projectId;
+    const policy = await this.securityPolicyService.getActivePolicy(projectId);
+    if (!policy) {
+      return { rules: null };
+    }
+    return { rules: policy.rules, updatedAt: policy.updatedAt };
   }
 }
