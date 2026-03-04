@@ -68,6 +68,7 @@ echo "▸ Creating Cloud SQL PostgreSQL instance..."
 if ! gcloud sql instances describe "$DB_INSTANCE" --project="$PROJECT_ID" &>/dev/null; then
   gcloud sql instances create "$DB_INSTANCE" \
     --database-version=POSTGRES_16 \
+    --edition=ENTERPRISE \
     --tier=db-f1-micro \
     --region="$REGION" \
     --storage-auto-increase \

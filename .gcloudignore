@@ -1,0 +1,9 @@
+.git
+.next
+dist
+node_modules
+e2e
+.turbo
+*.tgz
+.env
+.env.local

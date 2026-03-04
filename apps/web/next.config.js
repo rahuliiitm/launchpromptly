@@ -1,5 +1,3 @@
-const { withSentryConfig } = require('@sentry/nextjs');
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
@@ -21,9 +19,10 @@ const nextConfig = {
   },
 };
 
-module.exports = withSentryConfig(nextConfig, {
-  // Only upload source maps when SENTRY_AUTH_TOKEN is set (CI/CD)
-  silent: !process.env.SENTRY_AUTH_TOKEN,
-  disableServerWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
-  disableClientWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
-});
+// Only apply Sentry wrapper when auth token is available (CI/CD with source maps)
+if (process.env.SENTRY_AUTH_TOKEN) {
+  const { withSentryConfig } = require('@sentry/nextjs');
+  module.exports = withSentryConfig(nextConfig, { silent: false });
+} else {
+  module.exports = nextConfig;
+}
