@@ -39,7 +39,7 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
-  async register(email: string, password: string): Promise<AuthResponse> {
+  async register(email: string, password: string, name?: string): Promise<AuthResponse> {
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
       include: { organization: true },
@@ -72,7 +72,7 @@ export class AuthService {
 
     const user = await this.prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
-        data: { name: `${email}'s Organization` },
+        data: { name: name ? `${name}'s Organization` : `${email}'s Organization` },
       });
       const created = await tx.user.create({
         data: { email, passwordHash, organizationId: org.id },

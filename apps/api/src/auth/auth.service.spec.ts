@@ -66,6 +66,11 @@ describe('AuthService', () => {
     (bcrypt.hash as jest.Mock).mockResolvedValue('$2b$10$hashedpassword');
     (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
+    // Re-set mockTx implementations after clearAllMocks
+    mockTx.organization.create.mockResolvedValue(mockOrg);
+    mockTx.user.create.mockResolvedValue({ ...mockUser, organization: mockOrg });
+    mockTx.project.create.mockResolvedValue(mockProject);
+
     prisma = {
       user: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -106,6 +111,14 @@ describe('AuthService', () => {
           passwordHash: '$2b$10$hashedpassword',
           organizationId: 'org-123',
         },
+      });
+    });
+
+    it('should use name in org when provided', async () => {
+      await service.register('test@example.com', 'password123', 'Alice');
+
+      expect(mockTx.organization.create).toHaveBeenCalledWith({
+        data: { name: "Alice's Organization" },
       });
     });
 

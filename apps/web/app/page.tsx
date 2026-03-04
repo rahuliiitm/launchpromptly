@@ -44,14 +44,14 @@ function Dashboard() {
 
     Promise.allSettled([
       apiFetch<{ id: string }[]>(`/project/${projectId}/api-keys`, { headers }),
-      apiFetch<unknown>(`/analytics/${projectId}/overview?days=30`, { headers }),
       apiFetch<unknown[]>(`/v1/security/policies/${projectId}`, { headers }),
       apiFetch<{ piiDetections?: number; injectionAttempts?: number; totalEvents?: number }>(`/analytics/${projectId}/security/overview?days=30`, { headers }),
       apiFetch<{ total: number }>(`/v1/security/audit/${projectId}/summary?days=30`, { headers }),
-    ]).then(([apiKeyRes, eventsRes, policyRes, securityRes, auditRes]) => {
+    ]).then(([apiKeyRes, policyRes, securityRes, auditRes]) => {
       const apiKeys = apiKeyRes.status === 'fulfilled' ? apiKeyRes.value : [];
-      const hasEvents = eventsRes.status === 'fulfilled';
       const policies = policyRes.status === 'fulfilled' ? policyRes.value : [];
+      const securityData = securityRes.status === 'fulfilled' ? securityRes.value : null;
+      const hasEvents = (securityData?.totalEvents ?? 0) > 0;
 
       setChecklist({
         apiKey: apiKeys.length > 0,
