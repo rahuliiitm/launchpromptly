@@ -20,6 +20,45 @@ export class EmailService {
     }
   }
 
+  async sendAlertEmail(
+    to: string,
+    alertName: string,
+    conditionType: string,
+    eventSummary: Record<string, unknown>,
+  ): Promise<void> {
+    const dashboardUrl = `${this.appUrl}/admin/security/alerts`;
+    const firedAt = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+
+    const summaryLines = Object.entries(eventSummary)
+      .filter(([, v]) => v != null)
+      .map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#6B7280;font-size:13px;">${k}</td><td style="padding:4px 0;font-size:13px;font-weight:500;color:#111827;">${typeof v === 'object' ? JSON.stringify(v) : v}</td></tr>`)
+      .join('');
+
+    const subject = `[LaunchPromptly] Alert: ${alertName}`;
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
+        <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+          <h2 style="color: #92400E; margin: 0 0 4px 0; font-size: 16px;">Security Alert: ${alertName}</h2>
+          <p style="color: #A16207; margin: 0; font-size: 13px;">Condition: <strong>${conditionType.replace(/_/g, ' ')}</strong> &middot; ${firedAt}</p>
+        </div>
+        <table style="width:100%;border-collapse:collapse;">${summaryLines}</table>
+        <a href="${dashboardUrl}" style="display: inline-block; background: #2563EB; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 500; margin-top: 20px; font-size: 14px;">
+          View Alert Rules
+        </a>
+        <p style="color: #9CA3AF; font-size: 12px; margin-top: 24px;">
+          This alert was triggered by your LaunchPromptly security policy. You can adjust alert rules in the dashboard.
+        </p>
+      </div>
+    `;
+
+    if (this.resend) {
+      await this.resend.emails.send({ from: this.from, to, subject, html });
+      this.logger.log(`Alert email sent to ${to} for "${alertName}"`);
+    } else {
+      this.logger.log(`[DEV] Alert "${alertName}" (${conditionType}) would email ${to}: ${JSON.stringify(eventSummary)}`);
+    }
+  }
+
   async sendPasswordReset(email: string, token: string): Promise<void> {
     const resetUrl = `${this.appUrl}/reset-password?token=${token}`;
 

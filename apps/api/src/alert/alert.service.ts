@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectService } from '../project/project.service';
 import { AuditService } from '../audit/audit.service';
+import { EmailService } from '../email/email.service';
 import type { CreateAlertRuleDto } from './dto/create-alert-rule.dto';
 import type { UpdateAlertRuleDto } from './dto/update-alert-rule.dto';
 
@@ -43,6 +44,7 @@ export class AlertService {
     private readonly prisma: PrismaService,
     private readonly projectService: ProjectService,
     private readonly audit: AuditService,
+    private readonly email: EmailService,
   ) {}
 
   async create(
@@ -239,6 +241,8 @@ export class AlertService {
     eventData: AlertEventData,
   ): Promise<void> {
     try {
+      const condition = rule.condition as unknown as AlertCondition;
+
       if (rule.channel === 'webhook' && rule.webhookUrl) {
         const payload = {
           alertName: rule.name,
@@ -252,6 +256,44 @@ export class AlertService {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(10_000),
+        });
+      }
+
+      if (rule.channel === 'email' && rule.email) {
+        await this.email.sendAlertEmail(
+          rule.email,
+          rule.name,
+          condition.type,
+          eventData as Record<string, unknown>,
+        );
+      }
+
+      if (rule.channel === 'slack' && rule.webhookUrl) {
+        const slackPayload = {
+          blocks: [
+            {
+              type: 'header',
+              text: { type: 'plain_text', text: `Alert: ${rule.name}`, emoji: true },
+            },
+            {
+              type: 'section',
+              fields: [
+                { type: 'mrkdwn', text: `*Condition:*\n${condition.type.replace(/_/g, ' ')}${condition.threshold != null ? ` (threshold: ${condition.threshold})` : ''}` },
+                { type: 'mrkdwn', text: `*Fired at:*\n${new Date().toISOString()}` },
+              ],
+            },
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: `*Event Data:*\n\`\`\`${JSON.stringify(eventData, null, 2)}\`\`\`` },
+            },
+          ],
+        };
+
+        await fetch(rule.webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(slackPayload),
           signal: AbortSignal.timeout(10_000),
         });
       }

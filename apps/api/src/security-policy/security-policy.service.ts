@@ -21,6 +21,18 @@ export class SecurityPolicyService {
   async create(projectId: string, userId: string, dto: CreatePolicyDto) {
     await this.projectService.assertProjectAccess(projectId, userId);
 
+    // Enforce single active policy constraint
+    if (dto.isActive !== false) {
+      const existing = await this.prisma.securityPolicy.findFirst({
+        where: { projectId, isActive: true },
+      });
+      if (existing) {
+        throw new ConflictException(
+          `Another policy "${existing.name}" is currently active. Please deactivate it before activating a new one.`,
+        );
+      }
+    }
+
     try {
       const policy = await this.prisma.securityPolicy.create({
         data: {
@@ -28,7 +40,7 @@ export class SecurityPolicyService {
           name: dto.name,
           description: dto.description ?? '',
           rules: dto.rules as Prisma.InputJsonValue,
-          ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+          isActive: dto.isActive ?? false,
         },
       });
 
@@ -97,6 +109,18 @@ export class SecurityPolicyService {
 
     if (!existing) {
       throw new NotFoundException('Security policy not found');
+    }
+
+    // Enforce single active policy constraint
+    if (dto.isActive === true && !existing.isActive) {
+      const activePolicy = await this.prisma.securityPolicy.findFirst({
+        where: { projectId, isActive: true },
+      });
+      if (activePolicy) {
+        throw new ConflictException(
+          `Another policy "${activePolicy.name}" is currently active. Please deactivate it before activating a new one.`,
+        );
+      }
     }
 
     try {

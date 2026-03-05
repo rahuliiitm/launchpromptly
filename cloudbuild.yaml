@@ -50,7 +50,7 @@ steps:
       - --max-instances=10
       - --add-cloudsql-instances=$_DB_CONNECTION
       - --set-secrets=DATABASE_URL=lp-database-url:latest,JWT_SECRET=lp-jwt-secret:latest,ENCRYPTION_KEY=lp-encryption-key:latest
-      - --set-env-vars=NODE_ENV=production,API_PORT=3001
+      - --set-env-vars=^||^NODE_ENV=production||API_PORT=3001||CORS_ORIGIN=$_WEB_URL
 
   # ── Deploy Web to Cloud Run ──
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
@@ -73,6 +73,7 @@ steps:
 substitutions:
   _REGION: us-west1
   _API_URL: https://launchpromptly-api-950530830180.us-west1.run.app
+  _WEB_URL: https://launchpromptly-web-950530830180.us-west1.run.app
   _DB_CONNECTION: launchpromptly:us-west1:launchpromptly-db
 
 options:

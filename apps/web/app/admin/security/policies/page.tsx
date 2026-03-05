@@ -518,7 +518,8 @@ export default function PoliciesPage() {
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newRules, setNewRules] = useState<PolicyRules>(DEFAULT_RULES);
-  const [newIsActive, setNewIsActive] = useState(true);
+  const [newIsActive, setNewIsActive] = useState(false);
+  const [activationNotice, setActivationNotice] = useState('');
 
   const fetchPolicies = useCallback(() => {
     const token = getToken();
@@ -557,6 +558,7 @@ export default function PoliciesPage() {
     }
 
     setSaving(true);
+    setActivationNotice('');
     try {
       const created = await apiFetch<SecurityPolicy>(
         `/v1/security/policies/${projectId}`,
@@ -575,10 +577,14 @@ export default function PoliciesPage() {
       setNewName('');
       setNewDescription('');
       setNewRules(DEFAULT_RULES);
-      setNewIsActive(true);
+      setNewIsActive(false);
       setShowCreateForm(false);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to create policy');
+      const message = err instanceof Error ? err.message : 'Failed to create policy';
+      if (message.includes('currently active')) {
+        setActivationNotice(message);
+      }
+      setFormError(message);
     } finally {
       setSaving(false);
     }
@@ -588,6 +594,8 @@ export default function PoliciesPage() {
     const token = getToken();
     const projectId = getProjectId();
     if (!token || !projectId) return;
+
+    setActivationNotice('');
 
     try {
       const updated = await apiFetch<SecurityPolicy>(
@@ -600,7 +608,12 @@ export default function PoliciesPage() {
       );
       setPolicies((prev) => prev.map((p) => (p.id === policy.id ? updated : p)));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update policy');
+      const message = err instanceof Error ? err.message : 'Failed to update policy';
+      if (message.includes('currently active')) {
+        setActivationNotice(message);
+      } else {
+        setError(message);
+      }
     }
   };
 
@@ -695,6 +708,19 @@ export default function PoliciesPage() {
         <div className="mt-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>
       )}
 
+      {activationNotice && (
+        <div className="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+          </svg>
+          <div>
+            <p className="text-sm font-medium text-amber-800">Only one policy can be active at a time</p>
+            <p className="mt-1 text-sm text-amber-700">{activationNotice}</p>
+          </div>
+          <button onClick={() => setActivationNotice('')} className="ml-auto shrink-0 text-amber-400 hover:text-amber-600">&times;</button>
+        </div>
+      )}
+
       {/* Create form */}
       {showCreateForm && (
         <div className="mt-6 rounded-lg border bg-white p-5">
@@ -729,7 +755,12 @@ export default function PoliciesPage() {
           </div>
 
           <div className="mt-5 flex items-center justify-between border-t pt-4">
-            <Toggle checked={newIsActive} onChange={setNewIsActive} label={newIsActive ? 'Active (SDK will use this policy)' : 'Inactive'} />
+            <div>
+              <Toggle checked={newIsActive} onChange={setNewIsActive} label={newIsActive ? 'Active — SDK will use this policy' : 'Inactive — activate later'} />
+              {newIsActive && policies.some(p => p.isActive) && (
+                <p className="mt-1 ml-11 text-xs text-amber-600">Another policy is currently active. Deactivate it first to create this one as active.</p>
+              )}
+            </div>
             <button
               onClick={handleCreate}
               disabled={saving || !newName.trim()}
@@ -772,8 +803,8 @@ export default function PoliciesPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleToggleActive(policy)}
-                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${policy.isActive ? 'bg-blue-600' : 'bg-gray-200'}`}
-                  title={policy.isActive ? 'Deactivate' : 'Activate'}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${policy.isActive ? 'bg-green-600' : 'bg-gray-200'}`}
+                  title={policy.isActive ? 'Deactivate policy' : 'Activate policy'}
                 >
                   <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${policy.isActive ? 'translate-x-4' : 'translate-x-0'}`} />
                 </button>
