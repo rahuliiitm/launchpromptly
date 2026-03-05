@@ -5,9 +5,12 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
+import { StructuredLogger } from './common/structured-logger';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: new StructuredLogger(),
+  });
   const logger = new Logger('Bootstrap');
 
   // --- CORS ---

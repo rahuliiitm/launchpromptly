@@ -7,7 +7,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import * as Sentry from '@sentry/nestjs';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
+import { getRequestId } from '../request-context';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -16,6 +17,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+    const requestId = getRequestId();
 
     const status =
       exception instanceof HttpException
@@ -32,7 +35,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       : (rawMessage as Record<string, unknown>)['message'] ?? rawMessage;
 
     this.logger.error(
-      `HTTP ${status} error`,
+      `HTTP ${status} ${request.method} ${request.originalUrl}`,
       exception instanceof Error ? exception.stack : undefined,
     );
 
@@ -55,6 +58,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       statusCode: status,
       message,
       ...(hint && { hint }),
+      requestId,
       timestamp: new Date().toISOString(),
     });
   }
