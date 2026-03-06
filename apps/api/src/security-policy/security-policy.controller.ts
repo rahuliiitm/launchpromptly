@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 import { SecurityPolicyService } from './security-policy.service';
 import { CreatePolicyDto } from './dto/create-policy.dto';
@@ -25,6 +27,8 @@ export class SecurityPolicyController {
   constructor(private readonly securityPolicyService: SecurityPolicyService) {}
 
   @Post(':projectId')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   async create(
     @Param('projectId') projectId: string,
     @Body() dto: CreatePolicyDto,
@@ -54,6 +58,8 @@ export class SecurityPolicyController {
   }
 
   @Patch(':projectId/:policyId')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   async update(
     @Param('projectId') projectId: string,
     @Param('policyId') policyId: string,
@@ -70,6 +76,8 @@ export class SecurityPolicyController {
   }
 
   @Delete(':projectId/:policyId')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   async remove(
     @Param('projectId') projectId: string,
     @Param('policyId') policyId: string,

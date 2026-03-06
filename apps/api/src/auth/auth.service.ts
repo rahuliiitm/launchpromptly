@@ -103,14 +103,8 @@ export class AuthService {
       include: { organization: true },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found. Please register first.');
-    }
-
-    if (!user.passwordHash) {
-      throw new BadRequestException(
-        'No password set. Please register with a password first.',
-      );
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException('Invalid email or password.');
     }
 
     const valid = await bcrypt.compare(password, user.passwordHash);

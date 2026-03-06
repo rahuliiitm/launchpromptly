@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PlanTier } from '@launchpromptly/types';
 
@@ -169,7 +169,9 @@ export class BillingService {
   verifySignature(body: string, signature: string): boolean {
     if (!this.webhookSecret) return false;
     const expected = createHmac('sha256', this.webhookSecret).update(body).digest('hex');
-    return expected === signature;
+    // Use timing-safe comparison to prevent timing side-channel attacks
+    if (expected.length !== signature.length) return false;
+    return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
   }
 
   /** Process a verified webhook event body. Returns { handled, error? } */

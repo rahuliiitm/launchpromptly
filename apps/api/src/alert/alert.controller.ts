@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { AlertService } from './alert.service';
 import type { AlertRuleRecord } from './alert.service';
 import { CreateAlertRuleDto } from './dto/create-alert-rule.dto';
@@ -24,6 +26,8 @@ export class AlertController {
   constructor(private readonly alertService: AlertService) {}
 
   @Post(':projectId')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   async create(
     @Param('projectId') projectId: string,
     @Body() dto: CreateAlertRuleDto,
@@ -53,6 +57,8 @@ export class AlertController {
   }
 
   @Patch(':projectId/:ruleId')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   async update(
     @Param('projectId') projectId: string,
     @Param('ruleId') ruleId: string,
@@ -64,6 +70,8 @@ export class AlertController {
   }
 
   @Delete(':projectId/:ruleId')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   @HttpCode(204)
   async remove(
     @Param('projectId') projectId: string,

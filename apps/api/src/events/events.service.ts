@@ -35,22 +35,24 @@ export class EventsService {
   }
 
   private buildEventRecord(projectId: string, e: IngestEventDto, environmentId?: string) {
-    // Encrypt sensitive fields
+    // Encrypt sensitive fields — each field gets its own IV/authTag
     let encPromptPreview: string | null = null;
     let encResponseText: string | null = null;
     let encIv: string | null = null;
     let encAuthTag: string | null = null;
 
-    if (e.promptPreview) {
-      const enc = this.crypto.encrypt(e.promptPreview);
-      encPromptPreview = enc.encrypted;
+    // Combine both sensitive fields into one encrypted payload to use a single IV/authTag.
+    // This avoids the previous bug where responseText's IV was discarded.
+    const sensitivePayload: Record<string, string> = {};
+    if (e.promptPreview) sensitivePayload.promptPreview = e.promptPreview;
+    if (e.responseText) sensitivePayload.responseText = e.responseText;
+
+    if (Object.keys(sensitivePayload).length > 0) {
+      const enc = this.crypto.encrypt(JSON.stringify(sensitivePayload));
+      encPromptPreview = e.promptPreview ? enc.encrypted : null;
+      encResponseText = e.responseText ? enc.encrypted : null;
       encIv = enc.iv;
       encAuthTag = enc.authTag;
-    }
-    if (e.responseText) {
-      const enc = this.crypto.encrypt(e.responseText);
-      encResponseText = enc.encrypted;
-      if (!encIv) { encIv = enc.iv; encAuthTag = enc.authTag; }
     }
 
     // Build security metadata
@@ -73,9 +75,9 @@ export class EventsService {
       latencyMs: e.latencyMs,
       systemHash: e.systemHash ?? null,
       fullHash: e.fullHash ?? null,
-      promptPreview: e.promptPreview ?? null,
+      promptPreview: null,  // Never store plaintext — use encrypted field only
       statusCode: e.statusCode ?? 200,
-      responseText: e.responseText ?? null,
+      responseText: null,   // Never store plaintext — use encrypted field only
       traceId: e.traceId ?? randomUUID(),
       spanName: e.spanName ?? null,
       metadata: e.metadata ? (e.metadata as Prisma.InputJsonValue) : undefined,
