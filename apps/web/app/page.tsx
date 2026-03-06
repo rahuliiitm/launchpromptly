@@ -344,8 +344,9 @@ const PRICING = [
     desc: 'For organizations with strict safety requirements.',
     features: [
       'Everything in Startup',
-      'ML-enhanced PII (names, orgs, addresses)',
-      'Semantic injection detection',
+      'ML-enhanced PII (NER: names, orgs, locations)',
+      'Semantic injection detection (DeBERTa)',
+      'ML toxicity classification (toxic-bert)',
       'Unlimited events',
       'Security policies & RBAC',
       'Priority support & SLA',
@@ -362,7 +363,7 @@ function LandingPage() {
       <section className="px-6 pb-20 pt-16 text-center">
         <div className="mx-auto max-w-3xl">
           <div className="mb-6 inline-block rounded-full border border-blue-200 bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-700">
-            Client-side LLM security &mdash; zero dependencies
+            Layered defense: regex + local ML &mdash; no data leaves your infra
           </div>
           <h1 className="text-5xl font-bold leading-tight tracking-tight text-gray-900">
             Secure your LLM apps
@@ -560,8 +561,74 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* ── Features Grid ── */}
+      {/* ── Layered Defense ── */}
       <section className="px-6 py-20">
+        <div className="mx-auto max-w-4xl">
+          <h2 className="text-center text-3xl font-bold text-gray-900">
+            Layered Defense &mdash; Regex + ML
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-gray-500">
+            The only LLM safety SDK that runs ML models locally &mdash; no data leaves your infrastructure.
+          </p>
+          <div className="mt-10 grid gap-6 sm:grid-cols-2">
+            <div className="rounded-xl border-2 border-green-200 bg-green-50 p-6">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">1</div>
+                <h3 className="text-lg font-bold text-green-800">Regex &amp; Rules</h3>
+              </div>
+              <div className="mt-1 text-xs font-medium uppercase tracking-wide text-green-600">Always on &middot; Zero dependencies</div>
+              <ul className="mt-4 space-y-2 text-sm text-gray-600">
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 text-green-500">&#x2713;</span>
+                  16 regex patterns: email, SSN, credit card, phone, IP, etc.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 text-green-500">&#x2713;</span>
+                  5 injection categories: overrides, role hijacking, data exfil
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 text-green-500">&#x2713;</span>
+                  Keyword content filter: hate speech, violence, self-harm
+                </li>
+              </ul>
+              <div className="mt-4 rounded bg-green-100 px-3 py-2 text-xs font-medium text-green-700">
+                &lt;1ms latency &middot; No runtime dependencies
+              </div>
+            </div>
+            <div className="rounded-xl border-2 border-purple-200 bg-purple-50 p-6">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-600 text-sm font-bold text-white">2</div>
+                <h3 className="text-lg font-bold text-purple-800">Local ML Models</h3>
+              </div>
+              <div className="mt-1 text-xs font-medium uppercase tracking-wide text-purple-600">Opt-in &middot; Runs on your machine</div>
+              <ul className="mt-4 space-y-2 text-sm text-gray-600">
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 text-purple-500">&#x2713;</span>
+                  NER-based PII: person names, orgs, locations
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 text-purple-500">&#x2713;</span>
+                  DeBERTa injection: catches obfuscated &amp; encoded attacks
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 text-purple-500">&#x2713;</span>
+                  Toxic-BERT: nuanced hate speech &amp; identity attacks
+                </li>
+              </ul>
+              <div className="mt-4 rounded bg-purple-100 px-3 py-2 text-xs font-medium text-purple-700">
+                &lt;100ms latency &middot; No cloud calls &middot; Data stays local
+              </div>
+            </div>
+          </div>
+          <p className="mx-auto mt-6 max-w-xl text-center text-sm text-gray-400">
+            Both layers run together. ML detections merge with regex results &mdash; giving you the speed of rules
+            with the accuracy of ML, without sending data to a third-party API.
+          </p>
+        </div>
+      </section>
+
+      {/* ── Features Grid ── */}
+      <section className="border-t px-6 py-20">
         <div className="mx-auto max-w-5xl">
           <h2 className="text-center text-3xl font-bold text-gray-900">
             Everything you need to secure LLM applications

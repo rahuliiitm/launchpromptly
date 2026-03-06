@@ -94,9 +94,16 @@ response = openai.chat.completions.create(
 )
 # PII is redacted before the API call, response is de-redacted after`;
 
-const ML_PLUGIN_CODE = `// Optional: Enhanced ML-based detection
+const ML_PLUGIN_CODE_NODE = `// Optional: ML-enhanced detection (Node.js)
 import { LaunchPromptly } from 'launchpromptly';
-import { PresidioPIIDetector, MLInjectionDetector } from 'launchpromptly-ml';
+import { MLToxicityDetector, MLInjectionDetector, MLPIIDetector } from 'launchpromptly/ml';
+
+// Load models (async — first run downloads from HuggingFace)
+const [toxicity, injection, pii] = await Promise.all([
+  MLToxicityDetector.create(),     // Xenova/toxic-bert (~170MB)
+  MLInjectionDetector.create(),    // protectai/deberta-v3 (~350MB)
+  MLPIIDetector.create(),          // Xenova/bert-base-NER (~170MB)
+]);
 
 const lp = new LaunchPromptly({
   apiKey: process.env.LP_KEY,
@@ -104,14 +111,45 @@ const lp = new LaunchPromptly({
     pii: {
       enabled: true,
       redaction: 'placeholder',
-      providers: [new PresidioPIIDetector()],  // Adds NER: names, orgs, locations
+      providers: [pii],       // NER: person names, orgs, locations
     },
     injection: {
       enabled: true,
-      providers: [new MLInjectionDetector()],  // Adds semantic detection
+      providers: [injection], // Semantic injection via DeBERTa
+    },
+    contentFilter: {
+      enabled: true,
+      providers: [toxicity],  // ML toxicity: hate speech, threats
     },
   },
 });`;
+
+const ML_PLUGIN_CODE_PYTHON = `# Optional: ML-enhanced detection (Python)
+from launchpromptly import LaunchPromptly
+from launchpromptly.ml import MLToxicityDetector, MLInjectionDetector, PresidioPIIDetector
+
+toxicity = MLToxicityDetector()     # unitary/toxic-bert
+injection = MLInjectionDetector()   # protectai/deberta-v3
+pii = PresidioPIIDetector()         # Microsoft Presidio + spaCy NER
+
+lp = LaunchPromptly(
+    api_key="lp_live_...",
+    security={
+        "pii": {
+            "enabled": True,
+            "redaction": "placeholder",
+            "providers": [pii],       # NER: person names, orgs, locations
+        },
+        "injection": {
+            "enabled": True,
+            "providers": [injection], # Semantic injection via DeBERTa
+        },
+        "content_filter": {
+            "enabled": True,
+            "providers": [toxicity],  # ML toxicity: hate speech, threats
+        },
+    },
+)`;
 
 export default function SDKSetupPage() {
   const [copied, setCopied] = useState('');
@@ -248,23 +286,55 @@ export default function SDKSetupPage() {
       <div className="mt-8">
         <h2 className="text-lg font-semibold">6. ML-Enhanced Detection (Optional)</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Install the ML plugin for NER-based PII detection (person names, orgs, addresses) and semantic injection detection.
+          Add local ML models for NER-based PII detection (person names, orgs, locations),
+          semantic injection analysis, and ML-powered toxicity classification.
+          All inference runs locally &mdash; no data leaves your infrastructure.
         </p>
-        <div className="relative mt-2">
+
+        <div className="relative mt-3">
           <pre className="rounded-lg bg-gray-900 p-4 text-sm text-green-400">
-            {activeTab === 'node' ? 'npm install launchpromptly-ml' : 'pip install launchpromptly[ml]'}
-          </pre>
-        </div>
-        <div className="relative mt-2">
-          <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-green-400">
-            {ML_PLUGIN_CODE}
+            {activeTab === 'node' ? 'npm install @huggingface/transformers' : 'pip install launchpromptly[ml]'}
           </pre>
           <button
-            onClick={() => copyToClipboard(ML_PLUGIN_CODE, 'ml')}
+            onClick={() => copyToClipboard(activeTab === 'node' ? 'npm install @huggingface/transformers' : 'pip install launchpromptly[ml]', 'ml-install')}
+            className="absolute right-2 top-2 rounded bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
+          >
+            {copied === 'ml-install' ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+
+        <div className="relative mt-2">
+          <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-green-400">
+            {activeTab === 'node' ? ML_PLUGIN_CODE_NODE : ML_PLUGIN_CODE_PYTHON}
+          </pre>
+          <button
+            onClick={() => copyToClipboard(activeTab === 'node' ? ML_PLUGIN_CODE_NODE : ML_PLUGIN_CODE_PYTHON, 'ml')}
             className="absolute right-2 top-2 rounded bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
           >
             {copied === 'ml' ? 'Copied!' : 'Copy'}
           </button>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-purple-200 bg-purple-50 p-4">
+          <h3 className="text-sm font-semibold text-purple-800">Layered Defense</h3>
+          <p className="mt-1 text-sm text-gray-600">
+            ML providers <strong>merge with</strong> built-in regex/rule detectors. You get the speed of rules (&lt;1ms)
+            with the accuracy of ML (&lt;100ms) &mdash; without sending data to a third-party API.
+          </p>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+            <div className="rounded bg-white p-2 text-center">
+              <div className="font-semibold text-purple-700">MLPIIDetector</div>
+              <div className="text-gray-500">Names, orgs, locations</div>
+            </div>
+            <div className="rounded bg-white p-2 text-center">
+              <div className="font-semibold text-purple-700">MLInjectionDetector</div>
+              <div className="text-gray-500">Obfuscated attacks</div>
+            </div>
+            <div className="rounded bg-white p-2 text-center">
+              <div className="font-semibold text-purple-700">MLToxicityDetector</div>
+              <div className="text-gray-500">Hate speech, threats</div>
+            </div>
+          </div>
         </div>
       </div>
 
