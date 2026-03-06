@@ -10,7 +10,7 @@ const NAV_ITEMS = [
   { href: '/admin/security/alerts', label: 'Alert Rules' },
   { href: '/admin/security/audit', label: 'Audit Logs' },
   { href: '/admin/sdk', label: 'SDK Setup' },
-  { href: '/docs', label: 'SDK Reference' },
+  { href: '/admin/docs', label: 'SDK Reference' },
   { href: '/admin/api-keys', label: 'API Keys' },
 ];
 
