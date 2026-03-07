@@ -776,10 +776,15 @@ export default function PoliciesPage() {
       {/* Policy list */}
       <div className="mt-6 space-y-4">
         {policies.length === 0 && !showCreateForm && (
-          <div className="rounded-lg border bg-white p-8 text-center">
-            <h2 className="text-lg font-semibold text-gray-700">No policies yet</h2>
-            <p className="mt-2 text-sm text-gray-500">
-              Create your first security policy to configure PII redaction, injection detection, cost guards, and content filtering. The SDK will fetch the active policy automatically.
+          <div className="rounded-lg border bg-white p-12 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-100">
+              <svg className="h-7 w-7 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+              </svg>
+            </div>
+            <h2 className="mt-4 text-lg font-semibold text-gray-700">No security policies yet</h2>
+            <p className="mt-2 max-w-md mx-auto text-sm text-gray-500">
+              Policies let you manage guardrail rules from the dashboard instead of hardcoding them in the SDK. The SDK fetches the active policy on every request.
             </p>
           </div>
         )}

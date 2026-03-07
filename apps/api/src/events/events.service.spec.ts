@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../crypto/crypto.service';
 import { AuditService } from '../audit/audit.service';
 import { AlertService } from '../alert/alert.service';
+import { UsageService } from '../billing/usage.service';
 
 describe('EventsService', () => {
   let service: EventsService;
@@ -10,6 +11,7 @@ describe('EventsService', () => {
   let crypto: CryptoService;
   let audit: AuditService;
   let alertService: AlertService;
+  let usageService: UsageService;
 
   beforeEach(() => {
     prisma = {
@@ -34,7 +36,11 @@ describe('EventsService', () => {
       evaluateAlerts: jest.fn().mockResolvedValue(undefined),
     } as unknown as AlertService;
 
-    service = new EventsService(prisma, crypto, audit, alertService);
+    usageService = {
+      checkQuota: jest.fn().mockResolvedValue({ allowed: true, remaining: 999, limit: 1000 }),
+    } as unknown as UsageService;
+
+    service = new EventsService(prisma, crypto, audit, alertService, usageService);
   });
 
   const baseEvent = {

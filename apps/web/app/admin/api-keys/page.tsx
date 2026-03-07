@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
 import { PageLoader } from '@/components/spinner';
+import { updateOnboarding } from '@/lib/onboarding';
 import type { ApiKey, Environment } from '@launchpromptly/types';
 
 export default function ApiKeysPage() {
@@ -54,6 +55,7 @@ export default function ApiKeysPage() {
     );
     setNewKey(result.rawKey);
     setKeys((prev) => [result.apiKey, ...prev]);
+    updateOnboarding({ apiKeyGenerated: true });
   };
 
   const handleRevoke = async (keyId: string) => {
@@ -137,7 +139,15 @@ export default function ApiKeysPage() {
           </div>
         ))}
         {keys.length === 0 && (
-          <p className="text-sm text-gray-400">No API keys yet.</p>
+          <div className="rounded-lg border bg-white p-8 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+              <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+              </svg>
+            </div>
+            <h3 className="mt-3 text-sm font-semibold text-gray-700">No API keys yet</h3>
+            <p className="mt-1 text-sm text-gray-500">Generate your first key to authenticate the SDK with your project.</p>
+          </div>
         )}
       </div>
     </div>

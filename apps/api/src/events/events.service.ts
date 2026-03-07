@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../crypto/crypto.service';
 import { AuditService } from '../audit/audit.service';
 import { AlertService } from '../alert/alert.service';
+import { UsageService } from '../billing/usage.service';
 import type { IngestBatchDto, IngestEventDto } from './dto/ingest-batch.dto';
 
 interface IngestResult {
@@ -18,9 +19,19 @@ export class EventsService {
     private readonly crypto: CryptoService,
     private readonly audit: AuditService,
     private readonly alertService: AlertService,
+    private readonly usageService: UsageService,
   ) {}
 
   async ingestBatch(projectId: string, dto: IngestBatchDto, environmentId?: string): Promise<IngestResult> {
+    // Check plan quota before ingesting
+    const quota = await this.usageService.checkQuota(projectId);
+    if (!quota.allowed) {
+      throw new ForbiddenException(
+        `Monthly event limit reached (${quota.limit.toLocaleString()} events on your current plan). ` +
+        'Upgrade your plan to continue ingesting events.',
+      );
+    }
+
     const records = dto.events.map((e) => this.buildEventRecord(projectId, e, environmentId));
 
     await this.prisma.lLMEvent.createMany({ data: records });

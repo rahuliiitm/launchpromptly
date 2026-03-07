@@ -16,6 +16,10 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
 import { PageLoader } from '@/components/spinner';
+import { OnboardingChecklist } from '@/components/onboarding-checklist';
+import { UsageBar } from '@/components/usage-bar';
+import { UpgradePrompt } from '@/components/upgrade-prompt';
+import { getOnboardingState, isOnboardingComplete, updateOnboarding } from '@/lib/onboarding';
 
 // ── Security Overview (Authenticated Dashboard) ──
 
@@ -55,13 +59,30 @@ const PERIOD_OPTIONS = [
   { label: '90d', value: 90 },
 ];
 
+interface UsageData {
+  eventCount: number;
+  eventLimit: number;
+  percentUsed: number;
+  plan: string;
+}
+
 function Dashboard() {
   const [overview, setOverview] = useState<SecurityOverviewData | null>(null);
   const [timeseries, setTimeseries] = useState<SecurityTimeSeriesPoint[]>([]);
   const [injections, setInjections] = useState<InjectionAnalysis | null>(null);
+  const [usage, setUsage] = useState<UsageData | null>(null);
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Check onboarding state on mount
+  useEffect(() => {
+    const state = getOnboardingState();
+    if (!isOnboardingComplete() && !state.dismissedAt) {
+      setShowOnboarding(true);
+    }
+  }, []);
 
   useEffect(() => {
     const token = getToken();
@@ -88,15 +109,25 @@ function Dashboard() {
         `/analytics/${projectId}/security/injections?days=${days}`,
         { headers },
       ),
+      apiFetch<UsageData>('/billing/usage', { headers }).catch(() => null),
     ])
-      .then(([ov, ts, inj]) => {
+      .then(([ov, ts, inj, usageData]) => {
         setOverview(ov);
         setTimeseries(ts);
         setInjections(inj);
+        if (usageData) setUsage(usageData);
+        // Auto-complete onboarding step when events exist
+        if (ov && ov.totalEvents > 0) {
+          updateOnboarding({ firstCallMade: true });
+        }
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, [days]);
+
+  if (showOnboarding) {
+    return <OnboardingChecklist onComplete={() => setShowOnboarding(false)} />;
+  }
 
   if (loading) {
     return <PageLoader message="Loading security data..." />;
@@ -151,12 +182,41 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Usage bar */}
+      {usage && (
+        <div className="mt-6 space-y-3">
+          <UsageBar eventCount={usage.eventCount} eventLimit={usage.eventLimit} plan={usage.plan} />
+          <UpgradePrompt percentUsed={usage.percentUsed} plan={usage.plan} eventLimit={usage.eventLimit} />
+        </div>
+      )}
+
       {!overview || overview.totalEvents === 0 ? (
-        <div className="mt-8 rounded-lg border bg-white p-8 text-center">
-          <h2 className="text-lg font-semibold text-gray-700">No security data yet</h2>
+        <div className="mt-8 rounded-lg border bg-white p-12 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+            <svg className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+            </svg>
+          </div>
+          <h2 className="mt-4 text-lg font-semibold text-gray-700">No security data yet</h2>
           <p className="mt-2 text-sm text-gray-500">
-            Security events will appear here once the SDK starts processing requests
-            with PII detection and injection protection enabled.
+            Security events will appear here once the SDK starts processing requests.
+          </p>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <Link
+              href="/admin/sdk"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Get Started with the SDK
+            </Link>
+            <Link
+              href="/playground"
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Try the Playground
+            </Link>
+          </div>
+          <p className="mt-4 text-xs text-gray-400">
+            Need help? Check the <Link href="/docs" className="text-blue-600 hover:underline">documentation</Link>.
           </p>
         </div>
       ) : (
@@ -388,17 +448,29 @@ const FEATURES = [
 
 const PRICING = [
   {
+    name: 'Free',
+    price: '$0',
+    period: 'forever',
+    desc: 'Try LaunchPromptly with no commitment.',
+    features: [
+      'PII redaction (16 regex patterns)',
+      'Prompt injection detection',
+      'Cost guard',
+      '1,000 events / mo',
+      'Security dashboard',
+    ],
+    cta: 'Get Started Free',
+    highlighted: false,
+  },
+  {
     name: 'Indie',
     price: '$29',
     period: '/ month',
     desc: 'For solo developers adding guardrails to LLM apps.',
     features: [
-      'PII redaction (16 regex patterns)',
-      'Prompt injection detection',
-      'Cost guard (per-request & daily budgets)',
+      'Everything in Free',
       'Guardrail event callbacks',
       '10,000 events / mo',
-      'Security dashboard',
       'Community support',
     ],
     cta: 'Start Free Trial',
@@ -467,12 +539,12 @@ function LandingPage() {
             >
               Start Free &mdash; No Credit Card
             </Link>
-            <a
-              href="#pricing"
+            <Link
+              href="/playground"
               className="rounded-lg border border-gray-300 px-6 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
-              View Pricing
-            </a>
+              Try the Playground &rarr;
+            </Link>
           </div>
         </div>
       </section>
@@ -782,7 +854,7 @@ function LandingPage() {
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
             Start free. Scale security as your LLM usage grows.
           </p>
-          <div className="mt-12 grid gap-6 sm:grid-cols-3">
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {PRICING.map((plan) => (
               <div
                 key={plan.name}
@@ -857,6 +929,7 @@ function LandingPage() {
           <span>&copy; {new Date().getFullYear()} LaunchPromptly. All rights reserved.</span>
           <div className="flex gap-6">
             <a href="#pricing" className="hover:text-gray-600">Pricing</a>
+            <Link href="/playground" className="hover:text-gray-600">Playground</Link>
             <Link href="/docs" className="hover:text-gray-600">Docs</Link>
             <Link href="/login" className="hover:text-gray-600">Sign In</Link>
           </div>

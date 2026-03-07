@@ -11,6 +11,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
 import { BillingService } from './billing.service';
+import { UsageService } from './usage.service';
 
 @Controller('billing')
 export class BillingController {
@@ -18,6 +19,7 @@ export class BillingController {
 
   constructor(
     private readonly billingService: BillingService,
+    private readonly usageService: UsageService,
   ) {}
 
   /**
@@ -70,5 +72,12 @@ export class BillingController {
     return {
       ...(info ?? { plan: 'free', hasSubscription: false, checkoutUrls: { pro: '', team: '' } }),
     };
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('usage')
+  async getUsage(@Req() req: Request) {
+    const user = req.user as { organizationId: string };
+    return this.usageService.getMonthlyUsage(user.organizationId);
   }
 }
