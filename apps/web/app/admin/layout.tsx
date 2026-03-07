@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { RequireAdmin } from '@/components/require-admin';
 
 const NAV_ITEMS = [
-  { href: '/admin/security', label: 'Security Overview' },
   { href: '/admin/security/policies', label: 'Security Policies' },
   { href: '/admin/security/alerts', label: 'Alert Rules' },
   { href: '/admin/security/audit', label: 'Audit Logs' },

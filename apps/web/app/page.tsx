@@ -2,241 +2,326 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useAuth, useIsAdmin } from '@/lib/auth-context';
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
-import { PageLoader, Spinner } from '@/components/spinner';
+import { PageLoader } from '@/components/spinner';
 
-// ── Authenticated Dashboard ──
+// ── Security Overview (Authenticated Dashboard) ──
 
-interface ChecklistState {
-  apiKey: boolean;
-  sdkInstalled: boolean;
-  securityPolicy: boolean;
+interface SecurityOverviewData {
+  totalEvents: number;
+  eventsWithPii: number;
+  piiExposureRate: number;
+  totalPiiDetections: number;
+  injectionAttempts: number;
+  injectionBlocked: number;
+  redactionRate: number;
+  topPiiTypes: { type: string; count: number }[];
+  periodDays: number;
 }
 
-interface SecurityStats {
+interface SecurityTimeSeriesPoint {
+  date: string;
   piiDetections: number;
   injectionAttempts: number;
-  eventsProtected: number;
-  auditLogCount: number;
+  injectionBlocked: number;
+  eventsWithRedaction: number;
+  totalEvents: number;
 }
 
+interface InjectionAnalysis {
+  totalAttempts: number;
+  blocked: number;
+  warned: number;
+  allowed: number;
+  avgRiskScore: number;
+  topTriggered: { category: string; count: number }[];
+}
+
+const PERIOD_OPTIONS = [
+  { label: '7d', value: 7 },
+  { label: '30d', value: 30 },
+  { label: '90d', value: 90 },
+];
+
 function Dashboard() {
-  const { user } = useAuth();
-  const isAdmin = useIsAdmin();
-  const [checklist, setChecklist] = useState<ChecklistState>({
-    apiKey: false,
-    sdkInstalled: false,
-    securityPolicy: false,
-  });
-  const [securityStats, setSecurityStats] = useState<SecurityStats | null>(null);
-  const [loadingChecklist, setLoadingChecklist] = useState(true);
+  const [overview, setOverview] = useState<SecurityOverviewData | null>(null);
+  const [timeseries, setTimeseries] = useState<SecurityTimeSeriesPoint[]>([]);
+  const [injections, setInjections] = useState<InjectionAnalysis | null>(null);
+  const [days, setDays] = useState(30);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!user?.projectId) return;
-
     const token = getToken();
     const projectId = getProjectId();
-    if (!token || !projectId) return;
+    if (!token || !projectId) {
+      setLoading(false);
+      return;
+    }
 
+    setLoading(true);
+    setError('');
     const headers = { Authorization: `Bearer ${token}` };
 
-    Promise.allSettled([
-      apiFetch<{ id: string }[]>(`/project/${projectId}/api-keys`, { headers }),
-      apiFetch<unknown[]>(`/v1/security/policies/${projectId}`, { headers }),
-      apiFetch<{ piiDetections?: number; injectionAttempts?: number; totalEvents?: number }>(`/analytics/${projectId}/security/overview?days=30`, { headers }),
-      apiFetch<{ total: number }>(`/v1/security/audit/${projectId}/summary?days=30`, { headers }),
-    ]).then(([apiKeyRes, policyRes, securityRes, auditRes]) => {
-      const apiKeys = apiKeyRes.status === 'fulfilled' ? apiKeyRes.value : [];
-      const policies = policyRes.status === 'fulfilled' ? policyRes.value : [];
-      const securityData = securityRes.status === 'fulfilled' ? securityRes.value : null;
-      const hasEvents = (securityData?.totalEvents ?? 0) > 0;
+    Promise.all([
+      apiFetch<SecurityOverviewData>(
+        `/analytics/${projectId}/security/overview?days=${days}`,
+        { headers },
+      ),
+      apiFetch<SecurityTimeSeriesPoint[]>(
+        `/analytics/${projectId}/security/timeseries?days=${days}`,
+        { headers },
+      ),
+      apiFetch<InjectionAnalysis>(
+        `/analytics/${projectId}/security/injections?days=${days}`,
+        { headers },
+      ),
+    ])
+      .then(([ov, ts, inj]) => {
+        setOverview(ov);
+        setTimeseries(ts);
+        setInjections(inj);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [days]);
 
-      setChecklist({
-        apiKey: apiKeys.length > 0,
-        sdkInstalled: hasEvents,
-        securityPolicy: policies.length > 0,
-      });
+  if (loading) {
+    return <PageLoader message="Loading security data..." />;
+  }
 
-      const auditTotal = auditRes.status === 'fulfilled' ? auditRes.value.total ?? 0 : 0;
+  if (error) {
+    return (
+      <main className="mx-auto max-w-7xl px-6 py-8">
+        <div className="flex flex-col items-center py-20">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-6 py-4 text-center">
+            <p className="font-medium text-red-700">Failed to load security data</p>
+            <p className="mt-1 text-sm text-red-500">{error}</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
-      if (securityRes.status === 'fulfilled') {
-        const data = securityRes.value;
-        setSecurityStats({
-          piiDetections: data.piiDetections ?? 0,
-          injectionAttempts: data.injectionAttempts ?? 0,
-          eventsProtected: data.totalEvents ?? 0,
-          auditLogCount: auditTotal,
-        });
-      } else {
-        setSecurityStats({
-          piiDetections: 0,
-          injectionAttempts: 0,
-          eventsProtected: 0,
-          auditLogCount: auditTotal,
-        });
-      }
+  const piiRateColor =
+    overview && overview.piiExposureRate > 10
+      ? 'text-red-600'
+      : overview && overview.piiExposureRate > 5
+        ? 'text-yellow-600'
+        : 'text-green-600';
 
-      setLoadingChecklist(false);
-    });
-  }, [user?.projectId]);
-
-  const allComplete = !isAdmin || (checklist.apiKey && checklist.sdkInstalled && checklist.securityPolicy);
-
-  const steps = [
-    {
-      key: 'apiKey',
-      title: 'Generate an SDK API key',
-      description: 'Create an API key to connect the LaunchPromptly SDK to your project.',
-      href: '/admin/api-keys',
-      linkText: 'Go to API Keys',
-      done: checklist.apiKey,
-    },
-    {
-      key: 'sdkInstalled',
-      title: 'Install the SDK & enable security',
-      description: 'Add lp.wrap(openaiClient) to get automatic PII redaction, injection detection, and cost controls.',
-      href: '/admin/sdk',
-      linkText: 'View SDK Setup Guide',
-      done: checklist.sdkInstalled,
-    },
-    {
-      key: 'securityPolicy',
-      title: 'Configure a security policy',
-      description: 'Set PII redaction rules, injection thresholds, and cost limits for your project.',
-      href: '/admin/security/policies',
-      linkText: 'Create Security Policy',
-      done: checklist.securityPolicy,
-    },
-  ];
+  const redactionRateColor =
+    overview && overview.redactionRate > 90 ? 'text-green-600' : 'text-yellow-600';
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <h1 className="text-2xl font-bold">
-        Welcome{user?.email ? `, ${user.email.split('@')[0]}` : ''}
-      </h1>
-
-      {loadingChecklist ? (
-        <div className="mt-8 flex items-center gap-2 text-gray-400">
-          <Spinner className="h-4 w-4" />
-          Loading setup status...
+    <main className="mx-auto max-w-7xl px-6 py-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Security</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            PII detection, injection protection, and security analytics
+          </p>
         </div>
-      ) : allComplete ? (
-        <div className="mt-8">
-          <p className="text-gray-600">Your security setup is active. Here&apos;s a quick overview.</p>
+        <div className="flex gap-1 rounded-lg border bg-white p-1">
+          {PERIOD_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setDays(opt.value)}
+              className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                days === opt.value
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-4">
-            <Link
-              href="/admin/security"
-              className="rounded-lg border bg-white p-5 transition hover:border-blue-300"
-            >
-              <div className="text-2xl font-bold">
-                {securityStats ? securityStats.eventsProtected.toLocaleString() : <span className="text-gray-400">&mdash;</span>}
-              </div>
-              <div className="mt-1 text-sm text-gray-500">Events Protected (30d)</div>
-            </Link>
-            <Link
-              href="/admin/security"
-              className="rounded-lg border bg-white p-5 transition hover:border-orange-300"
-            >
-              <div className="text-2xl font-bold text-orange-600">
-                {securityStats ? securityStats.piiDetections.toLocaleString() : <span className="text-gray-400">&mdash;</span>}
-              </div>
-              <div className="mt-1 text-sm text-gray-500">PII Detections (30d)</div>
-            </Link>
-            <Link
-              href="/admin/security"
-              className="rounded-lg border bg-white p-5 transition hover:border-red-300"
-            >
-              <div className="text-2xl font-bold text-red-600">
-                {securityStats ? securityStats.injectionAttempts.toLocaleString() : <span className="text-gray-400">&mdash;</span>}
-              </div>
-              <div className="mt-1 text-sm text-gray-500">Injection Attempts Blocked</div>
-            </Link>
-            <Link
-              href="/admin/security/audit"
-              className="rounded-lg border bg-white p-5 transition hover:border-blue-300"
-            >
-              <div className="text-2xl font-bold">
-                {securityStats ? securityStats.auditLogCount.toLocaleString() : <span className="text-gray-400">&mdash;</span>}
-              </div>
-              <div className="mt-1 text-sm text-gray-500">Audit Logs (30d)</div>
-            </Link>
-          </div>
-
-          <div className="mt-6 flex gap-3">
-            <Link
-              href="/admin/security"
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Security Dashboard
-            </Link>
-            <Link
-              href="/admin/security/policies"
-              className="rounded border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Manage Policies
-            </Link>
-            <Link
-              href="/admin/sdk"
-              className="rounded border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              SDK Setup
-            </Link>
-          </div>
+      {!overview || overview.totalEvents === 0 ? (
+        <div className="mt-8 rounded-lg border bg-white p-8 text-center">
+          <h2 className="text-lg font-semibold text-gray-700">No security data yet</h2>
+          <p className="mt-2 text-sm text-gray-500">
+            Security events will appear here once the SDK starts processing requests
+            with PII detection and injection protection enabled.
+          </p>
         </div>
       ) : (
-        <div className="mt-8">
-          <p className="text-gray-600">
-            Complete these steps to start protecting your LLM application.
-          </p>
+        <>
+          {/* Stat cards */}
+          <div className="mt-6 grid grid-cols-4 gap-4">
+            <div className="rounded-lg border bg-white p-4">
+              <p className="text-sm text-gray-500">PII Exposure Rate</p>
+              <p className={`mt-1 text-2xl font-bold ${piiRateColor}`}>
+                {overview.piiExposureRate.toFixed(1)}%
+              </p>
+              <p className="mt-1 text-xs text-gray-400">
+                {overview.eventsWithPii.toLocaleString()} events with PII
+              </p>
+            </div>
+            <div className="rounded-lg border bg-white p-4">
+              <p className="text-sm text-gray-500">Injection Attempts</p>
+              <p className="mt-1 text-2xl font-bold text-red-600">
+                {overview.injectionAttempts.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs text-gray-400">
+                {overview.injectionBlocked.toLocaleString()} blocked
+              </p>
+            </div>
+            <div className="rounded-lg border bg-white p-4">
+              <p className="text-sm text-gray-500">Redaction Rate</p>
+              <p className={`mt-1 text-2xl font-bold ${redactionRateColor}`}>
+                {overview.redactionRate.toFixed(1)}%
+              </p>
+            </div>
+            <div className="rounded-lg border bg-white p-4">
+              <p className="text-sm text-gray-500">Total PII Detections</p>
+              <p className="mt-1 text-2xl font-bold">
+                {overview.totalPiiDetections.toLocaleString()}
+              </p>
+            </div>
+          </div>
 
-          <div className="mt-6 space-y-3">
-            {steps.map((step, i) => (
-              <div
-                key={step.key}
-                className={`rounded-lg border p-4 ${
-                  step.done ? 'border-green-200 bg-green-50' : 'bg-white'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                      step.done
-                        ? 'bg-green-600 text-white'
-                        : 'border-2 border-gray-300 text-gray-400'
-                    }`}
+          {/* Security Activity Timeline */}
+          {timeseries.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-gray-500">
+                Security Activity Timeline
+              </h3>
+              <div className="mt-3 h-64 rounded-lg border bg-white p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={timeseries}>
+                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Area
+                      type="monotone"
+                      dataKey="piiDetections"
+                      name="PII Detections"
+                      stroke="#3b82f6"
+                      fill="#93c5fd"
+                      fillOpacity={0.3}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="injectionAttempts"
+                      name="Injection Attempts"
+                      stroke="#ef4444"
+                      fill="#fca5a5"
+                      fillOpacity={0.3}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="eventsWithRedaction"
+                      name="Redacted Events"
+                      stroke="#10b981"
+                      fill="#6ee7b7"
+                      fillOpacity={0.3}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* PII Types Breakdown */}
+          {overview.topPiiTypes.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-gray-500">
+                PII Types Breakdown
+              </h3>
+              <div className="mt-3 h-64 rounded-lg border bg-white p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={overview.topPiiTypes}
+                    layout="vertical"
+                    margin={{ left: 80 }}
                   >
-                    {step.done ? (
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      i + 1
-                    )}
+                    <XAxis type="number" tick={{ fontSize: 12 }} />
+                    <YAxis
+                      type="category"
+                      dataKey="type"
+                      tick={{ fontSize: 12 }}
+                      width={75}
+                    />
+                    <Tooltip />
+                    <Bar dataKey="count" name="Detections" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Injection Analysis */}
+          {injections && injections.totalAttempts > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-gray-500">
+                Injection Analysis
+              </h3>
+              <div className="mt-3 rounded-lg border bg-white p-4">
+                <div className="grid grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-400">Blocked</p>
+                    <p className="mt-0.5 text-lg font-bold text-green-600">
+                      {injections.blocked.toLocaleString()}
+                    </p>
                   </div>
-                  <div className="flex-1">
-                    <div className={`font-medium ${step.done ? 'text-green-800' : 'text-gray-900'}`}>
-                      {step.title}
-                    </div>
-                    <div className={`mt-0.5 text-sm ${step.done ? 'text-green-600' : 'text-gray-500'}`}>
-                      {step.description}
-                    </div>
-                    {!step.done && (
-                      <Link
-                        href={step.href}
-                        className="mt-2 inline-block text-sm font-medium text-blue-600 hover:text-blue-800"
-                      >
-                        {step.linkText} &rarr;
-                      </Link>
-                    )}
+                  <div>
+                    <p className="text-xs text-gray-400">Warned</p>
+                    <p className="mt-0.5 text-lg font-bold text-yellow-600">
+                      {injections.warned.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Allowed</p>
+                    <p className="mt-0.5 text-lg font-bold text-gray-600">
+                      {injections.allowed.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Avg Risk Score</p>
+                    <p className="mt-0.5 text-lg font-bold">
+                      {injections.avgRiskScore.toFixed(2)}
+                    </p>
                   </div>
                 </div>
+                {injections.topTriggered.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-xs font-medium text-gray-400">
+                      Top Triggered Categories
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {injections.topTriggered.map((t) => (
+                        <span
+                          key={t.category}
+                          className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700"
+                        >
+                          {t.category}
+                          <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-xs">
+                            {t.count}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+          )}
+        </>
       )}
     </main>
   );
@@ -772,7 +857,7 @@ function LandingPage() {
           <span>&copy; {new Date().getFullYear()} LaunchPromptly. All rights reserved.</span>
           <div className="flex gap-6">
             <a href="#pricing" className="hover:text-gray-600">Pricing</a>
-            <Link href="/admin/sdk" className="hover:text-gray-600">Docs</Link>
+            <Link href="/docs" className="hover:text-gray-600">Docs</Link>
             <Link href="/login" className="hover:text-gray-600">Sign In</Link>
           </div>
         </div>

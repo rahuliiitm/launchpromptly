@@ -6,7 +6,9 @@ import { useState, useRef, useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { PostHogProvider } from '@/lib/posthog';
 
-const PUBLIC_LINKS: Array<{ href: string; label: string }> = [];
+const PUBLIC_LINKS: Array<{ href: string; label: string }> = [
+  { href: '/docs', label: 'Docs' },
+];
 
 const AUTH_LINKS = [
   { href: '/admin/security', label: 'Security', adminOnly: false },

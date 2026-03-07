@@ -2,6 +2,6 @@
 
 import { SDKReferenceContent } from '@/components/docs/sdk-reference-content';
 
-export default function SDKDocsPage() {
-  return <SDKReferenceContent isAdmin />;
+export default function PublicDocsPage() {
+  return <SDKReferenceContent />;
 }
