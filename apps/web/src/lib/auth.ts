@@ -48,8 +48,8 @@ export function saveRole(role: string): void {
 }
 
 export function getRole(): string {
-  if (!isBrowser) return 'admin';
-  return localStorage.getItem(ROLE_KEY) ?? 'admin';
+  if (!isBrowser) return 'member';
+  return localStorage.getItem(ROLE_KEY) ?? 'member';
 }
 
 export function clearAuth(): void {

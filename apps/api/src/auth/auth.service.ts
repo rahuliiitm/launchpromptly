@@ -63,7 +63,7 @@ export class AuthService {
         email: existingUser.email,
         organizationId: existingUser.organizationId,
         plan,
-        role: existingUser.role ?? 'admin',
+        role: existingUser.role ?? 'member',
       });
       return { accessToken, userId: existingUser.id, plan };
     }
@@ -118,7 +118,7 @@ export class AuthService {
       email: user.email,
       organizationId: user.organizationId,
       plan,
-      role: user.role ?? 'admin',
+      role: user.role ?? 'member',
     });
     return { accessToken, userId: user.id, plan };
   }
@@ -143,7 +143,7 @@ export class AuthService {
       organizationId: user.organizationId,
       plan: user.organization?.plan ?? 'free',
       projectId: user.organization?.projects[0]?.id ?? null,
-      role: user.role ?? 'admin',
+      role: user.role ?? 'member',
     };
   }
 

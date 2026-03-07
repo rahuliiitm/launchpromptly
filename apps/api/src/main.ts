@@ -2,6 +2,7 @@ import './instrument'; // Sentry must be imported before anything else
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
@@ -12,6 +13,9 @@ async function bootstrap(): Promise<void> {
     logger: new StructuredLogger(),
   });
   const logger = new Logger('Bootstrap');
+
+  // --- Security headers ---
+  app.use(helmet());
 
   // --- CORS ---
   const corsOrigin = process.env['CORS_ORIGIN'];

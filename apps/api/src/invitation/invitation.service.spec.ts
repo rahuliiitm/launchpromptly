@@ -112,6 +112,26 @@ describe('InvitationService', () => {
       const result = await service.createInvitation('org-1', 'user-1', 'member@test.com');
       expect(result.invitation.email).toBe('member@test.com');
     });
+
+    it('should hash the token before storing', async () => {
+      prisma.invitation.upsert.mockResolvedValue({
+        id: 'inv-1',
+        email: 'member@test.com',
+        role: 'member',
+        createdAt: new Date(),
+        expiresAt: futureDate,
+        acceptedAt: null,
+      });
+
+      const result = await service.createInvitation('org-1', 'user-1', 'member@test.com');
+
+      const upsertCall = prisma.invitation.upsert.mock.calls[0][0];
+      // tokenHash should be a 64-char hex string (SHA256 output)
+      expect(upsertCall.create.tokenHash).toMatch(/^[a-f0-9]{64}$/);
+      // The URL token should NOT equal the stored hash
+      const urlToken = result.inviteUrl.split('/invite/')[1];
+      expect(urlToken).not.toBe(upsertCall.create.tokenHash);
+    });
   });
 
   describe('listInvitations', () => {
@@ -166,6 +186,21 @@ describe('InvitationService', () => {
     it('should throw NotFoundException for invalid token', async () => {
       prisma.invitation.findUnique.mockResolvedValue(null);
       await expect(service.getInvitationByToken('bad')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should hash the token before lookup', async () => {
+      prisma.invitation.findUnique.mockResolvedValue({
+        email: 'a@b.com',
+        acceptedAt: null,
+        expiresAt: futureDate,
+        organization: { name: 'Test Org' },
+      });
+
+      await service.getInvitationByToken('some-raw-token');
+
+      const findCall = prisma.invitation.findUnique.mock.calls[0][0];
+      expect(findCall.where.tokenHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(findCall.where.tokenHash).not.toBe('some-raw-token');
     });
   });
 

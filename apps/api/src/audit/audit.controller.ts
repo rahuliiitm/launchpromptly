@@ -27,7 +27,8 @@ export class AuditController {
     @Req() req: Request,
   ) {
     const user = req.user as AuthUser;
-    const parsedDays = days ? parseInt(days, 10) : 30;
+    const raw = days ? parseInt(days, 10) : 30;
+    const parsedDays = Number.isFinite(raw) && raw >= 1 ? Math.min(raw, 365) : 30;
     return this.auditService.getSummary(projectId, user.userId, parsedDays);
   }
 

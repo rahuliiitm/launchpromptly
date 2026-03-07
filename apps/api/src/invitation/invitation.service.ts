@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -29,6 +29,10 @@ export interface TeamMember {
 @Injectable()
 export class InvitationService {
   private readonly appUrl: string;
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -61,12 +65,13 @@ export class InvitationService {
     }
 
     const token = randomBytes(32).toString('hex');
+    const tokenHash = this.hashToken(token);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     const invitation = await this.prisma.invitation.upsert({
       where: { organizationId_email: { organizationId, email } },
-      create: { organizationId, email, role, token, invitedById, expiresAt },
-      update: { role, token, invitedById, expiresAt, acceptedAt: null },
+      create: { organizationId, email, role, tokenHash, invitedById, expiresAt },
+      update: { role, tokenHash, invitedById, expiresAt, acceptedAt: null },
     });
 
     const inviteUrl = `${this.appUrl}/invite/${token}`;
@@ -115,8 +120,9 @@ export class InvitationService {
   }
 
   async getInvitationByToken(token: string): Promise<{ email: string; orgName: string; expired: boolean }> {
+    const tokenHash = this.hashToken(token);
     const invitation = await this.prisma.invitation.findUnique({
-      where: { token },
+      where: { tokenHash },
       include: { organization: true },
     });
     if (!invitation) {
@@ -130,8 +136,9 @@ export class InvitationService {
   }
 
   async acceptInvitation(token: string, password: string) {
+    const tokenHash = this.hashToken(token);
     const invitation = await this.prisma.invitation.findUnique({
-      where: { token },
+      where: { tokenHash },
       include: { organization: { include: { projects: { take: 1 } } } },
     });
 

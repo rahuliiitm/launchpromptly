@@ -167,20 +167,20 @@ describe('AuthService', () => {
       expect(bcrypt.compare).toHaveBeenCalledWith('password123', '$2b$10$hashedpassword');
     });
 
-    it('should throw NotFoundException for unknown email', async () => {
+    it('should throw UnauthorizedException for unknown email', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
       await expect(
         service.login('unknown@example.com', 'password123'),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should throw BadRequestException for user without password', async () => {
+    it('should throw UnauthorizedException for user without password', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUserNoPassword);
 
       await expect(
         service.login('test@example.com', 'password123'),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException for wrong password', async () => {
@@ -190,6 +190,17 @@ describe('AuthService', () => {
       await expect(
         service.login('test@example.com', 'wrongpassword'),
       ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should default to member role when user role is missing', async () => {
+      const userWithoutRole = { ...mockUser, role: undefined };
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(userWithoutRole);
+
+      await service.login('test@example.com', 'password123');
+
+      expect(jwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ role: 'member' }),
+      );
     });
   });
 

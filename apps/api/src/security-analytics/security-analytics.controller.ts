@@ -13,7 +13,8 @@ export class SecurityAnalyticsController {
 
   private parseDays(days?: string): number {
     const parsed = days ? parseInt(days, 10) : 30;
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+    if (!Number.isFinite(parsed) || parsed < 1) return 30;
+    return Math.min(parsed, 365);
   }
 
   @Get(':projectId/security/overview')

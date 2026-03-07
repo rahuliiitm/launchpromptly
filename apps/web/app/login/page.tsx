@@ -8,6 +8,12 @@ import { PageLoader, Spinner } from '@/components/spinner';
 
 type Tab = 'signin' | 'signup';
 
+function sanitizeRedirect(raw: string | null): string {
+  if (!raw) return '/';
+  if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
+  return '/';
+}
+
 export default function LoginPage() {
   return (
     <Suspense fallback={<PageLoader />}>
@@ -20,7 +26,7 @@ function LoginForm() {
   const { isAuthenticated, isLoading, login, register } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') ?? '/';
+  const redirect = sanitizeRedirect(searchParams.get('redirect'));
 
   const [tab, setTab] = useState<Tab>('signin');
   const [email, setEmail] = useState('');

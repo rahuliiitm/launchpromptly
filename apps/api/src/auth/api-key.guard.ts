@@ -8,6 +8,10 @@ import type { Request } from 'express';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 
+// Pre-computed bcrypt hash used for constant-time rejection when no API key
+// matches the supplied prefix — prevents timing-based prefix enumeration.
+const DUMMY_HASH = '$2b$10$K4G0IFSZ.m7chQ1LphMU0OriseDnOY32qi.X7HFXE5pJtHv5Fjqy6';
+
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
   constructor(private readonly prisma: PrismaService) {}
@@ -31,6 +35,7 @@ export class ApiKeyGuard implements CanActivate {
     });
 
     if (!apiKey) {
+      await bcrypt.compare(rawKey, DUMMY_HASH);
       throw new UnauthorizedException(
         'Invalid or revoked API key. Check that you are using a valid key from Settings → API Keys.',
       );

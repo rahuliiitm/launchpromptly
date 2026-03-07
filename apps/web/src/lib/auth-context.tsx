@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: profile.id,
           email: profile.email,
           plan: profile.plan,
-          role: profile.role ?? 'admin',
+          role: profile.role ?? 'member',
           projectId: profile.projectId,
         });
         if (profile.projectId) saveProjectId(profile.projectId);
@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       saveAuth(res.accessToken, res.userId);
       savePlan(res.plan);
-      saveRole(res.role ?? 'admin');
+      saveRole(res.role ?? 'member');
 
       // Fetch profile to get projectId
       const profile = await apiFetch<{
@@ -112,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: profile.id,
         email: profile.email,
         plan: profile.plan,
-        role: profile.role ?? 'admin',
+        role: profile.role ?? 'member',
         projectId: profile.projectId,
       });
     },
@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       saveAuth(res.accessToken, res.userId);
       savePlan(res.plan);
-      saveRole(res.role ?? 'admin');
+      saveRole(res.role ?? 'member');
 
       // Fetch profile to get projectId
       const profile = await apiFetch<{
@@ -152,7 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: profile.id,
         email: profile.email,
         plan: profile.plan,
-        role: profile.role ?? 'admin',
+        role: profile.role ?? 'member',
         projectId: profile.projectId,
       });
     },
