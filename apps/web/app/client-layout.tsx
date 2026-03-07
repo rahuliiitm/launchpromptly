@@ -11,8 +11,11 @@ const PUBLIC_LINKS: Array<{ href: string; label: string }> = [
 ];
 
 const AUTH_LINKS = [
-  { href: '/admin/security', label: 'Security', adminOnly: false },
+  { href: '/admin/security/policies', label: 'Policies', adminOnly: false },
+  { href: '/admin/security/alerts', label: 'Alerts', adminOnly: false },
+  { href: '/admin/security/audit', label: 'Audit', adminOnly: false },
   { href: '/admin/sdk', label: 'SDK Setup', adminOnly: false },
+  { href: '/docs', label: 'Docs', adminOnly: false },
   { href: '/admin/api-keys', label: 'API Keys', adminOnly: true },
 ];
 
