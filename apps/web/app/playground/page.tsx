@@ -18,6 +18,7 @@ import {
   type UnicodeFinding,
   type SecretFinding,
 } from '@/lib/guardrail-scanner';
+import { ResultCard, ActionBadge, HighlightedText, SecuritySummaryBanner } from '@/components/security-viz';
 
 const EXAMPLES = [
   {
@@ -201,32 +202,7 @@ export default function PlaygroundPage() {
               </div>
             ) : (
               <>
-                {/* Summary banner */}
-                <div className={`rounded-lg border p-4 ${
-                  totalFindings === 0
-                    ? 'border-green-200 bg-green-50'
-                    : 'border-red-200 bg-red-50'
-                }`}>
-                  <div className="flex items-center gap-2">
-                    {totalFindings === 0 ? (
-                      <>
-                        <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-sm font-medium text-green-800">All clear - no issues detected</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                        </svg>
-                        <span className="text-sm font-medium text-red-800">
-                          {totalFindings} {totalFindings === 1 ? 'issue' : 'issues'} detected
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
+                <SecuritySummaryBanner count={totalFindings} />
 
                 {/* PII Results */}
                 {piiResults !== null && (
@@ -591,85 +567,3 @@ function ToggleButton({
   );
 }
 
-function ResultCard({
-  title,
-  count,
-  color,
-  icon,
-  children,
-}: {
-  title: string;
-  count: number;
-  color: 'blue' | 'orange' | 'red' | 'purple' | 'teal' | 'pink';
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  const colorMap = {
-    blue: { badge: 'bg-blue-100 text-blue-700', icon: 'text-blue-600' },
-    orange: { badge: 'bg-orange-100 text-orange-700', icon: 'text-orange-600' },
-    red: { badge: 'bg-red-100 text-red-700', icon: 'text-red-600' },
-    purple: { badge: 'bg-purple-100 text-purple-700', icon: 'text-purple-600' },
-    teal: { badge: 'bg-teal-100 text-teal-700', icon: 'text-teal-600' },
-    pink: { badge: 'bg-pink-100 text-pink-700', icon: 'text-pink-600' },
-  };
-
-  return (
-    <div className="rounded-lg border bg-white p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className={colorMap[color].icon}>{icon}</span>
-          <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        </div>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-          count > 0 ? colorMap[color].badge : 'bg-green-100 text-green-700'
-        }`}>
-          {count > 0 ? `${count} found` : 'Clear'}
-        </span>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function ActionBadge({ action }: { action: 'allow' | 'warn' | 'block' }) {
-  const styles = {
-    allow: 'bg-green-100 text-green-700',
-    warn: 'bg-yellow-100 text-yellow-700',
-    block: 'bg-red-100 text-red-700',
-  };
-
-  return (
-    <span className={`rounded px-2 py-0.5 text-xs font-medium uppercase ${styles[action]}`}>
-      {action}
-    </span>
-  );
-}
-
-function HighlightedText({ text, detections }: { text: string; detections: PIIDetection[] }) {
-  if (detections.length === 0) return <span className="text-sm text-gray-700">{text}</span>;
-
-  const parts: React.ReactNode[] = [];
-  let lastIndex = 0;
-
-  for (const d of detections) {
-    if (d.start > lastIndex) {
-      parts.push(<span key={`text-${lastIndex}`} className="text-gray-700">{text.slice(lastIndex, d.start)}</span>);
-    }
-    parts.push(
-      <span
-        key={`pii-${d.start}`}
-        className="rounded bg-red-200 px-0.5 text-red-900"
-        title={`${piiTypeLabel(d.type)} (${Math.round(d.confidence * 100)}%)`}
-      >
-        {text.slice(d.start, d.end)}
-      </span>,
-    );
-    lastIndex = d.end;
-  }
-
-  if (lastIndex < text.length) {
-    parts.push(<span key={`text-${lastIndex}`} className="text-gray-700">{text.slice(lastIndex)}</span>);
-  }
-
-  return <p className="text-sm leading-relaxed">{parts}</p>;
-}

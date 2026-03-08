@@ -5,9 +5,10 @@ import { ApiKeyGuard } from '../auth/api-key.guard';
 import { AuditModule } from '../audit/audit.module';
 import { AlertModule } from '../alert/alert.module';
 import { BillingModule } from '../billing/billing.module';
+import { ProjectModule } from '../project/project.module';
 
 @Module({
-  imports: [AuditModule, AlertModule, BillingModule],
+  imports: [AuditModule, AlertModule, BillingModule, ProjectModule],
   controllers: [EventsController],
   providers: [EventsService, ApiKeyGuard],
 })

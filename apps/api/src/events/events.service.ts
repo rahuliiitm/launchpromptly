@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -6,6 +6,7 @@ import { CryptoService } from '../crypto/crypto.service';
 import { AuditService } from '../audit/audit.service';
 import { AlertService } from '../alert/alert.service';
 import { UsageService } from '../billing/usage.service';
+import { ProjectService } from '../project/project.service';
 import type { IngestBatchDto, IngestEventDto } from './dto/ingest-batch.dto';
 
 interface IngestResult {
@@ -20,6 +21,7 @@ export class EventsService {
     private readonly audit: AuditService,
     private readonly alertService: AlertService,
     private readonly usageService: UsageService,
+    private readonly projectService: ProjectService,
   ) {}
 
   async ingestBatch(projectId: string, dto: IngestBatchDto, environmentId?: string): Promise<IngestResult> {
@@ -32,17 +34,74 @@ export class EventsService {
       );
     }
 
-    const records = dto.events.map((e) => this.buildEventRecord(projectId, e, environmentId));
+    const records = dto.events.map((e) => ({
+      id: randomUUID(),
+      ...this.buildEventRecord(projectId, e, environmentId),
+    }));
 
     await this.prisma.lLMEvent.createMany({ data: records });
 
     // Fire-and-forget audit logging — don't block the response
-    void this.writeAuditLogs(projectId, dto.events);
+    void this.writeAuditLogs(projectId, dto.events, records.map((r) => r.id));
 
     // Fire-and-forget alert evaluation — must never affect ingestion
     void this.evaluateAlertsForBatch(projectId, dto.events);
 
     return { accepted: dto.events.length };
+  }
+
+  async getEventDetail(projectId: string, eventId: string, userId: string) {
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const event = await this.prisma.lLMEvent.findFirst({
+      where: { id: eventId, projectId },
+    });
+
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
+    // Decrypt sensitive fields
+    let promptText: string | null = null;
+    let responseText: string | null = null;
+
+    if (event.encPromptPreview && event.encIv && event.encAuthTag) {
+      try {
+        const decrypted = this.crypto.decrypt(event.encPromptPreview, event.encIv, event.encAuthTag);
+        const parsed = JSON.parse(decrypted);
+        promptText = parsed.promptPreview ?? null;
+        responseText = parsed.responseText ?? null;
+      } catch {
+        // Decryption may fail for corrupted data
+      }
+    }
+
+    return {
+      id: event.id,
+      projectId: event.projectId,
+      provider: event.provider,
+      model: event.model,
+      inputTokens: event.inputTokens,
+      outputTokens: event.outputTokens,
+      totalTokens: event.totalTokens,
+      costUsd: event.costUsd,
+      latencyMs: event.latencyMs,
+      customerId: event.customerId,
+      feature: event.feature,
+      statusCode: event.statusCode,
+      traceId: event.traceId,
+      createdAt: event.createdAt,
+      // Security fields
+      piiDetectionCount: event.piiDetectionCount,
+      piiTypes: event.piiTypes,
+      injectionRiskScore: event.injectionRiskScore,
+      injectionAction: event.injectionAction,
+      redactionApplied: event.redactionApplied,
+      securityMetadata: event.securityMetadata,
+      // Decrypted text
+      promptText,
+      responseText,
+    };
   }
 
   private buildEventRecord(projectId: string, e: IngestEventDto, environmentId?: string) {
@@ -109,11 +168,12 @@ export class EventsService {
     };
   }
 
-  private async writeAuditLogs(projectId: string, events: IngestEventDto[]): Promise<void> {
+  private async writeAuditLogs(projectId: string, events: IngestEventDto[], eventIds: string[]): Promise<void> {
     try {
       const entries: Array<Parameters<AuditService['log']>[0]> = [];
 
-      for (const e of events) {
+      for (let i = 0; i < events.length; i++) {
+        const e = events[i];
         if (e.piiDetections && (e.piiDetections.inputCount > 0 || e.piiDetections.outputCount > 0)) {
           const totalPii = e.piiDetections.inputCount + e.piiDetections.outputCount;
           entries.push({
@@ -127,6 +187,7 @@ export class EventsService {
               redactionApplied: e.piiDetections.redactionApplied,
               detectorUsed: e.piiDetections.detectorUsed,
             },
+            eventId: eventIds[i],
             customerId: e.customerId,
           });
         }
@@ -142,6 +203,7 @@ export class EventsService {
                 triggered: e.injectionRisk.triggered,
                 detectorUsed: e.injectionRisk.detectorUsed,
               },
+              eventId: eventIds[i],
               customerId: e.customerId,
             });
           } else if (e.injectionRisk.action === 'warn') {
@@ -153,6 +215,7 @@ export class EventsService {
                 score: e.injectionRisk.score,
                 triggered: e.injectionRisk.triggered,
               },
+              eventId: eventIds[i],
               customerId: e.customerId,
             });
           }
@@ -170,6 +233,7 @@ export class EventsService {
               eventType: 'content_violation',
               severity: hasBlocking ? 'critical' : 'warning',
               details: { violations: allViolations },
+              eventId: eventIds[i],
               customerId: e.customerId,
             });
           }
@@ -185,6 +249,7 @@ export class EventsService {
               budgetRemaining: e.costGuard.budgetRemaining,
               limitTriggered: e.costGuard.limitTriggered,
             },
+            eventId: eventIds[i],
             customerId: e.customerId,
           });
         }

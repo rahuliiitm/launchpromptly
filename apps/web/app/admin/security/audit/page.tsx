@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/api';
 import { getToken, getProjectId } from '@/lib/auth';
 import { PageLoader } from '@/components/spinner';
+import { ResultCard, SecuritySummaryBanner, InjectionGauge, PIIDetailTable, ContentViolationTable } from '@/components/security-viz';
 
 interface AuditLog {
   id: string;
@@ -104,6 +105,8 @@ export default function AuditLogsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [selectedEventDetail, setSelectedEventDetail] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const fetchData = useCallback(() => {
     const token = getToken();
@@ -142,6 +145,24 @@ export default function AuditLogsPage() {
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, [eventType, severity, days, page]);
+
+  async function fetchEventDetail(eventId: string) {
+    const token = getToken();
+    const projectId = getProjectId();
+    if (!token || !projectId) return;
+    setDetailLoading(true);
+    try {
+      const data = await apiFetch<any>(
+        `/v1/events/${projectId}/${eventId}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setSelectedEventDetail(data);
+    } catch {
+      setSelectedEventDetail(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
 
   useEffect(() => {
     fetchData();
@@ -303,20 +324,31 @@ export default function AuditLogsPage() {
                     {log.customerId ?? '--'}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() =>
-                        setExpandedLogId(
-                          expandedLogId === log.id ? null : log.id,
-                        )
-                      }
-                      className="text-xs text-blue-600 hover:text-blue-800"
-                    >
-                      {expandedLogId === log.id ? 'Hide' : 'View'}
-                    </button>
-                    {expandedLogId === log.id && (
-                      <pre className="mt-2 max-h-48 overflow-auto rounded bg-gray-50 p-2 text-xs text-gray-700">
-                        {JSON.stringify(log.details, null, 2)}
-                      </pre>
+                    {log.eventId ? (
+                      <button
+                        onClick={() => fetchEventDetail(log.eventId!)}
+                        className="text-xs text-blue-600 hover:text-blue-800"
+                      >
+                        View
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() =>
+                            setExpandedLogId(
+                              expandedLogId === log.id ? null : log.id,
+                            )
+                          }
+                          className="text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          {expandedLogId === log.id ? 'Hide' : 'View'}
+                        </button>
+                        {expandedLogId === log.id && (
+                          <pre className="mt-2 max-h-48 overflow-auto rounded bg-gray-50 p-2 text-xs text-gray-700">
+                            {JSON.stringify(log.details, null, 2)}
+                          </pre>
+                        )}
+                      </>
                     )}
                   </td>
                 </tr>
@@ -352,6 +384,147 @@ export default function AuditLogsPage() {
             >
               Next
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Loading spinner for event detail */}
+      {detailLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="rounded-xl bg-white p-8">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600" />
+          </div>
+        </div>
+      )}
+
+      {/* Event detail modal */}
+      {selectedEventDetail && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16">
+          <div className="w-full max-w-3xl rounded-xl bg-white p-6 shadow-2xl">
+            {/* Close button */}
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-gray-900">Event Detail</h2>
+              <button onClick={() => setSelectedEventDetail(null)} className="rounded-lg p-1 hover:bg-gray-100">
+                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Event metadata bar */}
+            <div className="mb-6 grid grid-cols-2 gap-3 rounded-lg bg-gray-50 p-4 text-sm sm:grid-cols-4">
+              <div><span className="text-gray-500">Model</span><p className="font-medium text-gray-900">{selectedEventDetail.model}</p></div>
+              <div><span className="text-gray-500">Latency</span><p className="font-medium text-gray-900">{selectedEventDetail.latencyMs}ms</p></div>
+              <div><span className="text-gray-500">Cost</span><p className="font-medium text-gray-900">${selectedEventDetail.costUsd?.toFixed(4)}</p></div>
+              <div><span className="text-gray-500">Time</span><p className="font-medium text-gray-900">{new Date(selectedEventDetail.createdAt).toLocaleString()}</p></div>
+            </div>
+
+            {/* Security summary */}
+            {(() => {
+              const sm = selectedEventDetail.securityMetadata as any;
+              const piiData = sm?.piiDetections;
+              const injData = sm?.injectionRisk;
+              const contentData = sm?.contentViolations;
+              const inputDetails = piiData?.inputDetails ?? [];
+              const outputDetails = piiData?.outputDetails ?? [];
+              const inputViolations = contentData?.inputViolations ?? [];
+              const outputViolations = contentData?.outputViolations ?? [];
+              const allViolations = [...inputViolations, ...outputViolations];
+              const totalFindings = (inputDetails.length + outputDetails.length) + (injData && injData.score > 0 ? 1 : 0) + allViolations.length;
+
+              return (
+                <div className="space-y-4">
+                  <SecuritySummaryBanner count={totalFindings} />
+
+                  {/* PII Section */}
+                  {(selectedEventDetail.piiDetectionCount ?? 0) > 0 && (
+                    <ResultCard
+                      title="PII Detection"
+                      count={selectedEventDetail.piiDetectionCount ?? 0}
+                      color="blue"
+                      icon={
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+                      }
+                    >
+                      {inputDetails.length > 0 || outputDetails.length > 0 ? (
+                        <>
+                          {selectedEventDetail.promptText && inputDetails.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-xs font-medium text-gray-500 mb-1">Input</p>
+                              <PIIDetailTable detections={inputDetails} text={selectedEventDetail.promptText} />
+                            </div>
+                          )}
+                          {selectedEventDetail.responseText && outputDetails.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 mb-1">Output</p>
+                              <PIIDetailTable detections={outputDetails} text={selectedEventDetail.responseText} />
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-sm text-gray-500">
+                          <p>{selectedEventDetail.piiDetectionCount} PII detection(s) found</p>
+                          <p className="text-xs text-gray-400 mt-1">Types: {(selectedEventDetail.piiTypes ?? []).join(', ')}</p>
+                          <p className="text-xs text-gray-400">Detail not available for events before this version</p>
+                        </div>
+                      )}
+                    </ResultCard>
+                  )}
+
+                  {/* Injection Section */}
+                  {injData && (
+                    <ResultCard
+                      title="Injection Detection"
+                      count={injData.triggered?.length ?? 0}
+                      color="orange"
+                      icon={
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                        </svg>
+                      }
+                    >
+                      <InjectionGauge score={injData.score} action={injData.action} triggered={injData.triggered ?? []} />
+                    </ResultCard>
+                  )}
+
+                  {/* Content Section */}
+                  {allViolations.length > 0 && (
+                    <ResultCard
+                      title="Content Filter"
+                      count={allViolations.length}
+                      color="red"
+                      icon={
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l1.664 1.664M21 21l-1.5-1.5m-5.533-1.8a3.75 3.75 0 01-5.3-5.3m14.336-1.4A9 9 0 013.997 7.997M12 12L3 21m9-9l9-9" />
+                        </svg>
+                      }
+                    >
+                      <ContentViolationTable violations={allViolations} />
+                    </ResultCard>
+                  )}
+
+                  {/* Prompt/Response text preview (if no security findings but text is available) */}
+                  {totalFindings === 0 && (selectedEventDetail.promptText || selectedEventDetail.responseText) && (
+                    <div className="rounded-lg border bg-white p-4">
+                      {selectedEventDetail.promptText && (
+                        <div className="mb-3">
+                          <p className="text-xs font-medium text-gray-500 mb-1">Input</p>
+                          <p className="text-sm text-gray-700 bg-gray-50 rounded p-3">{selectedEventDetail.promptText}</p>
+                        </div>
+                      )}
+                      {selectedEventDetail.responseText && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 mb-1">Output</p>
+                          <p className="text-sm text-gray-700 bg-gray-50 rounded p-3">{selectedEventDetail.responseText}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

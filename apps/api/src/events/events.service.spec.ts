@@ -4,6 +4,7 @@ import { CryptoService } from '../crypto/crypto.service';
 import { AuditService } from '../audit/audit.service';
 import { AlertService } from '../alert/alert.service';
 import { UsageService } from '../billing/usage.service';
+import { ProjectService } from '../project/project.service';
 
 describe('EventsService', () => {
   let service: EventsService;
@@ -12,6 +13,7 @@ describe('EventsService', () => {
   let audit: AuditService;
   let alertService: AlertService;
   let usageService: UsageService;
+  let projectService: ProjectService;
 
   beforeEach(() => {
     prisma = {
@@ -40,7 +42,11 @@ describe('EventsService', () => {
       checkQuota: jest.fn().mockResolvedValue({ allowed: true, remaining: 999, limit: 1000 }),
     } as unknown as UsageService;
 
-    service = new EventsService(prisma, crypto, audit, alertService, usageService);
+    projectService = {
+      assertProjectAccess: jest.fn().mockResolvedValue(undefined),
+    } as unknown as ProjectService;
+
+    service = new EventsService(prisma, crypto, audit, alertService, usageService, projectService);
   });
 
   const baseEvent = {
