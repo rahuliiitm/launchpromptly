@@ -15,6 +15,12 @@ import {
   MODEL_POLICY_NODE, MODEL_POLICY_PYTHON,
   SCHEMA_NODE, SCHEMA_PYTHON,
   STREAM_NODE, STREAM_PYTHON,
+  JAILBREAK_NODE, JAILBREAK_PYTHON,
+  UNICODE_NODE, UNICODE_PYTHON,
+  SECRET_NODE, SECRET_PYTHON,
+  TOPIC_GUARD_NODE, TOPIC_GUARD_PYTHON,
+  OUTPUT_SAFETY_NODE, OUTPUT_SAFETY_PYTHON,
+  PROMPT_LEAKAGE_NODE, PROMPT_LEAKAGE_PYTHON,
   PROVIDER_OPENAI_NODE, PROVIDER_OPENAI_PYTHON,
   PROVIDER_ANTHROPIC_NODE, PROVIDER_ANTHROPIC_PYTHON,
   PROVIDER_GEMINI_NODE, PROVIDER_GEMINI_PYTHON,
@@ -167,7 +173,7 @@ export function SDKReferenceContent({ isAdmin = false }: SDKReferenceContentProp
         <Section id="security" title="Security Configuration">
           <p>
             The <code className="rounded bg-gray-100 px-1 text-xs">security</code> option
-            in wrap options accepts eight sub-modules. Each can be enabled independently.
+            in wrap options accepts fourteen sub-modules. Each can be enabled independently.
             When multiple are active, they run in the pipeline order shown at the bottom of this page.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -179,6 +185,12 @@ export function SDKReferenceContent({ isAdmin = false }: SDKReferenceContentProp
               { id: 'model-policy', label: 'Model Policy' },
               { id: 'output-schema', label: 'Output Schema' },
               { id: 'stream-guard', label: 'Stream Guard' },
+              { id: 'jailbreak', label: 'Jailbreak Detection' },
+              { id: 'unicode-sanitizer', label: 'Unicode Sanitizer' },
+              { id: 'secret-detection', label: 'Secret Detection' },
+              { id: 'topic-guard', label: 'Topic Guard' },
+              { id: 'output-safety', label: 'Output Safety' },
+              { id: 'prompt-leakage', label: 'Prompt Leakage' },
               { id: 'audit', label: 'Audit' },
             ].map((m) => (
               <a
@@ -514,6 +526,260 @@ export function SDKReferenceContent({ isAdmin = false }: SDKReferenceContentProp
           <CodeTabs
             nodeCode={STREAM_NODE}
             pythonCode={STREAM_PYTHON}
+            activeTab={activeTab}
+            copiedCode={copiedCode}
+            onCopy={handleCopy}
+          />
+        </SubSection>
+
+        {/* ── Jailbreak Detection ────────────────────────────────────────── */}
+        <SubSection id="jailbreak" title="Jailbreak Detection">
+          <p>
+            Detects known jailbreak templates (DAN, STAN, DUDE, etc.), persona assignment attacks,
+            and hypothetical framing techniques. Uses a weighted scoring algorithm that combines
+            pattern matches across multiple categories into a single 0-1 risk score.
+          </p>
+          <OptionTable
+            options={[
+              { name: 'enabled', type: 'boolean', default: 'true', description: 'Toggle jailbreak detection on/off.' },
+              { name: activeTab === 'node' ? 'blockThreshold' : 'block_threshold', type: 'number', default: '0.7', description: 'Risk score at or above which the request is blocked.' },
+              { name: activeTab === 'node' ? 'warnThreshold' : 'warn_threshold', type: 'number', default: '0.3', description: 'Risk score at or above which a warning is issued.' },
+              { name: activeTab === 'node' ? 'blockOnDetection' : 'block_on_detection', type: 'boolean', default: 'false', description: 'Throw JailbreakError when score >= blockThreshold.' },
+              { name: activeTab === 'node' ? 'onDetect' : 'on_detect', type: 'callback', default: '\u2014', description: 'Called when jailbreak patterns are detected. Receives analysis object.' },
+            ]}
+          />
+
+          <h4 className="mt-6 text-sm font-semibold text-gray-800">Detection Categories</h4>
+          <div className="mt-2 overflow-x-auto rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">Category</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">Weight</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">Example Patterns</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y text-xs">
+                <tr><td className="px-3 py-2 font-mono">known_template</td><td className="px-3 py-2">0.45</td><td className="px-3 py-2">&quot;DAN mode&quot;, &quot;STAN&quot;, &quot;DUDE&quot;, &quot;AIM&quot;, &quot;Developer Mode&quot;</td></tr>
+                <tr><td className="px-3 py-2 font-mono">persona_assignment</td><td className="px-3 py-2">0.35</td><td className="px-3 py-2">&quot;you are now an unrestricted AI&quot;, &quot;pretend you have no limits&quot;</td></tr>
+                <tr><td className="px-3 py-2 font-mono">hypothetical_framing</td><td className="px-3 py-2">0.30</td><td className="px-3 py-2">&quot;in a fictional world where&quot;, &quot;imagine you could&quot;, &quot;for educational purposes&quot;</td></tr>
+                <tr><td className="px-3 py-2 font-mono">constraint_removal</td><td className="px-3 py-2">0.35</td><td className="px-3 py-2">&quot;ignore your safety guidelines&quot;, &quot;bypass your filters&quot;, &quot;disable content policy&quot;</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <CodeTabs
+            nodeCode={JAILBREAK_NODE}
+            pythonCode={JAILBREAK_PYTHON}
+            activeTab={activeTab}
+            copiedCode={copiedCode}
+            onCopy={handleCopy}
+          />
+        </SubSection>
+
+        {/* ── Unicode Sanitizer ──────────────────────────────────────────── */}
+        <SubSection id="unicode-sanitizer" title="Unicode Sanitizer">
+          <p>
+            Detects and neutralizes Unicode-based attacks that attempt to bypass text-based security checks.
+            Catches zero-width characters, bidirectional overrides, and homoglyph substitutions that can
+            hide malicious content from other guardrails.
+          </p>
+          <OptionTable
+            options={[
+              { name: 'enabled', type: 'boolean', default: 'true', description: 'Toggle Unicode sanitization on/off.' },
+              { name: 'action', type: 'string', default: '"strip"', description: '"strip" removes dangerous characters. "warn" flags them. "block" rejects the request.' },
+              { name: activeTab === 'node' ? 'detectHomoglyphs' : 'detect_homoglyphs', type: 'boolean', default: 'true', description: 'Detect visually similar characters from different scripts (e.g., Cyrillic "a" vs Latin "a").' },
+              { name: activeTab === 'node' ? 'onDetect' : 'on_detect', type: 'callback', default: '\u2014', description: 'Called when Unicode issues are found. Receives result with issues array.' },
+            ]}
+          />
+
+          <h4 className="mt-6 text-sm font-semibold text-gray-800">Detected Unicode Threats</h4>
+          <div className="mt-2 overflow-x-auto rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">Threat</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">Description</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y text-xs">
+                <tr><td className="px-3 py-2 font-mono">zero_width</td><td className="px-3 py-2">Zero-width spaces, joiners, and non-joiners that split words to evade pattern matching</td></tr>
+                <tr><td className="px-3 py-2 font-mono">bidi_override</td><td className="px-3 py-2">Bidirectional text overrides that reverse text rendering direction</td></tr>
+                <tr><td className="px-3 py-2 font-mono">homoglyph</td><td className="px-3 py-2">Characters from other scripts that look identical to Latin characters</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <InfoBox variant="info" title="Run before other guardrails">
+            <p>
+              The Unicode sanitizer runs early in the pipeline so that downstream checks
+              (injection detection, PII scanning) operate on clean text. Without it, attackers
+              can insert zero-width characters to split patterns like &quot;ig&#8203;nore prev&#8203;ious instructions&quot;.
+            </p>
+          </InfoBox>
+
+          <CodeTabs
+            nodeCode={UNICODE_NODE}
+            pythonCode={UNICODE_PYTHON}
+            activeTab={activeTab}
+            copiedCode={copiedCode}
+            onCopy={handleCopy}
+          />
+        </SubSection>
+
+        {/* ── Secret Detection ───────────────────────────────────────────── */}
+        <SubSection id="secret-detection" title="Secret Detection">
+          <p>
+            Prevents API keys, tokens, passwords, and other secrets from being sent to or leaked
+            by LLM providers. Includes 12 built-in patterns covering major cloud providers and
+            services, plus support for custom patterns.
+          </p>
+          <OptionTable
+            options={[
+              { name: 'enabled', type: 'boolean', default: 'true', description: 'Toggle secret detection on/off.' },
+              { name: activeTab === 'node' ? 'builtInPatterns' : 'built_in_patterns', type: 'boolean', default: 'true', description: 'Use the 12 built-in patterns for common secret types.' },
+              { name: activeTab === 'node' ? 'scanResponse' : 'scan_response', type: 'boolean', default: 'false', description: 'Also scan LLM output for leaked secrets.' },
+              { name: 'action', type: 'string', default: '"redact"', description: '"redact" replaces secrets with [SECRET_TYPE]. "block" rejects the request. "warn" flags only.' },
+              { name: activeTab === 'node' ? 'customPatterns' : 'custom_patterns', type: 'CustomSecretPattern[]', default: '\u2014', description: 'Additional regex patterns with name identifier.' },
+              { name: activeTab === 'node' ? 'onDetect' : 'on_detect', type: 'callback', default: '\u2014', description: 'Called when secrets are found. Receives array of secret detections.' },
+            ]}
+          />
+
+          <h4 className="mt-6 text-sm font-semibold text-gray-800">Built-in Patterns</h4>
+          <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-3">
+            {[
+              'AWS Access Key', 'AWS Secret Key', 'GitHub PAT',
+              'GitHub OAuth', 'JWT Token', 'Stripe Key',
+              'Slack Token', 'OpenAI Key', 'Google API Key',
+              'Private Key', 'Connection String', 'High-Entropy String',
+            ].map((p) => (
+              <code key={p} className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700">{p}</code>
+            ))}
+          </div>
+
+          <CodeTabs
+            nodeCode={SECRET_NODE}
+            pythonCode={SECRET_PYTHON}
+            activeTab={activeTab}
+            copiedCode={copiedCode}
+            onCopy={handleCopy}
+          />
+        </SubSection>
+
+        {/* ── Topic Guard ────────────────────────────────────────────────── */}
+        <SubSection id="topic-guard" title="Topic Guard">
+          <p>
+            Constrains conversations to allowed topics and blocks off-topic or sensitive subjects.
+            Define allowed and blocked topic lists with keyword matching and configurable thresholds.
+            Useful for customer-facing bots that should stay on-topic.
+          </p>
+          <OptionTable
+            options={[
+              { name: 'enabled', type: 'boolean', default: 'true', description: 'Toggle topic guard on/off.' },
+              { name: activeTab === 'node' ? 'allowedTopics' : 'allowed_topics', type: 'TopicRule[]', default: '\u2014', description: 'Whitelist of topics. Each has name, keywords[], and threshold.' },
+              { name: activeTab === 'node' ? 'blockedTopics' : 'blocked_topics', type: 'TopicRule[]', default: '\u2014', description: 'Blacklist of topics. If matched, request is blocked/warned.' },
+              { name: 'action', type: 'string', default: '"block"', description: '"block" rejects off-topic requests. "warn" flags them. "redirect" returns a canned response.' },
+              { name: activeTab === 'node' ? 'onViolation' : 'on_violation', type: 'callback', default: '\u2014', description: 'Called on topic violation. Receives TopicViolation with topic name and direction.' },
+            ]}
+          />
+
+          <h4 className="mt-6 text-sm font-semibold text-gray-800">TopicRule Structure</h4>
+          <OptionTable
+            options={[
+              { name: 'name', type: 'string', default: '\u2014', description: 'Human-readable topic name (e.g., "customer_support", "politics").' },
+              { name: 'keywords', type: 'string[]', default: '\u2014', description: 'Keywords that indicate this topic. Matched case-insensitively.' },
+              { name: 'threshold', type: 'number', default: '0.3', description: 'Minimum keyword density ratio to trigger the topic match.' },
+            ]}
+          />
+
+          <InfoBox variant="tip" title="Allowed vs Blocked">
+            <p>
+              If <code className="rounded bg-gray-100 px-1 text-xs">allowedTopics</code> is set, requests that do not match any
+              allowed topic are rejected. If only <code className="rounded bg-gray-100 px-1 text-xs">blockedTopics</code> is set,
+              all topics are allowed except those explicitly blocked.
+            </p>
+          </InfoBox>
+
+          <CodeTabs
+            nodeCode={TOPIC_GUARD_NODE}
+            pythonCode={TOPIC_GUARD_PYTHON}
+            activeTab={activeTab}
+            copiedCode={copiedCode}
+            onCopy={handleCopy}
+          />
+        </SubSection>
+
+        {/* ── Output Safety ──────────────────────────────────────────────── */}
+        <SubSection id="output-safety" title="Output Safety">
+          <p>
+            Scans LLM responses for unsafe or policy-violating content before it reaches your users.
+            Goes beyond the input content filter by checking for output-specific risks like
+            harmful instructions, bias, hallucination indicators, and unqualified professional advice.
+          </p>
+          <OptionTable
+            options={[
+              { name: 'enabled', type: 'boolean', default: 'true', description: 'Toggle output safety scanning on/off.' },
+              { name: 'categories', type: 'string[]', default: 'all 5', description: 'Which output safety categories to check. See table below.' },
+              { name: 'action', type: 'string', default: '"flag"', description: '"block" throws OutputSafetyError. "warn" fires callback. "flag" adds to event report.' },
+              { name: activeTab === 'node' ? 'onViolation' : 'on_violation', type: 'callback', default: '\u2014', description: 'Called on output safety violation. Receives OutputSafetyViolation.' },
+            ]}
+          />
+
+          <h4 className="mt-6 text-sm font-semibold text-gray-800">Output Safety Categories</h4>
+          <div className="mt-2 overflow-x-auto rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">Category</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">Detects</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y text-xs">
+                <tr><td className="px-3 py-2 font-mono">harmful_instructions</td><td className="px-3 py-2">Step-by-step guides for dangerous or illegal activities</td></tr>
+                <tr><td className="px-3 py-2 font-mono">bias</td><td className="px-3 py-2">Stereotyping, prejudiced generalizations, discriminatory content</td></tr>
+                <tr><td className="px-3 py-2 font-mono">hallucination_risk</td><td className="px-3 py-2">Fabricated citations, invented statistics, false authority claims</td></tr>
+                <tr><td className="px-3 py-2 font-mono">personal_opinions</td><td className="px-3 py-2">Model expressing personal beliefs or preferences inappropriately</td></tr>
+                <tr><td className="px-3 py-2 font-mono">medical_legal_financial</td><td className="px-3 py-2">Unqualified advice in regulated domains without appropriate disclaimers</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <CodeTabs
+            nodeCode={OUTPUT_SAFETY_NODE}
+            pythonCode={OUTPUT_SAFETY_PYTHON}
+            activeTab={activeTab}
+            copiedCode={copiedCode}
+            onCopy={handleCopy}
+          />
+        </SubSection>
+
+        {/* ── Prompt Leakage ─────────────────────────────────────────────── */}
+        <SubSection id="prompt-leakage" title="Prompt Leakage Detection">
+          <p>
+            Detects when an LLM response contains fragments of your system prompt, preventing
+            accidental disclosure of proprietary instructions. Compares response text against
+            the system prompt using n-gram similarity scoring.
+          </p>
+          <OptionTable
+            options={[
+              { name: activeTab === 'node' ? 'systemPrompt' : 'system_prompt', type: 'string', default: '\u2014', description: 'The system prompt to protect. Response text is compared against this.' },
+              { name: 'threshold', type: 'number', default: '0.6', description: 'Similarity score (0-1) above which leakage is detected.' },
+              { name: activeTab === 'node' ? 'blockOnLeak' : 'block_on_leak', type: 'boolean', default: 'false', description: 'Throw PromptLeakageError when leakage is detected.' },
+              { name: activeTab === 'node' ? 'onDetect' : 'on_detect', type: 'callback', default: '\u2014', description: 'Called when leakage is detected. Receives similarity score and matched fragment.' },
+            ]}
+          />
+
+          <InfoBox variant="warning" title="Provide your system prompt">
+            <p>
+              This guard requires your system prompt text to compare against. Without it, leakage
+              detection cannot run. The prompt is never sent to external services &mdash; comparison
+              happens entirely within the SDK.
+            </p>
+          </InfoBox>
+
+          <CodeTabs
+            nodeCode={PROMPT_LEAKAGE_NODE}
+            pythonCode={PROMPT_LEAKAGE_PYTHON}
             activeTab={activeTab}
             copiedCode={copiedCode}
             onCopy={handleCopy}

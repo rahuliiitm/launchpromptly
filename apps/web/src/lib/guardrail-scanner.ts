@@ -339,6 +339,237 @@ export function scanContent(text: string): ContentViolation[] {
   return violations;
 }
 
+// ── Jailbreak Detection ─────────────────────────────────────────────────────
+
+export interface JailbreakResult {
+  score: number;
+  triggered: string[];
+  action: 'allow' | 'warn' | 'block';
+}
+
+interface JailbreakRule {
+  category: string;
+  patterns: RegExp[];
+  weight: number;
+}
+
+const JAILBREAK_RULES: JailbreakRule[] = [
+  {
+    category: 'known_template',
+    patterns: [
+      /\bDAN\b.*(?:mode|prompt|jailbreak)/i,
+      /\bDo\s+Anything\s+Now\b/i,
+      /\bSTAN\b.*(?:mode|prompt)/i,
+      /\bDUDE\b.*(?:mode|prompt)/i,
+      /\bAIM\b.*(?:always\s+intelligent|machiavelli)/i,
+      /\bDeveloper\s+Mode\b/i,
+      /\bJailbreak(?:ed)?\s+(?:mode|prompt)\b/i,
+      /\bEvil\s+(?:Confidant|Bot|Assistant)\b/i,
+      /\bBetterDAN\b/i,
+      /\bMaximum\b.*\bVirtual\s+Machine\b/i,
+      /\bDAN\b/,
+      /\bjailbreak(?:ed|ing)?\b/i,
+      /\bunfiltered\s+mode\b/i,
+    ],
+    weight: 0.45,
+  },
+  {
+    category: 'persona_assignment',
+    patterns: [
+      /you\s+(?:are|will\s+be)\s+(?:now\s+)?(?:an?\s+)?(?:unrestricted|unfiltered|uncensored|unlimited)/i,
+      /(?:act|behave)\s+(?:as|like)\s+(?:an?\s+)?(?:evil|unrestricted|unfiltered)/i,
+      /pretend\s+(?:you\s+(?:have|are)\s+)?no\s+(?:restrictions|rules|guidelines|filters)/i,
+      /you\s+(?:can|should|must|will)\s+(?:now\s+)?(?:say|do|generate)\s+anything/i,
+      /(?:enable|activate|switch\s+to|enter)\s+(?:unrestricted|unfiltered|uncensored|unlimited|god)\s+mode/i,
+      /(?:all|your)\s+(?:restrictions|safety\s+(?:measures|features|guidelines)|content\s+(?:policies|filters))\s+(?:are|have\s+been)\s+(?:removed|disabled|lifted)/i,
+    ],
+    weight: 0.35,
+  },
+  {
+    category: 'hypothetical_framing',
+    patterns: [
+      /(?:in\s+a\s+)?(?:fictional|hypothetical|imaginary)\s+(?:world|scenario|universe|setting)\s+where/i,
+      /(?:imagine|suppose|assume|consider)\s+(?:that\s+)?(?:you\s+(?:could|were\s+able\s+to|had\s+no))/i,
+      /for\s+(?:educational|research|academic|creative\s+writing)\s+purposes?\s+(?:only)?/i,
+      /(?:purely\s+)?(?:hypothetical(?:ly)?|theoretical(?:ly)?)\s*[,:]/i,
+      /(?:write|create|generate)\s+(?:a\s+)?(?:story|fiction|novel|screenplay)\s+(?:where|in\s+which)\s+(?:an?\s+AI|you)/i,
+      /(?:this\s+is\s+)?(?:just\s+)?(?:a\s+)?(?:thought\s+experiment|roleplay|simulation)/i,
+    ],
+    weight: 0.30,
+  },
+  {
+    category: 'constraint_removal',
+    patterns: [
+      /(?:ignore|bypass|override|disable|turn\s+off|deactivate)\s+(?:your\s+)?(?:safety|content|ethical)\s+(?:guidelines|filters|policies|measures|restrictions)/i,
+      /(?:remove|lift|drop)\s+(?:all\s+)?(?:your\s+)?(?:restrictions|limitations|constraints|guardrails)/i,
+      /(?:content\s+policy|terms\s+of\s+service|usage\s+(?:policy|guidelines))\s+(?:(?:does|do)\s+not|(?:doesn't|don't))\s+apply/i,
+      /\[\s*(?:INST|SYS|SYSTEM)\s*\]/i,
+      /<\|(?:im_start|system|endoftext)\|>/i,
+      /<<\s*(?:SYS|SYSTEM|OVERRIDE)\s*>>/i,
+      /\bBEGIN\s+(?:UNRESTRICTED|UNFILTERED)\s+(?:OUTPUT|MODE)\b/i,
+    ],
+    weight: 0.35,
+  },
+];
+
+export function scanJailbreak(text: string): JailbreakResult {
+  if (!text) return { score: 0, triggered: [], action: 'allow' };
+
+  const triggered: string[] = [];
+  let totalScore = 0;
+
+  for (const rule of JAILBREAK_RULES) {
+    let ruleTriggered = false;
+    let matchCount = 0;
+
+    for (const pattern of rule.patterns) {
+      if (pattern.global) pattern.lastIndex = 0;
+      if (pattern.test(text)) {
+        ruleTriggered = true;
+        matchCount++;
+      }
+    }
+
+    if (ruleTriggered) {
+      triggered.push(rule.category);
+      const categoryScore = Math.min(rule.weight * (1 + (matchCount - 1) * 0.15), rule.weight * 1.5);
+      totalScore += categoryScore;
+    }
+  }
+
+  const score = Math.round(Math.min(totalScore, 1.0) * 100) / 100;
+
+  let action: 'allow' | 'warn' | 'block';
+  if (score >= 0.7) action = 'block';
+  else if (score >= 0.3) action = 'warn';
+  else action = 'allow';
+
+  return { score, triggered, action };
+}
+
+// ── Unicode Scanner ─────────────────────────────────────────────────────────
+
+export interface UnicodeFinding {
+  category: string;
+  description: string;
+  positions: number[];
+  severity: 'warn' | 'block';
+}
+
+export function scanUnicode(text: string): UnicodeFinding[] {
+  if (!text) return [];
+  const findings: UnicodeFinding[] = [];
+
+  // Zero-width characters
+  const zeroWidthRe = /[\u200B\u200C\u200D\uFEFF]/g;
+  const zeroWidthPositions: number[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = zeroWidthRe.exec(text)) !== null) {
+    zeroWidthPositions.push(m.index);
+  }
+  if (zeroWidthPositions.length > 0) {
+    findings.push({
+      category: 'zero_width',
+      description: `Found ${zeroWidthPositions.length} zero-width character(s) that could hide content from text filters`,
+      positions: zeroWidthPositions,
+      severity: 'warn',
+    });
+  }
+
+  // Bidirectional overrides
+  const bidiRe = /[\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069]/g;
+  const bidiPositions: number[] = [];
+  while ((m = bidiRe.exec(text)) !== null) {
+    bidiPositions.push(m.index);
+  }
+  if (bidiPositions.length > 0) {
+    findings.push({
+      category: 'bidi_override',
+      description: `Found ${bidiPositions.length} bidirectional override character(s) that can reorder displayed text`,
+      positions: bidiPositions,
+      severity: 'block',
+    });
+  }
+
+  // Invisible separators and format chars
+  const invisibleRe = /[\u00AD\u034F\u061C\u180E\u2000-\u200A\u2028\u2029\u205F\u3000]/g;
+  const invisiblePositions: number[] = [];
+  while ((m = invisibleRe.exec(text)) !== null) {
+    invisiblePositions.push(m.index);
+  }
+  if (invisiblePositions.length > 0) {
+    findings.push({
+      category: 'invisible_chars',
+      description: `Found ${invisiblePositions.length} invisible separator/format character(s)`,
+      positions: invisiblePositions,
+      severity: 'warn',
+    });
+  }
+
+  // Homoglyph-like patterns (basic: Cyrillic/Greek chars mixed with Latin)
+  const mixedScriptRe = /[\u0400-\u04FF\u0370-\u03FF]/g;
+  const mixedPositions: number[] = [];
+  while ((m = mixedScriptRe.exec(text)) !== null) {
+    mixedPositions.push(m.index);
+  }
+  if (mixedPositions.length > 0 && /[a-zA-Z]/.test(text)) {
+    findings.push({
+      category: 'homoglyph',
+      description: `Found ${mixedPositions.length} Cyrillic/Greek character(s) mixed with Latin text (possible homoglyph attack)`,
+      positions: mixedPositions,
+      severity: 'block',
+    });
+  }
+
+  return findings;
+}
+
+// ── Secret Detection ────────────────────────────────────────────────────────
+
+export interface SecretFinding {
+  type: string;
+  value: string;
+  start: number;
+  end: number;
+}
+
+const SECRET_PATTERNS: { type: string; regex: RegExp }[] = [
+  { type: 'AWS Access Key', regex: /\bAKIA[0-9A-Z]{16}\b/g },
+  { type: 'AWS Secret Key', regex: /\b[A-Za-z0-9/+=]{40}\b/g },
+  { type: 'GitHub PAT', regex: /\bghp_[a-zA-Z0-9]{36}\b/g },
+  { type: 'GitHub OAuth', regex: /\bgho_[a-zA-Z0-9]{36}\b/g },
+  { type: 'JWT Token', regex: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g },
+  { type: 'Stripe Key', regex: /\b[sr]k_(?:live|test)_[a-zA-Z0-9]{20,}\b/g },
+  { type: 'Slack Token', regex: /\bxox[bsapr]-[a-zA-Z0-9\-]{10,}\b/g },
+  { type: 'OpenAI Key', regex: /\bsk-[a-zA-Z0-9]{20,}\b/g },
+  { type: 'Google API Key', regex: /\bAIza[0-9A-Za-z_-]{35}\b/g },
+  { type: 'Private Key', regex: /-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----/g },
+  { type: 'Connection String', regex: /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis):\/\/[^\s"']+/gi },
+  { type: 'Generic Secret', regex: /(?:password|passwd|secret|token|api_key|apikey)\s*[=:]\s*['"][^\s'"]{8,}['"]/gi },
+];
+
+export function scanSecrets(text: string): SecretFinding[] {
+  if (!text) return [];
+  const findings: SecretFinding[] = [];
+
+  for (const pattern of SECRET_PATTERNS) {
+    pattern.regex.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.regex.exec(text)) !== null) {
+      findings.push({
+        type: pattern.type,
+        value: match[0].length > 40
+          ? match[0].slice(0, 20) + '...' + match[0].slice(-10)
+          : match[0],
+        start: match.index,
+        end: match.index + match[0].length,
+      });
+    }
+  }
+
+  return findings;
+}
+
 // ── Display helpers ─────────────────────────────────────────────────────────
 
 const PII_TYPE_LABELS: Record<PIIType, string> = {
@@ -375,6 +606,14 @@ const CATEGORY_LABELS: Record<string, string> = {
   violence: 'Violence',
   self_harm: 'Self Harm',
   illegal: 'Illegal Activity',
+  known_template: 'Known Template',
+  persona_assignment: 'Persona Assignment',
+  hypothetical_framing: 'Hypothetical Framing',
+  constraint_removal: 'Constraint Removal',
+  zero_width: 'Zero-Width Characters',
+  bidi_override: 'Bidi Override',
+  invisible_chars: 'Invisible Characters',
+  homoglyph: 'Homoglyph Attack',
 };
 
 export function categoryLabel(category: string): string {

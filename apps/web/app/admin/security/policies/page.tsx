@@ -31,6 +31,22 @@ interface CustomContentPattern {
   severity: 'warn' | 'block';
 }
 
+interface CustomSecretPattern {
+  name: string;
+  pattern: string;
+  confidence?: number;
+}
+
+interface TopicDefinition {
+  name: string;
+  keywords: string[];
+  threshold?: number;
+}
+
+const OUTPUT_SAFETY_CATEGORIES = [
+  'dangerous_commands', 'sql_injection', 'suspicious_urls', 'dangerous_code',
+] as const;
+
 interface PolicyRules {
   pii?: {
     enabled?: boolean;
@@ -64,6 +80,40 @@ interface PolicyRules {
     allowedModels?: string[];
     blockedModels?: string[];
   };
+  jailbreak?: {
+    enabled?: boolean;
+    blockThreshold?: number;
+    warnThreshold?: number;
+    blockOnDetection?: boolean;
+  };
+  promptLeakage?: {
+    enabled?: boolean;
+    threshold?: number;
+    blockOnLeak?: boolean;
+  };
+  unicodeSanitizer?: {
+    enabled?: boolean;
+    action?: 'strip' | 'warn' | 'block';
+    detectHomoglyphs?: boolean;
+  };
+  secretDetection?: {
+    enabled?: boolean;
+    builtInPatterns?: boolean;
+    scanResponse?: boolean;
+    action?: 'warn' | 'block' | 'redact';
+    customPatterns?: CustomSecretPattern[];
+  };
+  topicGuard?: {
+    enabled?: boolean;
+    allowedTopics?: TopicDefinition[];
+    blockedTopics?: TopicDefinition[];
+    action?: 'warn' | 'block';
+  };
+  outputSafety?: {
+    enabled?: boolean;
+    categories?: string[];
+    action?: 'warn' | 'block';
+  };
 }
 
 interface SecurityPolicy {
@@ -83,6 +133,12 @@ const DEFAULT_RULES: PolicyRules = {
   costGuard: { maxCostPerRequest: 1.0, blockOnExceed: true },
   contentFilter: { enabled: false, categories: [], blockOnViolation: false, customPatterns: [] },
   modelPolicy: { enabled: false, allowedModels: [], blockedModels: [] },
+  jailbreak: { enabled: true, blockThreshold: 0.7, warnThreshold: 0.3, blockOnDetection: true },
+  promptLeakage: { enabled: false, threshold: 0.4, blockOnLeak: false },
+  unicodeSanitizer: { enabled: true, action: 'strip', detectHomoglyphs: true },
+  secretDetection: { enabled: true, builtInPatterns: true, scanResponse: true, action: 'warn', customPatterns: [] },
+  topicGuard: { enabled: false, allowedTopics: [], blockedTopics: [], action: 'block' },
+  outputSafety: { enabled: false, categories: [...OUTPUT_SAFETY_CATEGORIES], action: 'warn' },
 };
 
 // ── Helper Components ──────────────────────────────────────────────────────
@@ -456,28 +512,476 @@ function ModelPolicySection({ rules, onChange }: { rules: NonNullable<PolicyRule
   );
 }
 
+// ── Jailbreak Section ─────────────────────────────────────────────────
+
+function JailbreakSection({ rules, onChange }: { rules: NonNullable<PolicyRules['jailbreak']>; onChange: (r: NonNullable<PolicyRules['jailbreak']>) => void }) {
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Jailbreak Detection" description="Detect DAN attacks, persona hijacking, encoded payloads, and social engineering attempts that bypass injection detection." />
+      <Toggle checked={rules.enabled ?? false} onChange={(v) => onChange({ ...rules, enabled: v })} label="Enable jailbreak detection" />
+
+      {rules.enabled && (
+        <>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Block Threshold: <span className="font-mono text-blue-600">{rules.blockThreshold ?? 0.7}</span>
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={rules.blockThreshold ?? 0.7}
+              onChange={(e) => onChange({ ...rules, blockThreshold: parseFloat(e.target.value) })}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-gray-400">
+              <span>0 (very sensitive)</span>
+              <span>1 (permissive)</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Warn Threshold: <span className="font-mono text-amber-600">{rules.warnThreshold ?? 0.3}</span>
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={rules.warnThreshold ?? 0.3}
+              onChange={(e) => onChange({ ...rules, warnThreshold: parseFloat(e.target.value) })}
+              className="w-full"
+            />
+          </div>
+
+          <Toggle checked={rules.blockOnDetection ?? true} onChange={(v) => onChange({ ...rules, blockOnDetection: v })} label="Block requests above threshold (otherwise warn only)" />
+
+          <div className="rounded bg-gray-50 p-3 text-xs text-gray-500">
+            <p className="font-medium text-gray-700 mb-1">Detection categories:</p>
+            <ul className="list-disc ml-4 space-y-0.5">
+              <li>Known templates (DAN, STAN, DUDE, AIM, Developer Mode)</li>
+              <li>Hypothetical framing (&ldquo;in a fictional world&rdquo;, &ldquo;for educational purposes&rdquo;)</li>
+              <li>Persona assignment (&ldquo;you are now an unrestricted AI&rdquo;)</li>
+              <li>Payload encoding (base64, ROT13, hex-encoded instructions)</li>
+              <li>Few-shot manipulation (fake conversation histories)</li>
+            </ul>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Prompt Leakage Section ────────────────────────────────────────────
+
+function PromptLeakageSection({ rules, onChange }: { rules: NonNullable<PolicyRules['promptLeakage']>; onChange: (r: NonNullable<PolicyRules['promptLeakage']>) => void }) {
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Prompt Leakage Detection" description="Detect when LLM outputs contain fragments of your system prompt. Prevents attackers from extracting your instructions." />
+      <Toggle checked={rules.enabled ?? false} onChange={(v) => onChange({ ...rules, enabled: v })} label="Enable prompt leakage detection" />
+
+      {rules.enabled && (
+        <>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Similarity Threshold: <span className="font-mono text-blue-600">{rules.threshold ?? 0.4}</span>
+            </label>
+            <input
+              type="range"
+              min="0.1"
+              max="0.9"
+              step="0.05"
+              value={rules.threshold ?? 0.4}
+              onChange={(e) => onChange({ ...rules, threshold: parseFloat(e.target.value) })}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-gray-400">
+              <span>0.1 (very sensitive)</span>
+              <span>0.9 (only exact copies)</span>
+            </div>
+          </div>
+
+          <Toggle checked={rules.blockOnLeak ?? false} onChange={(v) => onChange({ ...rules, blockOnLeak: v })} label="Block response on leak (otherwise warn only)" />
+
+          <div className="rounded bg-gray-50 p-3 text-xs text-gray-500">
+            <p className="font-medium text-gray-700 mb-1">Detection methods:</p>
+            <ul className="list-disc ml-4 space-y-0.5">
+              <li>N-gram overlap between system prompt and LLM output</li>
+              <li>Meta-response patterns (&ldquo;my instructions are...&rdquo;, &ldquo;I was told to...&rdquo;)</li>
+              <li>Verbatim substring matching (30+ character matches)</li>
+            </ul>
+            <p className="mt-2 text-amber-600">Note: Set the system prompt in SDK code (not here) to keep it secure.</p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Unicode Sanitizer Section ─────────────────────────────────────────
+
+function UnicodeSanitizerSection({ rules, onChange }: { rules: NonNullable<PolicyRules['unicodeSanitizer']>; onChange: (r: NonNullable<PolicyRules['unicodeSanitizer']>) => void }) {
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Unicode Sanitizer" description="Strip or detect invisible characters, bidirectional overrides, and homoglyph attacks that hide malicious payloads." />
+      <Toggle checked={rules.enabled ?? false} onChange={(v) => onChange({ ...rules, enabled: v })} label="Enable unicode sanitization" />
+
+      {rules.enabled && (
+        <>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Action</label>
+            <select
+              value={rules.action ?? 'strip'}
+              onChange={(e) => onChange({ ...rules, action: e.target.value as 'strip' | 'warn' | 'block' })}
+              className="rounded border px-3 py-1.5 text-sm"
+            >
+              <option value="strip">Strip (remove threats, continue processing)</option>
+              <option value="warn">Warn (log event, continue processing)</option>
+              <option value="block">Block (reject the request)</option>
+            </select>
+          </div>
+
+          <Toggle checked={rules.detectHomoglyphs ?? true} onChange={(v) => onChange({ ...rules, detectHomoglyphs: v })} label="Detect homoglyph attacks (mixed Cyrillic/Latin characters)" />
+
+          <div className="rounded bg-gray-50 p-3 text-xs text-gray-500">
+            <p className="font-medium text-gray-700 mb-1">Threat types detected:</p>
+            <ul className="list-disc ml-4 space-y-0.5">
+              <li>Zero-width characters (U+200B, U+FEFF, etc.)</li>
+              <li>Bidirectional overrides (right-to-left text manipulation)</li>
+              <li>Tag characters (hidden ASCII in Unicode tags)</li>
+              <li>Homoglyphs (Cyrillic characters disguised as Latin)</li>
+              <li>Variation selectors (character appearance modifiers)</li>
+            </ul>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Secret Detection Section ──────────────────────────────────────────
+
+function SecretDetectionSection({ rules, onChange }: { rules: NonNullable<PolicyRules['secretDetection']>; onChange: (r: NonNullable<PolicyRules['secretDetection']>) => void }) {
+  const addPattern = () => {
+    onChange({ ...rules, customPatterns: [...(rules.customPatterns ?? []), { name: '', pattern: '', confidence: 0.9 }] });
+  };
+
+  const updatePattern = (idx: number, patch: Partial<CustomSecretPattern>) => {
+    const patterns = [...(rules.customPatterns ?? [])];
+    patterns[idx] = { ...patterns[idx], ...patch } as CustomSecretPattern;
+    onChange({ ...rules, customPatterns: patterns });
+  };
+
+  const removePattern = (idx: number) => {
+    onChange({ ...rules, customPatterns: (rules.customPatterns ?? []).filter((_, i) => i !== idx) });
+  };
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Secret & Credential Detection" description="Detect API keys, tokens, private keys, connection strings, and other credentials in inputs and outputs." />
+      <Toggle checked={rules.enabled ?? false} onChange={(v) => onChange({ ...rules, enabled: v })} label="Enable secret detection" />
+
+      {rules.enabled && (
+        <>
+          <Toggle checked={rules.builtInPatterns ?? true} onChange={(v) => onChange({ ...rules, builtInPatterns: v })} label="Use built-in patterns (AWS keys, GitHub PATs, JWTs, Stripe keys, etc.)" />
+          <Toggle checked={rules.scanResponse ?? true} onChange={(v) => onChange({ ...rules, scanResponse: v })} label="Also scan LLM responses for leaked secrets" />
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Action</label>
+            <select
+              value={rules.action ?? 'warn'}
+              onChange={(e) => onChange({ ...rules, action: e.target.value as 'warn' | 'block' | 'redact' })}
+              className="rounded border px-3 py-1.5 text-sm"
+            >
+              <option value="warn">Warn (log event, continue processing)</option>
+              <option value="block">Block (reject the request)</option>
+              <option value="redact">Redact (replace with [SECRET:type])</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Custom Secret Patterns</label>
+            {(rules.customPatterns ?? []).map((p, idx) => (
+              <div key={idx} className="mb-2 flex items-start gap-2">
+                <input
+                  type="text"
+                  placeholder="Name (e.g. internal_api_key)"
+                  value={p.name}
+                  onChange={(e) => updatePattern(idx, { name: e.target.value })}
+                  className="w-44 rounded border px-2 py-1.5 text-xs"
+                />
+                <input
+                  type="text"
+                  placeholder="Regex (e.g. MYAPP-[A-Z0-9]{32})"
+                  value={p.pattern}
+                  onChange={(e) => updatePattern(idx, { pattern: e.target.value })}
+                  className="flex-1 rounded border px-2 py-1.5 font-mono text-xs"
+                />
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="1"
+                  placeholder="Confidence"
+                  value={p.confidence ?? 0.9}
+                  onChange={(e) => updatePattern(idx, { confidence: parseFloat(e.target.value) || 0.9 })}
+                  className="w-20 rounded border px-2 py-1.5 text-xs"
+                />
+                <button type="button" onClick={() => removePattern(idx)} className="text-red-500 hover:text-red-700 text-xs mt-1">&times;</button>
+              </div>
+            ))}
+            <button type="button" onClick={addPattern} className="text-xs text-blue-600 hover:underline">+ Add custom pattern</button>
+          </div>
+
+          <div className="rounded bg-gray-50 p-3 text-xs text-gray-500">
+            <p className="font-medium text-gray-700 mb-1">Built-in patterns (12):</p>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {['AWS Access Key', 'GitHub PAT', 'GitHub OAuth', 'GitLab PAT', 'Slack Token', 'Stripe Secret', 'Stripe Publishable', 'JWT', 'Private Key', 'Connection String', 'Webhook URL', 'High Entropy Secret'].map(p => (
+                <span key={p} className="rounded bg-gray-200 px-2 py-0.5 text-xs">{p}</span>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Topic Guard Section ───────────────────────────────────────────────
+
+function TopicGuardSection({ rules, onChange }: { rules: NonNullable<PolicyRules['topicGuard']>; onChange: (r: NonNullable<PolicyRules['topicGuard']>) => void }) {
+  const [newKeyword, setNewKeyword] = useState<Record<string, string>>({});
+
+  const addTopic = (list: 'allowedTopics' | 'blockedTopics') => {
+    const topics = [...(rules[list] ?? []), { name: '', keywords: [], threshold: 0.05 }];
+    onChange({ ...rules, [list]: topics });
+  };
+
+  const updateTopic = (list: 'allowedTopics' | 'blockedTopics', idx: number, patch: Partial<TopicDefinition>) => {
+    const topics = [...(rules[list] ?? [])];
+    topics[idx] = { ...topics[idx], ...patch } as TopicDefinition;
+    onChange({ ...rules, [list]: topics });
+  };
+
+  const removeTopic = (list: 'allowedTopics' | 'blockedTopics', idx: number) => {
+    onChange({ ...rules, [list]: (rules[list] ?? []).filter((_, i) => i !== idx) });
+  };
+
+  const addKeyword = (list: 'allowedTopics' | 'blockedTopics', idx: number) => {
+    const key = `${list}-${idx}`;
+    const kw = (newKeyword[key] ?? '').trim();
+    if (!kw) return;
+    const topics = [...(rules[list] ?? [])] as TopicDefinition[];
+    const topic = topics[idx];
+    if (!topic) return;
+    topics[idx] = { ...topic, keywords: [...topic.keywords, kw] };
+    onChange({ ...rules, [list]: topics });
+    setNewKeyword({ ...newKeyword, [key]: '' });
+  };
+
+  const removeKeyword = (list: 'allowedTopics' | 'blockedTopics', topicIdx: number, kwIdx: number) => {
+    const topics = [...(rules[list] ?? [])] as TopicDefinition[];
+    const topic = topics[topicIdx];
+    if (!topic) return;
+    topics[topicIdx] = { ...topic, keywords: topic.keywords.filter((_, i) => i !== kwIdx) };
+    onChange({ ...rules, [list]: topics });
+  };
+
+  const renderTopicList = (list: 'allowedTopics' | 'blockedTopics', label: string, color: string) => (
+    <div>
+      <label className="block text-xs font-medium text-gray-500 mb-2">{label}</label>
+      {(rules[list] ?? []).map((topic, idx) => {
+        const key = `${list}-${idx}`;
+        return (
+          <div key={idx} className="mb-3 rounded border p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="text"
+                placeholder="Topic name"
+                value={topic.name}
+                onChange={(e) => updateTopic(list, idx, { name: e.target.value })}
+                className="flex-1 rounded border px-2 py-1.5 text-xs font-medium"
+              />
+              <div className="flex items-center gap-1">
+                <label className="text-xs text-gray-400">Threshold:</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  value={topic.threshold ?? 0.05}
+                  onChange={(e) => updateTopic(list, idx, { threshold: parseFloat(e.target.value) || 0.05 })}
+                  className="w-16 rounded border px-2 py-1 text-xs"
+                />
+              </div>
+              <button type="button" onClick={() => removeTopic(list, idx)} className="text-red-500 hover:text-red-700 text-xs">&times;</button>
+            </div>
+            <div className="flex flex-wrap gap-1 mb-2">
+              {topic.keywords.map((kw, kwIdx) => (
+                <span key={kwIdx} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs ${color}`}>
+                  {kw}
+                  <button type="button" onClick={() => removeKeyword(list, idx, kwIdx)} className="hover:opacity-70">&times;</button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-1">
+              <input
+                type="text"
+                placeholder="Add keyword..."
+                value={newKeyword[key] ?? ''}
+                onChange={(e) => setNewKeyword({ ...newKeyword, [key]: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addKeyword(list, idx); } }}
+                className="flex-1 rounded border px-2 py-1 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => addKeyword(list, idx)}
+                className="rounded bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200"
+              >Add</button>
+            </div>
+          </div>
+        );
+      })}
+      <button type="button" onClick={() => addTopic(list)} className="text-xs text-blue-600 hover:underline">+ Add topic</button>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Topic Guard" description="Restrict conversations to allowed topics or block specific subjects. Configure what your LLM can and cannot discuss." />
+      <Toggle checked={rules.enabled ?? false} onChange={(v) => onChange({ ...rules, enabled: v })} label="Enable topic restriction" />
+
+      {rules.enabled && (
+        <>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Action</label>
+            <select
+              value={rules.action ?? 'block'}
+              onChange={(e) => onChange({ ...rules, action: e.target.value as 'warn' | 'block' })}
+              className="rounded border px-3 py-1.5 text-sm"
+            >
+              <option value="block">Block (reject off-topic requests)</option>
+              <option value="warn">Warn (log event, continue processing)</option>
+            </select>
+          </div>
+
+          {renderTopicList('allowedTopics', 'Allowed Topics (input MUST match at least one)', 'bg-green-100 text-green-700')}
+          {renderTopicList('blockedTopics', 'Blocked Topics (input must NOT match any)', 'bg-red-100 text-red-700')}
+
+          {((rules.allowedTopics ?? []).length > 0 || (rules.blockedTopics ?? []).length > 0) && (
+            <div className="rounded bg-blue-50 p-3 text-xs text-blue-700">
+              <p className="font-medium">Preview:</p>
+              {(rules.allowedTopics ?? []).length > 0 && (
+                <p>Your chatbot will ONLY discuss: {(rules.allowedTopics ?? []).map(t => t.name || 'Unnamed').join(', ')}</p>
+              )}
+              {(rules.blockedTopics ?? []).length > 0 && (
+                <p>Your chatbot will REFUSE: {(rules.blockedTopics ?? []).map(t => t.name || 'Unnamed').join(', ')}</p>
+              )}
+              {(rules.allowedTopics ?? []).length > 0 && (rules.blockedTopics ?? []).length > 0 && (
+                <p className="mt-1 text-blue-500">Note: If input matches an allowed topic, blocked topics are skipped.</p>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Output Safety Section ─────────────────────────────────────────────
+
+function OutputSafetySection({ rules, onChange }: { rules: NonNullable<PolicyRules['outputSafety']>; onChange: (r: NonNullable<PolicyRules['outputSafety']>) => void }) {
+  const toggleCategory = (cat: string) => {
+    const cats = rules.categories ?? [];
+    onChange({ ...rules, categories: cats.includes(cat) ? cats.filter(c => c !== cat) : [...cats, cat] });
+  };
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Output Safety Scanning" description="Scan LLM responses for dangerous commands, SQL injection payloads, suspicious URLs, and unsafe code patterns." />
+      <Toggle checked={rules.enabled ?? false} onChange={(v) => onChange({ ...rules, enabled: v })} label="Enable output safety scanning" />
+
+      {rules.enabled && (
+        <>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Categories</label>
+            <div className="flex flex-wrap gap-2">
+              {OUTPUT_SAFETY_CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => toggleCategory(cat)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    (rules.categories ?? []).includes(cat)
+                      ? 'bg-orange-100 text-orange-700 ring-1 ring-orange-300'
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  {cat.replace(/_/g, ' ')}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Action</label>
+            <select
+              value={rules.action ?? 'warn'}
+              onChange={(e) => onChange({ ...rules, action: e.target.value as 'warn' | 'block' })}
+              className="rounded border px-3 py-1.5 text-sm"
+            >
+              <option value="warn">Warn (log event, continue)</option>
+              <option value="block">Block (reject the response)</option>
+            </select>
+          </div>
+
+          <div className="rounded bg-gray-50 p-3 text-xs text-gray-500">
+            <p className="font-medium text-gray-700 mb-1">Examples detected:</p>
+            <ul className="list-disc ml-4 space-y-0.5">
+              <li><strong>Dangerous commands:</strong> rm -rf /, DROP TABLE, format c:, fork bombs</li>
+              <li><strong>SQL injection:</strong> OR 1=1, UNION SELECT, xp_cmdshell</li>
+              <li><strong>Suspicious URLs:</strong> bare IP addresses, .onion domains, data: URIs</li>
+              <li><strong>Dangerous code:</strong> eval(), exec(), os.system(), child_process</li>
+            </ul>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Policy Editor ──────────────────────────────────────────────────────────
 
-function PolicyEditor({ rules, onChange }: { rules: PolicyRules; onChange: (r: PolicyRules) => void }) {
-  const [activeTab, setActiveTab] = useState<'pii' | 'injection' | 'costGuard' | 'contentFilter' | 'modelPolicy'>('pii');
+type PolicyTab = 'pii' | 'injection' | 'costGuard' | 'contentFilter' | 'modelPolicy' | 'jailbreak' | 'promptLeakage' | 'unicodeSanitizer' | 'secretDetection' | 'topicGuard' | 'outputSafety';
 
-  const tabs = [
-    { key: 'pii' as const, label: 'PII Redaction', enabled: rules.pii?.enabled },
-    { key: 'injection' as const, label: 'Injection', enabled: rules.injection?.enabled },
-    { key: 'costGuard' as const, label: 'Cost Guards', enabled: (rules.costGuard?.maxCostPerRequest ?? 0) > 0 },
-    { key: 'contentFilter' as const, label: 'Content Filter', enabled: rules.contentFilter?.enabled },
-    { key: 'modelPolicy' as const, label: 'Model Policy', enabled: rules.modelPolicy?.enabled },
+function PolicyEditor({ rules, onChange }: { rules: PolicyRules; onChange: (r: PolicyRules) => void }) {
+  const [activeTab, setActiveTab] = useState<PolicyTab>('pii');
+
+  const tabs: { key: PolicyTab; label: string; enabled: boolean | undefined }[] = [
+    { key: 'pii', label: 'PII', enabled: rules.pii?.enabled },
+    { key: 'injection', label: 'Injection', enabled: rules.injection?.enabled },
+    { key: 'jailbreak', label: 'Jailbreak', enabled: rules.jailbreak?.enabled },
+    { key: 'unicodeSanitizer', label: 'Unicode', enabled: rules.unicodeSanitizer?.enabled },
+    { key: 'secretDetection', label: 'Secrets', enabled: rules.secretDetection?.enabled },
+    { key: 'topicGuard', label: 'Topics', enabled: rules.topicGuard?.enabled },
+    { key: 'contentFilter', label: 'Content', enabled: rules.contentFilter?.enabled },
+    { key: 'outputSafety', label: 'Output Safety', enabled: rules.outputSafety?.enabled },
+    { key: 'promptLeakage', label: 'Leakage', enabled: rules.promptLeakage?.enabled },
+    { key: 'costGuard', label: 'Cost', enabled: (rules.costGuard?.maxCostPerRequest ?? 0) > 0 },
+    { key: 'modelPolicy', label: 'Models', enabled: rules.modelPolicy?.enabled },
   ];
 
   return (
     <div>
-      <div className="flex border-b">
+      <div className="flex border-b overflow-x-auto">
         {tabs.map(tab => (
           <button
             key={tab.key}
             type="button"
             onClick={() => setActiveTab(tab.key)}
-            className={`relative px-4 py-2 text-sm font-medium transition-colors ${
+            className={`relative shrink-0 px-3 py-2 text-xs font-medium transition-colors ${
               activeTab === tab.key
                 ? 'border-b-2 border-blue-600 text-blue-600'
                 : 'text-gray-500 hover:text-gray-700'
@@ -485,7 +989,7 @@ function PolicyEditor({ rules, onChange }: { rules: PolicyRules; onChange: (r: P
           >
             {tab.label}
             {tab.enabled && (
-              <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+              <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
             )}
           </button>
         ))}
@@ -494,8 +998,14 @@ function PolicyEditor({ rules, onChange }: { rules: PolicyRules; onChange: (r: P
       <div className="mt-4">
         {activeTab === 'pii' && <PIISection rules={rules.pii ?? {}} onChange={(pii) => onChange({ ...rules, pii })} />}
         {activeTab === 'injection' && <InjectionSection rules={rules.injection ?? {}} onChange={(injection) => onChange({ ...rules, injection })} />}
-        {activeTab === 'costGuard' && <CostGuardSection rules={rules.costGuard ?? {}} onChange={(costGuard) => onChange({ ...rules, costGuard })} />}
+        {activeTab === 'jailbreak' && <JailbreakSection rules={rules.jailbreak ?? {}} onChange={(jailbreak) => onChange({ ...rules, jailbreak })} />}
+        {activeTab === 'unicodeSanitizer' && <UnicodeSanitizerSection rules={rules.unicodeSanitizer ?? {}} onChange={(unicodeSanitizer) => onChange({ ...rules, unicodeSanitizer })} />}
+        {activeTab === 'secretDetection' && <SecretDetectionSection rules={rules.secretDetection ?? {}} onChange={(secretDetection) => onChange({ ...rules, secretDetection })} />}
+        {activeTab === 'topicGuard' && <TopicGuardSection rules={rules.topicGuard ?? {}} onChange={(topicGuard) => onChange({ ...rules, topicGuard })} />}
         {activeTab === 'contentFilter' && <ContentFilterSection rules={rules.contentFilter ?? {}} onChange={(contentFilter) => onChange({ ...rules, contentFilter })} />}
+        {activeTab === 'outputSafety' && <OutputSafetySection rules={rules.outputSafety ?? {}} onChange={(outputSafety) => onChange({ ...rules, outputSafety })} />}
+        {activeTab === 'promptLeakage' && <PromptLeakageSection rules={rules.promptLeakage ?? {}} onChange={(promptLeakage) => onChange({ ...rules, promptLeakage })} />}
+        {activeTab === 'costGuard' && <CostGuardSection rules={rules.costGuard ?? {}} onChange={(costGuard) => onChange({ ...rules, costGuard })} />}
         {activeTab === 'modelPolicy' && <ModelPolicySection rules={rules.modelPolicy ?? {}} onChange={(modelPolicy) => onChange({ ...rules, modelPolicy })} />}
       </div>
     </div>
@@ -665,9 +1175,15 @@ export default function PoliciesPage() {
   const featureSummary = (rules: PolicyRules) => {
     const features: string[] = [];
     if (rules.pii?.enabled) features.push(`PII (${(rules.pii.types ?? []).length} types)`);
-    if (rules.injection?.enabled) features.push(`Injection (threshold ${rules.injection.blockThreshold ?? 0.7})`);
+    if (rules.injection?.enabled) features.push(`Injection (${rules.injection.blockThreshold ?? 0.7})`);
+    if (rules.jailbreak?.enabled) features.push('Jailbreak');
+    if (rules.unicodeSanitizer?.enabled) features.push(`Unicode (${rules.unicodeSanitizer.action ?? 'strip'})`);
+    if (rules.secretDetection?.enabled) features.push('Secrets');
+    if (rules.topicGuard?.enabled) features.push(`Topics (${(rules.topicGuard.allowedTopics ?? []).length}A/${(rules.topicGuard.blockedTopics ?? []).length}B)`);
+    if (rules.contentFilter?.enabled) features.push(`Content (${(rules.contentFilter.categories ?? []).length})`);
+    if (rules.outputSafety?.enabled) features.push('Output safety');
+    if (rules.promptLeakage?.enabled) features.push('Leakage');
     if ((rules.costGuard?.maxCostPerRequest ?? 0) > 0) features.push('Cost guard');
-    if (rules.contentFilter?.enabled) features.push(`Content filter (${(rules.contentFilter.categories ?? []).length} categories)`);
     if (rules.modelPolicy?.enabled) features.push('Model policy');
     return features.length > 0 ? features.join(' · ') : 'No rules configured';
   };
@@ -693,7 +1209,7 @@ export default function PoliciesPage() {
         <div>
           <h1 className="text-2xl font-bold">Security Policies</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Configure PII redaction, injection detection, cost guards, and content filtering. The active policy is served to your SDK via <code className="rounded bg-gray-100 px-1 text-xs">GET /v1/sdk/policy</code>.
+            Configure all 11 guardrails: PII, injection, jailbreak, unicode, secrets, topics, content filter, output safety, prompt leakage, cost guards, and model policy. The active policy is served to your SDK via <code className="rounded bg-gray-100 px-1 text-xs">GET /v1/sdk/policy</code>.
           </p>
         </div>
         <button

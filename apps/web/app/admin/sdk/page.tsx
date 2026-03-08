@@ -53,6 +53,45 @@ const FULL_SECURITY_CODE = `const lp = new LaunchPromptly({
       blockOnHighRisk: true,   // throw PromptInjectionError above threshold
       onDetect: (analysis) => console.log(\`Injection risk: \${analysis.riskScore}\`),
     },
+    // Jailbreak Detection — DAN prompts, persona hijacking
+    jailbreak: {
+      enabled: true,
+      blockThreshold: 0.7,     // 0-1 score threshold
+      blockOnDetect: true,     // throw JailbreakError above threshold
+      onDetect: (result) => console.log(\`Jailbreak score: \${result.score}\`),
+    },
+    // Prompt Leakage Detection — catch system prompt leaks in output
+    promptLeakage: {
+      enabled: true,
+      systemPromptSnippets: ['You are a helpful assistant'],
+      blockOnDetect: true,
+    },
+    // Unicode Sanitizer — strip zero-width chars, homoglyphs
+    unicodeSanitizer: {
+      enabled: true,
+      stripZeroWidth: true,    // remove zero-width joiners/spaces
+      normalizeHomoglyphs: true,
+      stripBidiOverrides: true,
+    },
+    // Secret Detection — AWS keys, JWTs, GitHub tokens
+    secretDetection: {
+      enabled: true,
+      blockOnDetect: true,     // block requests containing secrets
+      types: ['aws', 'jwt', 'github', 'private_key', 'database_url'],
+    },
+    // Topic Guard — allowed/blocked conversation topics
+    topicGuard: {
+      blockedTopics: ['competitors', 'internal-roadmap'],
+      allowedTopics: ['product-support', 'billing', 'technical-help'],
+      blockOnViolation: true,
+    },
+    // Output Safety Scanning — scan LLM responses before delivery
+    outputSafety: {
+      enabled: true,
+      scanForPII: true,        // defense-in-depth PII check
+      scanForHarm: true,       // harmful content in responses
+      scanForCodeInjection: true,
+    },
     // Cost Controls
     costGuard: {
       maxCostPerRequest: 1.00,     // USD
@@ -220,7 +259,7 @@ export default function SDKSetupPage() {
         <h2 className="text-lg font-semibold">3. Wrap your LLM client with security</h2>
         <p className="mt-1 text-sm text-gray-500">
           Initialize LaunchPromptly with security options and wrap your OpenAI client.
-          PII redaction, injection detection, and cost guards activate on every call.
+          PII redaction, injection detection, jailbreak defense, secret scanning, and all other guards activate on every call.
         </p>
         <div className="relative mt-2">
           <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-green-400">
@@ -239,7 +278,8 @@ export default function SDKSetupPage() {
       <div className="mt-8">
         <h2 className="text-lg font-semibold">4. Full Security Configuration (Optional)</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Configure all security modules: PII types, injection thresholds, cost limits, and content filtering.
+          Configure all 12 security modules: PII, injection, jailbreak, prompt leakage, unicode sanitizer,
+          secret detection, topic guard, output safety, cost limits, and content filtering.
         </p>
         <div className="relative mt-2">
           <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-green-400">
@@ -366,31 +406,58 @@ export default function SDKSetupPage() {
         </p>
         <ol className="mt-3 space-y-1 text-sm text-gray-600">
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">1.</span> Cost guard (estimate cost, check budgets)
+            <span className="font-mono text-blue-600">1.</span> Model policy check (block disallowed models/params)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">2.</span> PII scan & redact (replace PII with placeholders)
+            <span className="font-mono text-blue-600">2.</span> Cost guard pre-check (estimate cost, check budgets)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">3.</span> Injection detection (score risk, warn/block)
+            <span className="font-mono text-blue-600">3.</span> Unicode sanitizer (strip zero-width chars, homoglyphs, bidi overrides)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">4.</span> Content filter (check input policy violations)
+            <span className="font-mono text-blue-600">4.</span> Secret detection (block AWS keys, JWTs, tokens in input)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">5.</span> <strong>LLM API Call</strong> (with redacted content)
+            <span className="font-mono text-blue-600">5.</span> PII scan &amp; redact (replace PII with placeholders)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">6.</span> Response PII scan (defense-in-depth)
+            <span className="font-mono text-blue-600">6.</span> Injection detection (score risk, warn/block)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">7.</span> Response content filter
+            <span className="font-mono text-blue-600">7.</span> Jailbreak detection (DAN mode, persona hijacking)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">8.</span> De-redact response (restore original values)
+            <span className="font-mono text-blue-600">8.</span> Topic guard (check allowed/blocked topics)
           </li>
           <li className="flex gap-2">
-            <span className="font-mono text-blue-600">9.</span> Send enriched event to dashboard
+            <span className="font-mono text-blue-600">9.</span> Content filter (check input policy violations)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">10.</span> <strong>LLM API Call</strong> (with sanitized, redacted content)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">11.</span> Output safety scan (harmful content, code injection)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">12.</span> Response PII scan (defense-in-depth)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">13.</span> Prompt leakage detection (system prompt leak in response)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">14.</span> Response content filter
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">15.</span> Schema validation (enforce JSON structure)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">16.</span> De-redact response (restore original values)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">17.</span> Cost guard record (track actual cost)
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-blue-600">18.</span> Send enriched event to dashboard
           </li>
         </ol>
       </div>

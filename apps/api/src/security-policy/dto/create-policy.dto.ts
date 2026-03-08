@@ -183,6 +183,170 @@ export class ModelPolicyRulesDto {
   blockedModels?: string[];
 }
 
+// ── Jailbreak Configuration ───────────────────────────────────────────────
+
+export class JailbreakRulesDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  blockThreshold?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  warnThreshold?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  blockOnDetection?: boolean;
+}
+
+// ── Prompt Leakage Configuration ──────────────────────────────────────────
+
+export class PromptLeakageRulesDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  threshold?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  blockOnLeak?: boolean;
+}
+
+// ── Unicode Sanitizer Configuration ───────────────────────────────────────
+
+export class UnicodeSanitizerRulesDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @IsIn(['strip', 'warn', 'block'])
+  action?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  detectHomoglyphs?: boolean;
+}
+
+// ── Secret Detection Configuration ────────────────────────────────────────
+
+export class CustomSecretPatternDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  name!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(500)
+  pattern!: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  confidence?: number;
+}
+
+export class SecretDetectionRulesDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  builtInPatterns?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  scanResponse?: boolean;
+
+  @IsOptional()
+  @IsIn(['warn', 'block', 'redact'])
+  action?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomSecretPatternDto)
+  customPatterns?: CustomSecretPatternDto[];
+}
+
+// ── Topic Guard Configuration ─────────────────────────────────────────────
+
+export class TopicDefinitionDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  name!: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  keywords!: string[];
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  threshold?: number;
+}
+
+export class TopicGuardRulesDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TopicDefinitionDto)
+  allowedTopics?: TopicDefinitionDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TopicDefinitionDto)
+  blockedTopics?: TopicDefinitionDto[];
+
+  @IsOptional()
+  @IsIn(['warn', 'block'])
+  action?: string;
+}
+
+// ── Output Safety Configuration ───────────────────────────────────────────
+
+const OUTPUT_SAFETY_CATEGORIES = [
+  'dangerous_commands', 'sql_injection', 'suspicious_urls', 'dangerous_code',
+] as const;
+
+export class OutputSafetyRulesDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(OUTPUT_SAFETY_CATEGORIES, { each: true })
+  categories?: string[];
+
+  @IsOptional()
+  @IsIn(['warn', 'block'])
+  action?: string;
+}
+
 // ── Combined Rules ─────────────────────────────────────────────────────────
 
 export class PolicyRulesDto {
@@ -210,6 +374,36 @@ export class PolicyRulesDto {
   @ValidateNested()
   @Type(() => ModelPolicyRulesDto)
   modelPolicy?: ModelPolicyRulesDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => JailbreakRulesDto)
+  jailbreak?: JailbreakRulesDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PromptLeakageRulesDto)
+  promptLeakage?: PromptLeakageRulesDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UnicodeSanitizerRulesDto)
+  unicodeSanitizer?: UnicodeSanitizerRulesDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SecretDetectionRulesDto)
+  secretDetection?: SecretDetectionRulesDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TopicGuardRulesDto)
+  topicGuard?: TopicGuardRulesDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OutputSafetyRulesDto)
+  outputSafety?: OutputSafetyRulesDto;
 }
 
 // ── Create Policy DTO ──────────────────────────────────────────────────────

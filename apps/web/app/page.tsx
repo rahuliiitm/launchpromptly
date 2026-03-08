@@ -444,6 +444,61 @@ const FEATURES = [
       </svg>
     ),
   },
+  {
+    title: 'Jailbreak Detection',
+    desc: 'Catch DAN-mode prompts, persona hijacking, and multi-turn jailbreak attempts. Heuristic scoring with configurable block thresholds for production safety.',
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Prompt Leakage Detection',
+    desc: 'Detect when LLM outputs leak your system prompt, internal instructions, or chain-of-thought reasoning. Scans responses before they reach the user.',
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Unicode Sanitizer',
+    desc: 'Strip zero-width characters, homoglyph attacks, invisible separators, and bidirectional text overrides that bypass naive text filters.',
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 21l5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 016-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.785.147 2.666.257m-4.589 8.495a18.023 18.023 0 01-3.827-5.802" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Secret Detection',
+    desc: 'Find AWS keys, JWTs, GitHub tokens, private keys, and database connection strings in prompts before they get sent to your LLM provider.',
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Topic Guard',
+    desc: 'Define allowed and blocked topics for your LLM. Prevent off-topic conversations, competitor mentions, or out-of-scope requests with keyword and pattern matching.',
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Output Safety Scanning',
+    desc: 'Scan LLM responses for harmful content, hallucinated PII, code injection, and policy violations before they reach your users. Defense-in-depth for outputs.',
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+      </svg>
+    ),
+  },
 ];
 
 const PRICING = [
@@ -456,6 +511,8 @@ const PRICING = [
       'PII redaction (16 regex patterns)',
       'Prompt injection detection',
       'Cost guard',
+      'Unicode sanitizer',
+      'Secret detection',
       '1,000 events / mo',
       'Security dashboard',
     ],
@@ -484,6 +541,9 @@ const PRICING = [
     features: [
       'Everything in Indie',
       'Streaming guard (mid-stream PII & injection)',
+      'Jailbreak detection',
+      'Topic guard (allowed/blocked topics)',
+      'Output safety scanning',
       'Content filtering (11 categories)',
       'Model policy enforcement',
       'Schema validation',
@@ -501,9 +561,11 @@ const PRICING = [
     desc: 'For organizations with strict safety requirements.',
     features: [
       'Everything in Startup',
+      'Prompt leakage detection',
       'ML-enhanced PII (NER: names, orgs, locations)',
       'Semantic injection detection (DeBERTa)',
       'ML toxicity classification (toxic-bert)',
+      'ML providers for all guardrails',
       'Unlimited events',
       'Security policies & RBAC',
       'Priority support & SLA',
@@ -520,7 +582,7 @@ function LandingPage() {
       <section className="px-6 pb-20 pt-16 text-center">
         <div className="mx-auto max-w-3xl">
           <div className="mb-6 inline-block rounded-full border border-blue-200 bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-700">
-            Layered defense: regex + local ML &mdash; no data leaves your infra
+            12 guardrails, layered defense: regex + local ML &mdash; no data leaves your infra
           </div>
           <h1 className="text-5xl font-bold leading-tight tracking-tight text-gray-900">
             Secure your LLM apps
@@ -529,8 +591,9 @@ function LandingPage() {
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-500">
             LaunchPromptly is a drop-in SDK that adds PII redaction, prompt injection detection,
+            jailbreak defense, secret detection, unicode sanitization, topic guardrails, output safety scanning,
             cost controls, content filtering, and real-time streaming guard to any LLM application.
-            PII is redacted client-side &mdash; before it ever leaves your environment.
+            Everything runs client-side &mdash; before data ever leaves your environment.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <Link
@@ -623,6 +686,67 @@ function LandingPage() {
                 <span className="text-blue-300">maxCostPerRequest</span>
                 <span className="text-gray-500">: </span>
                 <span className="text-orange-400">0.50</span>
+                <span className="text-gray-300">{' }'}</span>
+                <span className="text-gray-500">,</span>
+                {'\n'}
+                <span className="text-gray-300">{'    '}</span>
+                <span className="text-blue-300">jailbreak</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-gray-300">{'{ '}</span>
+                <span className="text-blue-300">enabled</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-orange-400">true</span>
+                <span className="text-gray-300">{' }'}</span>
+                <span className="text-gray-500">,</span>
+                {'\n'}
+                <span className="text-gray-300">{'    '}</span>
+                <span className="text-blue-300">unicodeSanitizer</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-gray-300">{'{ '}</span>
+                <span className="text-blue-300">enabled</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-orange-400">true</span>
+                <span className="text-gray-300">{' }'}</span>
+                <span className="text-gray-500">,</span>
+                {'\n'}
+                <span className="text-gray-300">{'    '}</span>
+                <span className="text-blue-300">secretDetection</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-gray-300">{'{ '}</span>
+                <span className="text-blue-300">enabled</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-orange-400">true</span>
+                <span className="text-gray-300">{' }'}</span>
+                <span className="text-gray-500">,</span>
+                {'\n'}
+                <span className="text-gray-300">{'    '}</span>
+                <span className="text-blue-300">topicGuard</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-gray-300">{'{ '}</span>
+                <span className="text-blue-300">blockedTopics</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-gray-300">{'['}</span>
+                <span className="text-green-400">{`'competitors'`}</span>
+                <span className="text-gray-300">{'] }'}</span>
+                <span className="text-gray-500">,</span>
+                {'\n'}
+                <span className="text-gray-300">{'    '}</span>
+                <span className="text-blue-300">outputSafety</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-gray-300">{'{ '}</span>
+                <span className="text-blue-300">enabled</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-orange-400">true</span>
+                <span className="text-gray-300">{' }'}</span>
+                <span className="text-gray-500">,</span>
+                {'\n'}
+                <span className="text-gray-300">{'    '}</span>
+                <span className="text-blue-300">promptLeakage</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-gray-300">{'{ '}</span>
+                <span className="text-blue-300">enabled</span>
+                <span className="text-gray-500">: </span>
+                <span className="text-orange-400">true</span>
                 <span className="text-gray-300">{' }'}</span>
                 <span className="text-gray-500">,</span>
                 {'\n'}
@@ -745,6 +869,14 @@ function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="mt-0.5 text-green-500">&#x2713;</span>
+                  Jailbreak &amp; prompt leakage detection
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 text-green-500">&#x2713;</span>
+                  Unicode sanitizer, secret detection, topic guard
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 text-green-500">&#x2713;</span>
                   Keyword content filter: hate speech, violence, self-harm
                 </li>
               </ul>
@@ -791,9 +923,9 @@ function LandingPage() {
             Everything you need to secure LLM applications
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            From PII redaction to injection defense &mdash; LaunchPromptly covers the full runtime safety lifecycle.
+            From PII redaction and jailbreak defense to secret detection and output safety &mdash; LaunchPromptly covers the full runtime safety lifecycle.
           </p>
-          <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map((f) => (
               <div key={f.title} className="rounded-xl border bg-white p-6">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
@@ -909,7 +1041,7 @@ function LandingPage() {
           </h2>
           <p className="mt-4 text-gray-400">
             Join developers who protect their users&apos; data with client-side
-            PII redaction, injection detection, and cost controls.
+            PII redaction, injection detection, jailbreak defense, secret scanning, and 12 total guardrails.
           </p>
           <Link
             href="/login?redirect=/"

@@ -122,6 +122,56 @@ export class IngestEventDto {
     outputViolations: Array<{ category: string; matched: string; severity: string }>;
   };
 
+  @IsOptional()
+  @IsObject()
+  jailbreakRisk?: {
+    score: number;
+    triggered: string[];
+    action: string;
+    decodedPayloads?: string[];
+  };
+
+  @IsOptional()
+  @IsObject()
+  unicodeThreats?: {
+    found: boolean;
+    threatCount: number;
+    types: string[];
+    action: string;
+  };
+
+  @IsOptional()
+  @IsObject()
+  secretDetections?: {
+    inputCount: number;
+    outputCount: number;
+    types: string[];
+    action: string;
+  };
+
+  @IsOptional()
+  @IsObject()
+  topicViolation?: {
+    type: string;
+    topic?: string;
+    matchedKeywords: string[];
+    score: number;
+  };
+
+  @IsOptional()
+  @IsObject()
+  outputSafety?: {
+    threats: Array<{ category: string; matched: string; severity: string }>;
+  };
+
+  @IsOptional()
+  @IsObject()
+  promptLeakage?: {
+    leaked: boolean;
+    similarity: number;
+    metaResponseDetected: boolean;
+  };
+
 }
 
 export class IngestBatchDto {
