@@ -88,26 +88,130 @@ interface PatternEntry {
   type: PIIType;
   regex: RegExp;
   confidence: number;
-  validate?: (match: string) => boolean;
+  validate?: (match: string, fullText?: string, matchIndex?: number) => boolean;
+}
+
+// ── Positive-context regexes ─────────────────────────────────────────────────
+// For bare digit matches, we require type-specific context words in the
+// preceding text. Formatted matches (with dashes/dots/parens) always pass.
+// DOB and Passport ALWAYS require context (even formatted).
+
+const PHONE_CONTEXT_RE =
+  /\b(?:call|phone|tel(?:ephone)?|mobile|cell(?:ular)?|fax|contact|reach|dial|text|sms|whatsapp|ring|landline|ph)\b.{0,15}$/i;
+const SSN_CONTEXT_RE =
+  /\b(?:ssn|social\s+security|social\s+sec|ss#|soc\s*sec)\b.{0,15}$/i;
+const NHS_CONTEXT_RE =
+  /\b(?:nhs|national\s+health|health\s+service)\b.{0,15}$/i;
+const AADHAAR_CONTEXT_RE =
+  /\b(?:aadhaar|aadhar|uid|uidai|unique\s+id)\b.{0,15}$/i;
+const MEDICARE_CONTEXT_RE =
+  /\b(?:medicare|health\s+insurance|irn)\b.{0,15}$/i;
+const DOB_CONTEXT_RE =
+  /\b(?:born|birth(?:day)?|dob|date\s+of\s+birth|d\.o\.b|age)\b.{0,15}$/i;
+const PASSPORT_CONTEXT_RE =
+  /\b(?:passport)\b.{0,15}$/i;
+const VERSION_CONTEXT_RE =
+  /(?:\bv(?:ersion)?\s*[:#]?\s*$|@\s*$|\bv\d+\.\d+\.\s*$)/i;
+
+/**
+ * Generic context check for ambiguous PII patterns.
+ * - requireAlways: if true, context is required even for formatted matches (DOB, passport)
+ * - Otherwise: formatted matches (containing non-digit chars) always pass
+ */
+function contextCheck(
+  match: string,
+  fullText: string | undefined,
+  matchIndex: number | undefined,
+  contextRe: RegExp,
+  requireAlways: boolean,
+): boolean {
+  if (!fullText || matchIndex === undefined) return true;
+  if (!requireAlways) {
+    const digitsOnly = match.replace(/\D/g, '');
+    if (match !== digitsOnly) return true; // has formatting → keep
+  }
+  const preceding = fullText.slice(Math.max(0, matchIndex - 60), matchIndex);
+  return contextRe.test(preceding);
+}
+
+function phoneContextCheck(match: string, fullText?: string, matchIndex?: number): boolean {
+  return contextCheck(match, fullText, matchIndex, PHONE_CONTEXT_RE, false);
+}
+
+function ssnContextCheck(match: string, fullText?: string, matchIndex?: number): boolean {
+  return contextCheck(match, fullText, matchIndex, SSN_CONTEXT_RE, false);
+}
+
+function nhsContextCheck(match: string, fullText?: string, matchIndex?: number): boolean {
+  if (!nhsNumberCheck(match)) return false;
+  return contextCheck(match, fullText, matchIndex, NHS_CONTEXT_RE, false);
+}
+
+function aadhaarContextCheck(match: string, fullText?: string, matchIndex?: number): boolean {
+  if (!aadhaarCheck(match)) return false;
+  return contextCheck(match, fullText, matchIndex, AADHAAR_CONTEXT_RE, false);
+}
+
+function medicareContextCheck(match: string, fullText?: string, matchIndex?: number): boolean {
+  return contextCheck(match, fullText, matchIndex, MEDICARE_CONTEXT_RE, false);
+}
+
+function dobContextCheck(match: string, fullText?: string, matchIndex?: number): boolean {
+  return contextCheck(match, fullText, matchIndex, DOB_CONTEXT_RE, true);
+}
+
+function passportContextCheck(match: string, fullText?: string, matchIndex?: number): boolean {
+  return contextCheck(match, fullText, matchIndex, PASSPORT_CONTEXT_RE, true);
+}
+
+function isPrivateOrReservedIP(ip: string): boolean {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4) return false;
+  const [a, b] = parts;
+  // Private ranges
+  if (a === 10) return true;
+  if (a === 172 && b! >= 16 && b! <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  // Link-local
+  if (a === 169 && b === 254) return true;
+  // RFC 5737 documentation ranges
+  if (a === 192 && b === 0 && parts[2] === 2) return true;
+  if (a === 198 && b === 51 && parts[2] === 100) return true;
+  if (a === 203 && b === 0 && parts[2] === 113) return true;
+  return false;
+}
+
+function ipContextCheck(ip: string, fullText?: string, matchIndex?: number): boolean {
+  if (WELL_KNOWN_IPS.has(ip)) return false;
+  if (isPrivateOrReservedIP(ip)) return false;
+  // Version number heuristic
+  if (fullText && matchIndex !== undefined) {
+    const preceding = fullText.slice(Math.max(0, matchIndex - 20), matchIndex);
+    if (VERSION_CONTEXT_RE.test(preceding)) return false;
+    const afterEnd = matchIndex + ip.length;
+    const following = fullText.slice(afterEnd, afterEnd + 10);
+    if (/^[-.]?(?:alpha|beta|rc|dev|pre|snapshot)\b/i.test(following)) return false;
+  }
+  return true;
 }
 
 const PATTERNS: PatternEntry[] = [
   { type: 'email', regex: EMAIL_RE, confidence: 0.95 },
-  { type: 'phone', regex: PHONE_US_RE, confidence: 0.85 },
+  { type: 'phone', regex: PHONE_US_RE, confidence: 0.85, validate: phoneContextCheck },
   { type: 'phone', regex: PHONE_INTL_RE, confidence: 0.8 },
-  { type: 'ssn', regex: SSN_RE, confidence: 0.95 },
+  { type: 'ssn', regex: SSN_RE, confidence: 0.95, validate: ssnContextCheck },
   { type: 'credit_card', regex: CREDIT_CARD_RE, confidence: 0.9, validate: luhnCheck },
-  { type: 'ip_address', regex: IP_V4_RE, confidence: 0.8, validate: (ip) => !WELL_KNOWN_IPS.has(ip) },
+  { type: 'ip_address', regex: IP_V4_RE, confidence: 0.8, validate: ipContextCheck },
   { type: 'api_key', regex: API_KEY_RE, confidence: 0.95 },
-  { type: 'date_of_birth', regex: DATE_OF_BIRTH_RE, confidence: 0.7 },
+  { type: 'date_of_birth', regex: DATE_OF_BIRTH_RE, confidence: 0.7, validate: dobContextCheck },
   { type: 'us_address', regex: US_ADDRESS_RE, confidence: 0.7 },
   { type: 'iban', regex: IBAN_RE, confidence: 0.9 },
-  { type: 'nhs_number', regex: NHS_NUMBER_RE, confidence: 0.8, validate: nhsNumberCheck },
+  { type: 'nhs_number', regex: NHS_NUMBER_RE, confidence: 0.8, validate: nhsContextCheck },
   { type: 'uk_nino', regex: UK_NINO_RE, confidence: 0.9 },
-  { type: 'passport', regex: PASSPORT_RE, confidence: 0.7 },
-  { type: 'aadhaar', regex: AADHAAR_RE, confidence: 0.85, validate: aadhaarCheck },
+  { type: 'passport', regex: PASSPORT_RE, confidence: 0.7, validate: passportContextCheck },
+  { type: 'aadhaar', regex: AADHAAR_RE, confidence: 0.85, validate: aadhaarContextCheck },
   { type: 'eu_phone', regex: EU_PHONE_RE, confidence: 0.8 },
-  { type: 'medicare', regex: MEDICARE_AU_RE, confidence: 0.75 },
+  { type: 'medicare', regex: MEDICARE_AU_RE, confidence: 0.75, validate: medicareContextCheck },
   { type: 'drivers_license', regex: DRIVERS_LICENSE_US_RE, confidence: 0.75 },
 ];
 
@@ -137,7 +241,7 @@ export function scanPII(text: string): PIIDetection[] {
     let match: RegExpExecArray | null;
     while ((match = pattern.regex.exec(text)) !== null) {
       const value = match[0];
-      if (pattern.validate && !pattern.validate(value)) continue;
+      if (pattern.validate && !pattern.validate(value, text, match.index)) continue;
       detections.push({
         type: pattern.type,
         value,
