@@ -57,14 +57,14 @@ const FULL_SECURITY_CODE = `const lp = new LaunchPromptly({
     jailbreak: {
       enabled: true,
       blockThreshold: 0.7,     // 0-1 score threshold
-      blockOnDetect: true,     // throw JailbreakError above threshold
+      blockOnDetection: true,  // throw JailbreakError above threshold
       onDetect: (result) => console.log(\`Jailbreak score: \${result.score}\`),
     },
     // Prompt Leakage Detection — catch system prompt leaks in output
     promptLeakage: {
       enabled: true,
-      systemPromptSnippets: ['You are a helpful assistant'],
-      blockOnDetect: true,
+      systemPrompt: 'You are a helpful assistant',
+      blockOnLeak: true,
     },
     // Unicode Sanitizer — strip zero-width chars, homoglyphs
     unicodeSanitizer: {
@@ -76,8 +76,8 @@ const FULL_SECURITY_CODE = `const lp = new LaunchPromptly({
     // Secret Detection — AWS keys, JWTs, GitHub tokens
     secretDetection: {
       enabled: true,
-      blockOnDetect: true,     // block requests containing secrets
-      types: ['aws', 'jwt', 'github', 'private_key', 'database_url'],
+      action: 'block',          // 'warn' | 'block' | 'redact'
+      scanResponse: true,       // also scan LLM output
     },
     // Topic Guard — allowed/blocked conversation topics
     topicGuard: {
