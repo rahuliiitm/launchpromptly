@@ -72,8 +72,8 @@ steps:
 
 substitutions:
   _REGION: us-west1
-  _API_URL: https://launchpromptly-api-950530830180.us-west1.run.app
-  _WEB_URL: https://launchpromptly-web-950530830180.us-west1.run.app
+  _API_URL: https://api.launchpromptly.dev
+  _WEB_URL: https://launchpromptly.dev
   _DB_CONNECTION: launchpromptly:us-west1:launchpromptly-db
 
 options:

@@ -173,7 +173,7 @@ gcloud run services update launchpromptly-api \
 ```bash
 gcloud run domain-mappings create \
   --service=launchpromptly-web \
-  --domain=app.launchpromptly.dev \
+  --domain=launchpromptly.dev \
   --region=us-west1
 
 gcloud run domain-mappings create \
