@@ -18,7 +18,7 @@ import {
   type UnicodeFinding,
   type SecretFinding,
 } from '@/lib/guardrail-scanner';
-import { ResultCard, ActionBadge, HighlightedText, SecuritySummaryBanner } from '@/components/security-viz';
+import { ResultCard, ActionBadge, HighlightedText, SecuritySummaryBanner, JailbreakGauge, UnicodeThreatsTable, SecretDetectionTable } from '@/components/security-viz';
 
 const EXAMPLES = [
   {
@@ -374,52 +374,7 @@ export default function PlaygroundPage() {
                       </svg>
                     }
                   >
-                    {/* Jailbreak score gauge */}
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm text-gray-600">Jailbreak Score</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg font-bold">{jailbreakResult.score.toFixed(2)}</span>
-                          <ActionBadge action={jailbreakResult.action} />
-                        </div>
-                      </div>
-                      <div className="h-3 w-full rounded-full bg-gray-200">
-                        <div
-                          className={`h-3 rounded-full transition-all ${
-                            jailbreakResult.score >= 0.7
-                              ? 'bg-red-500'
-                              : jailbreakResult.score >= 0.3
-                              ? 'bg-yellow-500'
-                              : 'bg-green-500'
-                          }`}
-                          style={{ width: `${Math.max(jailbreakResult.score * 100, 2)}%` }}
-                        />
-                      </div>
-                      <div className="mt-1 flex justify-between text-xs text-gray-400">
-                        <span>Safe</span>
-                        <span>Jailbreak</span>
-                      </div>
-                    </div>
-
-                    {jailbreakResult.triggered.length > 0 && (
-                      <div>
-                        <p className="mb-2 text-xs font-medium text-gray-500">Triggered Categories</p>
-                        <div className="flex flex-wrap gap-2">
-                          {jailbreakResult.triggered.map((cat) => (
-                            <span
-                              key={cat}
-                              className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700"
-                            >
-                              {categoryLabel(cat)}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {jailbreakResult.triggered.length === 0 && (
-                      <p className="text-sm text-gray-500">No jailbreak patterns detected.</p>
-                    )}
+                    <JailbreakGauge score={jailbreakResult.score} action={jailbreakResult.action} triggered={jailbreakResult.triggered} />
                   </ResultCard>
                 )}
 
@@ -435,40 +390,7 @@ export default function PlaygroundPage() {
                       </svg>
                     }
                   >
-                    {unicodeResults.length === 0 ? (
-                      <p className="text-sm text-gray-500">No suspicious Unicode characters detected.</p>
-                    ) : (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b text-left text-xs text-gray-500">
-                            <th className="pb-2 font-medium">Category</th>
-                            <th className="pb-2 font-medium">Description</th>
-                            <th className="pb-2 font-medium">Severity</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {unicodeResults.map((f, i) => (
-                            <tr key={i} className="border-b last:border-0">
-                              <td className="py-2">
-                                <span className="rounded bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700">
-                                  {categoryLabel(f.category)}
-                                </span>
-                              </td>
-                              <td className="py-2 text-xs text-gray-700">{f.description}</td>
-                              <td className="py-2">
-                                <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                                  f.severity === 'block'
-                                    ? 'bg-red-100 text-red-700'
-                                    : 'bg-yellow-100 text-yellow-700'
-                                }`}>
-                                  {f.severity}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
+                    <UnicodeThreatsTable threats={unicodeResults} />
                   </ResultCard>
                 )}
 
@@ -484,30 +406,7 @@ export default function PlaygroundPage() {
                       </svg>
                     }
                   >
-                    {secretResults.length === 0 ? (
-                      <p className="text-sm text-gray-500">No secrets or credentials detected.</p>
-                    ) : (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b text-left text-xs text-gray-500">
-                            <th className="pb-2 font-medium">Type</th>
-                            <th className="pb-2 font-medium">Value</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {secretResults.map((s, i) => (
-                            <tr key={i} className="border-b last:border-0">
-                              <td className="py-2">
-                                <span className="rounded bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-700">
-                                  {s.type}
-                                </span>
-                              </td>
-                              <td className="py-2 font-mono text-xs text-gray-700">{s.value}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
+                    <SecretDetectionTable secrets={secretResults} />
                   </ResultCard>
                 )}
               </>

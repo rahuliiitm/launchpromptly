@@ -131,6 +131,12 @@ export class EventsService {
     if (e.injectionRisk) securityMetadata.injectionRisk = e.injectionRisk;
     if (e.costGuard) securityMetadata.costGuard = e.costGuard;
     if (e.contentViolations) securityMetadata.contentViolations = e.contentViolations;
+    if (e.jailbreakRisk) securityMetadata.jailbreakRisk = e.jailbreakRisk;
+    if (e.unicodeThreats) securityMetadata.unicodeThreats = e.unicodeThreats;
+    if (e.secretDetections) securityMetadata.secretDetections = e.secretDetections;
+    if (e.topicViolation) securityMetadata.topicViolation = e.topicViolation;
+    if (e.outputSafety) securityMetadata.outputSafety = e.outputSafety;
+    if (e.promptLeakage) securityMetadata.promptLeakage = e.promptLeakage;
     return {
       projectId,
       environmentId: e.environmentId ?? environmentId ?? null,
@@ -248,6 +254,107 @@ export class EventsService {
               estimatedCost: e.costGuard.estimatedCost,
               budgetRemaining: e.costGuard.budgetRemaining,
               limitTriggered: e.costGuard.limitTriggered,
+            },
+            eventId: eventIds[i],
+            customerId: e.customerId,
+          });
+        }
+
+        if (e.jailbreakRisk) {
+          if (e.jailbreakRisk.action === 'block') {
+            entries.push({
+              projectId,
+              eventType: 'jailbreak_blocked',
+              severity: 'critical',
+              details: {
+                score: e.jailbreakRisk.score,
+                triggered: e.jailbreakRisk.triggered,
+              },
+              eventId: eventIds[i],
+              customerId: e.customerId,
+            });
+          } else if (e.jailbreakRisk.action === 'warn') {
+            entries.push({
+              projectId,
+              eventType: 'jailbreak_warned',
+              severity: 'warning',
+              details: {
+                score: e.jailbreakRisk.score,
+                triggered: e.jailbreakRisk.triggered,
+              },
+              eventId: eventIds[i],
+              customerId: e.customerId,
+            });
+          }
+        }
+
+        if (e.unicodeThreats?.found) {
+          entries.push({
+            projectId,
+            eventType: 'unicode_threat',
+            severity: 'warning',
+            details: {
+              threatCount: e.unicodeThreats.threatCount,
+              types: e.unicodeThreats.types,
+              action: e.unicodeThreats.action,
+            },
+            eventId: eventIds[i],
+            customerId: e.customerId,
+          });
+        }
+
+        if (e.secretDetections && (e.secretDetections.inputCount + e.secretDetections.outputCount) > 0) {
+          entries.push({
+            projectId,
+            eventType: 'secret_detected',
+            severity: 'critical',
+            details: {
+              inputCount: e.secretDetections.inputCount,
+              outputCount: e.secretDetections.outputCount,
+              types: e.secretDetections.types,
+            },
+            eventId: eventIds[i],
+            customerId: e.customerId,
+          });
+        }
+
+        if (e.topicViolation) {
+          entries.push({
+            projectId,
+            eventType: 'topic_violation',
+            severity: 'warning',
+            details: {
+              type: e.topicViolation.type,
+              topic: e.topicViolation.topic,
+              matchedKeywords: e.topicViolation.matchedKeywords,
+              score: e.topicViolation.score,
+            },
+            eventId: eventIds[i],
+            customerId: e.customerId,
+          });
+        }
+
+        if (e.outputSafety && e.outputSafety.threats.length > 0) {
+          entries.push({
+            projectId,
+            eventType: 'output_safety',
+            severity: 'warning',
+            details: {
+              threats: e.outputSafety.threats,
+            },
+            eventId: eventIds[i],
+            customerId: e.customerId,
+          });
+        }
+
+        if (e.promptLeakage?.leaked) {
+          entries.push({
+            projectId,
+            eventType: 'prompt_leakage',
+            severity: 'critical',
+            details: {
+              similarity: e.promptLeakage.similarity,
+              metaResponseDetected: e.promptLeakage.metaResponseDetected,
             },
             eventId: eventIds[i],
             customerId: e.customerId,
