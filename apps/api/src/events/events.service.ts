@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -8,6 +8,7 @@ import { AlertService } from '../alert/alert.service';
 import { UsageService } from '../billing/usage.service';
 import { ProjectService } from '../project/project.service';
 import type { IngestBatchDto, IngestEventDto } from './dto/ingest-batch.dto';
+import type { DeleteEventsDto } from './dto/delete-events.dto';
 
 interface IngestResult {
   accepted: number;
@@ -102,6 +103,41 @@ export class EventsService {
       promptText,
       responseText,
     };
+  }
+
+  async deleteEvents(
+    projectId: string,
+    userId: string,
+    dto: DeleteEventsDto,
+  ): Promise<{ deletedCount: number }> {
+    if (!dto.customerId && !dto.olderThanDays) {
+      throw new BadRequestException('Provide at least one of: customerId, olderThanDays');
+    }
+
+    await this.projectService.assertProjectAccess(projectId, userId);
+
+    const where: Prisma.LLMEventWhereInput = { projectId };
+    if (dto.customerId) where.customerId = dto.customerId;
+    if (dto.olderThanDays) {
+      where.createdAt = { lt: new Date(Date.now() - dto.olderThanDays * 24 * 60 * 60 * 1000) };
+    }
+
+    const result = await this.prisma.lLMEvent.deleteMany({ where });
+
+    // Audit the deletion
+    await this.audit.log({
+      projectId,
+      eventType: 'data_deletion',
+      severity: 'warning',
+      details: {
+        deletedCount: result.count,
+        customerId: dto.customerId ?? null,
+        olderThanDays: dto.olderThanDays ?? null,
+      },
+      actorId: userId,
+    });
+
+    return { deletedCount: result.count };
   }
 
   private buildEventRecord(projectId: string, e: IngestEventDto, environmentId?: string) {

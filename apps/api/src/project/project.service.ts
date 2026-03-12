@@ -146,4 +146,26 @@ export class ProjectService {
       data: { revokedAt: new Date() },
     });
   }
+
+  async updateRetention(
+    projectId: string,
+    userId: string,
+    retentionDays: number,
+  ): Promise<{ retentionDays: number }> {
+    await this.assertProjectAccess(projectId, userId);
+    const updated = await this.prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays },
+    });
+    return { retentionDays: updated.retentionDays };
+  }
+
+  async getProject(projectId: string, userId: string) {
+    await this.assertProjectAccess(projectId, userId);
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+    return { id: project.id, name: project.name, retentionDays: project.retentionDays };
+  }
 }

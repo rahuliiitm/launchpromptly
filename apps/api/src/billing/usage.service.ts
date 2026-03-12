@@ -73,6 +73,11 @@ export class UsageService {
   }
 
   private getEventLimit(plan: string): number {
+    // Beta period: all plans get 100K events until April 30, 2025
+    if (new Date() < new Date('2025-04-30T23:59:59Z')) {
+      return 100_000;
+    }
+
     switch (plan) {
       case 'pro':
         return 10_000;

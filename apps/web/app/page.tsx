@@ -20,6 +20,7 @@ import { OnboardingChecklist } from '@/components/onboarding-checklist';
 import { UsageBar } from '@/components/usage-bar';
 import { UpgradePrompt } from '@/components/upgrade-prompt';
 import { getOnboardingState, isOnboardingComplete, updateOnboarding } from '@/lib/onboarding';
+import { generateSecurityReport } from '@/lib/security-report';
 
 // ── Security Overview (Authenticated Dashboard) ──
 
@@ -165,20 +166,43 @@ function Dashboard() {
             PII detection, injection protection, and security analytics
           </p>
         </div>
-        <div className="flex gap-1 rounded-lg border bg-white p-1">
-          {PERIOD_OPTIONS.map((opt) => (
+        <div className="flex items-center gap-3">
+          {overview && overview.totalEvents > 0 && (
             <button
-              key={opt.value}
-              onClick={() => setDays(opt.value)}
-              className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-                days === opt.value
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              onClick={() => generateSecurityReport({
+                projectName: 'My Project',
+                periodDays: days,
+                totalEvents: overview.totalEvents,
+                piiExposureRate: overview.piiExposureRate,
+                totalPiiDetections: overview.totalPiiDetections,
+                injectionAttempts: overview.injectionAttempts,
+                injectionBlocked: overview.injectionBlocked,
+                redactionRate: overview.redactionRate,
+                topPiiTypes: overview.topPiiTypes,
+              })}
+              className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              {opt.label}
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Export Report
             </button>
-          ))}
+          )}
+          <div className="flex gap-1 rounded-lg border bg-white p-1">
+            {PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setDays(opt.value)}
+                className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                  days === opt.value
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -516,7 +540,7 @@ const PRICING = [
       '1,000 events / mo',
       'Security dashboard',
     ],
-    cta: 'Get Started Free',
+    cta: 'Start Free Beta',
     highlighted: false,
   },
   {
@@ -530,7 +554,7 @@ const PRICING = [
       '10,000 events / mo',
       'Community support',
     ],
-    cta: 'Start Free Trial',
+    cta: 'Start Free Beta',
     highlighted: false,
   },
   {
@@ -551,7 +575,7 @@ const PRICING = [
       'Audit log & alerts',
       'Email support',
     ],
-    cta: 'Start Free Trial',
+    cta: 'Start Free Beta',
     highlighted: true,
   },
   {
@@ -570,7 +594,7 @@ const PRICING = [
       'Security policies & RBAC',
       'Priority support & SLA',
     ],
-    cta: 'Start Free Trial',
+    cta: 'Start Free Beta',
     highlighted: false,
   },
 ];
@@ -581,26 +605,25 @@ function LandingPage() {
       {/* ── Hero ── */}
       <section className="px-6 pb-20 pt-16 text-center">
         <div className="mx-auto max-w-3xl">
-          <div className="mb-6 inline-block rounded-full border border-blue-200 bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-700">
-            12 guardrails, layered defense: regex + local ML &mdash; no data leaves your infra
+          <div className="mb-6 inline-block rounded-full border border-green-200 bg-green-50 px-4 py-1.5 text-sm font-medium text-green-700">
+            Public Beta &mdash; all features free until April 30
           </div>
           <h1 className="text-5xl font-bold leading-tight tracking-tight text-gray-900">
-            Secure your LLM apps
+            Ship enterprise-ready AI apps.
             <br />
-            <span className="text-blue-600">in 2 lines of code</span>
+            <span className="text-blue-600">Security compliance built in.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-500">
-            LaunchPromptly is a drop-in SDK that adds PII redaction, prompt injection detection,
-            jailbreak defense, secret detection, unicode sanitization, topic guardrails, output safety scanning,
-            cost controls, content filtering, and real-time streaming guard to any LLM application.
-            Everything runs client-side &mdash; before data ever leaves your environment.
+            Drop-in SDK + compliance dashboard for teams building on LLMs.
+            PII redaction, injection detection, cost controls, and audit trail &mdash;
+            everything runs client-side, your data never leaves your infrastructure.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <Link
               href="/login?redirect=/"
               className="rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
             >
-              Start Free &mdash; No Credit Card
+              Start Free Beta
             </Link>
             <Link
               href="/playground"
@@ -813,129 +836,75 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* ── Why Client-Side ── */}
-      <section className="bg-blue-50 px-6 py-16">
-        <div className="mx-auto max-w-4xl">
-          <h2 className="text-center text-2xl font-bold text-gray-900">
-            Why client-side security matters
-          </h2>
-          <div className="mt-8 grid gap-6 sm:grid-cols-3">
-            <div className="rounded-xl border border-blue-100 bg-white p-5">
-              <div className="text-lg font-bold text-blue-600">In-process</div>
-              <p className="mt-2 text-sm text-gray-500">
-                PII is redacted inside your application before it reaches any network boundary. No proxy, no gateway, no extra hop.
-              </p>
-            </div>
-            <div className="rounded-xl border border-blue-100 bg-white p-5">
-              <div className="text-lg font-bold text-blue-600">Zero dependencies</div>
-              <p className="mt-2 text-sm text-gray-500">
-                Core SDK uses regex-based detection only. No ML models, no external services, no binary dependencies to install.
-              </p>
-            </div>
-            <div className="rounded-xl border border-blue-100 bg-white p-5">
-              <div className="text-lg font-bold text-blue-600">Sub-millisecond</div>
-              <p className="mt-2 text-sm text-gray-500">
-                Regex scanning adds &lt;1ms to each LLM call. No latency penalty, no round-trip to a security gateway.
-              </p>
-            </div>
+      {/* ── Trusted By (Design Partner Placeholder) ── */}
+      <section className="border-t bg-gray-50 px-6 py-12">
+        <div className="mx-auto max-w-4xl text-center">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+            Trusted by teams building enterprise AI
+          </p>
+          <div className="mt-6 flex items-center justify-center gap-12">
+            <div className="h-8 w-24 rounded bg-gray-200" />
+            <div className="h-8 w-24 rounded bg-gray-200" />
+            <div className="h-8 w-24 rounded bg-gray-200" />
+            <div className="h-8 w-24 rounded bg-gray-200" />
           </div>
+          <p className="mt-4 text-xs text-gray-400">
+            Launching with design partners &mdash; <Link href="/login?redirect=/" className="text-blue-600 hover:underline">join the beta</Link>
+          </p>
         </div>
       </section>
 
-      {/* ── Layered Defense ── */}
+      {/* ── 4 Key Features ── */}
       <section className="px-6 py-20">
         <div className="mx-auto max-w-4xl">
           <h2 className="text-center text-3xl font-bold text-gray-900">
-            Layered Defense &mdash; Regex + ML
-          </h2>
-          <p className="mx-auto mt-3 max-w-2xl text-center text-gray-500">
-            The only LLM safety SDK that runs ML models locally &mdash; no data leaves your infrastructure.
-          </p>
-          <div className="mt-10 grid gap-6 sm:grid-cols-2">
-            <div className="rounded-xl border-2 border-green-200 bg-green-50 p-6">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">1</div>
-                <h3 className="text-lg font-bold text-green-800">Regex &amp; Rules</h3>
-              </div>
-              <div className="mt-1 text-xs font-medium uppercase tracking-wide text-green-600">Always on &middot; Zero dependencies</div>
-              <ul className="mt-4 space-y-2 text-sm text-gray-600">
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 text-green-500">&#x2713;</span>
-                  16 regex patterns: email, SSN, credit card, phone, IP, etc.
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 text-green-500">&#x2713;</span>
-                  5 injection categories: overrides, role hijacking, data exfil
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 text-green-500">&#x2713;</span>
-                  Jailbreak &amp; prompt leakage detection
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 text-green-500">&#x2713;</span>
-                  Unicode sanitizer, secret detection, topic guard
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 text-green-500">&#x2713;</span>
-                  Keyword content filter: hate speech, violence, self-harm
-                </li>
-              </ul>
-              <div className="mt-4 rounded bg-green-100 px-3 py-2 text-xs font-medium text-green-700">
-                &lt;1ms latency &middot; No runtime dependencies
-              </div>
-            </div>
-            <div className="rounded-xl border-2 border-purple-200 bg-purple-50 p-6">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-600 text-sm font-bold text-white">2</div>
-                <h3 className="text-lg font-bold text-purple-800">Local ML Models</h3>
-              </div>
-              <div className="mt-1 text-xs font-medium uppercase tracking-wide text-purple-600">Opt-in &middot; Runs on your machine</div>
-              <ul className="mt-4 space-y-2 text-sm text-gray-600">
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 text-purple-500">&#x2713;</span>
-                  NER-based PII: person names, orgs, locations
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 text-purple-500">&#x2713;</span>
-                  DeBERTa injection: catches obfuscated &amp; encoded attacks
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-0.5 text-purple-500">&#x2713;</span>
-                  Toxic-BERT: nuanced hate speech &amp; identity attacks
-                </li>
-              </ul>
-              <div className="mt-4 rounded bg-purple-100 px-3 py-2 text-xs font-medium text-purple-700">
-                &lt;100ms latency &middot; No cloud calls &middot; Data stays local
-              </div>
-            </div>
-          </div>
-          <p className="mx-auto mt-6 max-w-xl text-center text-sm text-gray-400">
-            Both layers run together. ML detections merge with regex results &mdash; giving you the speed of rules
-            with the accuracy of ML, without sending data to a third-party API.
-          </p>
-        </div>
-      </section>
-
-      {/* ── Features Grid ── */}
-      <section className="border-t px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-center text-3xl font-bold text-gray-900">
-            Everything you need to secure LLM applications
+            Runtime security + compliance dashboard
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            From PII redaction and jailbreak defense to secret detection and output safety &mdash; LaunchPromptly covers the full runtime safety lifecycle.
+            12 guardrails that run client-side, plus the audit trail your customers&apos; security teams need.
           </p>
-          <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURES.map((f) => (
-              <div key={f.title} className="rounded-xl border bg-white p-6">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                  {f.icon}
-                </div>
-                <h3 className="mt-4 font-semibold text-gray-900">{f.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-500">{f.desc}</p>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border bg-white p-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                </svg>
               </div>
-            ))}
+              <h3 className="mt-4 font-semibold text-gray-900">PII Redaction</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-500">Client-side detection and redaction of emails, SSNs, credit cards, and 13 more patterns. Data never leaves your infra.</p>
+            </div>
+            <div className="rounded-xl border bg-white p-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                </svg>
+              </div>
+              <h3 className="mt-4 font-semibold text-gray-900">Injection Detection</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-500">Block prompt injection, jailbreaks, and role manipulation with rule-based + optional local ML detection.</p>
+            </div>
+            <div className="rounded-xl border bg-white p-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="mt-4 font-semibold text-gray-900">CostGuard</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-500">Per-customer sliding window spend limits with pre-call budget estimation. Stop runaway LLM costs before they happen.</p>
+            </div>
+            <div className="rounded-xl border bg-white p-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
+                </svg>
+              </div>
+              <h3 className="mt-4 font-semibold text-gray-900">Compliance Dashboard</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-500">Audit trail, security reports, and analytics your customers&apos; security teams can review during procurement.</p>
+            </div>
           </div>
+          <p className="mt-8 text-center text-sm text-gray-500">
+            Plus 8 more guardrails: streaming guard, content filtering, jailbreak detection, unicode sanitizer, secret detection, topic guard, output safety, and prompt leakage.{' '}
+            <Link href="/why" className="text-blue-600 hover:underline">See all guardrails and how we compare &rarr;</Link>
+          </p>
         </div>
       </section>
 
@@ -960,7 +929,7 @@ function LandingPage() {
               {
                 step: '3',
                 title: 'Ship with confidence',
-                desc: 'Every LLM call is protected. Monitor detections in the security dashboard, review audit logs, and adjust policies as needed.',
+                desc: 'Every LLM call is protected. Export security reports for your customers, review audit logs, and prove compliance to enterprise buyers.',
               },
             ].map((s) => (
               <div key={s.step} className="flex gap-4">
@@ -984,7 +953,7 @@ function LandingPage() {
             Simple, transparent pricing
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            Start free. Scale security as your LLM usage grows.
+            All tiers free during beta. Billing starts May 1.
           </p>
           <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {PRICING.map((plan) => (
@@ -1037,20 +1006,27 @@ function LandingPage() {
       <section className="border-t bg-gray-900 px-6 py-20 text-center">
         <div className="mx-auto max-w-2xl">
           <h2 className="text-3xl font-bold text-white">
-            Stop exposing PII to your LLM provider
+            Your customers&apos; security teams will thank you
           </h2>
           <p className="mt-4 text-gray-400">
-            Join developers who protect their users&apos; data with client-side
-            PII redaction, injection detection, jailbreak defense, secret scanning, and 12 total guardrails.
+            12 guardrails, audit trail, and security reports &mdash; everything an enterprise buyer needs to approve your AI product.
           </p>
-          <Link
-            href="/login?redirect=/"
-            className="mt-8 inline-block rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
-          >
-            Get Started Free
-          </Link>
+          <div className="mt-8 flex items-center justify-center gap-4">
+            <Link
+              href="/login?redirect=/"
+              className="rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+            >
+              Start Free Beta
+            </Link>
+            <Link
+              href="/security"
+              className="text-sm font-medium text-gray-400 hover:text-white"
+            >
+              Read our security practices &rarr;
+            </Link>
+          </div>
           <p className="mt-3 text-xs text-gray-500">
-            No credit card required &middot; Free tier available forever
+            No credit card required &middot; All features free during beta
           </p>
         </div>
       </section>
@@ -1060,6 +1036,8 @@ function LandingPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between text-xs text-gray-400">
           <span>&copy; {new Date().getFullYear()} LaunchPromptly. All rights reserved.</span>
           <div className="flex gap-6">
+            <Link href="/why" className="hover:text-gray-600">Why LaunchPromptly</Link>
+            <Link href="/security" className="hover:text-gray-600">Security</Link>
             <a href="#pricing" className="hover:text-gray-600">Pricing</a>
             <Link href="/playground" className="hover:text-gray-600">Playground</Link>
             <Link href="/docs" className="hover:text-gray-600">Docs</Link>

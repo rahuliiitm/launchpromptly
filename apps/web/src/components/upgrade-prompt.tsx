@@ -9,6 +9,9 @@ export interface UpgradePromptProps {
 }
 
 export function UpgradePrompt({ percentUsed, plan, eventLimit }: UpgradePromptProps) {
+  // Suppress during beta period
+  if (new Date() < new Date('2025-04-30T23:59:59Z')) return null;
+
   // Only show for free tier when usage is high
   if (plan !== 'free' || percentUsed < 80) return null;
 

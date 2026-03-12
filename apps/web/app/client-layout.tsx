@@ -7,6 +7,8 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { PostHogProvider } from '@/lib/posthog';
 
 const PUBLIC_LINKS = [
+  { href: '/why', label: 'Why LaunchPromptly' },
+  { href: '/security', label: 'Security' },
   { href: '/playground', label: 'Playground' },
   { href: '/docs', label: 'Docs' },
 ];
@@ -22,6 +24,17 @@ const SECURITY_DROPDOWN = [
   { href: '/admin/security/alerts', label: 'Alerts' },
   { href: '/admin/security/audit', label: 'Audit Log' },
 ];
+
+const IS_BETA = new Date() < new Date('2025-04-30T23:59:59Z');
+
+function BetaBanner() {
+  if (!IS_BETA) return null;
+  return (
+    <div className="bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white">
+      Public Beta — All features free until April 30. No credit card required.
+    </div>
+  );
+}
 
 function TopNav() {
   const pathname = usePathname();
@@ -200,6 +213,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   return (
     <PostHogProvider>
       <AuthProvider>
+        <BetaBanner />
         <TopNav />
         {children}
       </AuthProvider>

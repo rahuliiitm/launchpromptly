@@ -12,6 +12,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EnvironmentService } from '../environment/environment.service';
 import { EmailService } from '../email/email.service';
+import { AuditService } from '../audit/audit.service';
 
 export interface AuthResponse {
   accessToken: string;
@@ -37,6 +38,7 @@ export class AuthService {
     private readonly environmentService: EnvironmentService,
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
+    private readonly audit: AuditService,
   ) {}
 
   async register(email: string, password: string, name?: string): Promise<AuthResponse> {
@@ -100,7 +102,7 @@ export class AuthService {
   async login(email: string, password: string): Promise<AuthResponse> {
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { organization: true },
+      include: { organization: { include: { projects: { take: 1 } } } },
     });
 
     if (!user || !user.passwordHash) {
@@ -120,6 +122,19 @@ export class AuthService {
       plan,
       role: user.role ?? 'member',
     });
+
+    // Fire-and-forget audit log for login
+    const projectId = user.organization?.projects[0]?.id;
+    if (projectId) {
+      void this.audit.log({
+        projectId,
+        eventType: 'user_login',
+        severity: 'info',
+        details: { email: user.email },
+        actorId: user.id,
+      });
+    }
+
     return { accessToken, userId: user.id, plan };
   }
 

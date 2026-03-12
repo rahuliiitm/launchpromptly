@@ -9,6 +9,8 @@ import { UsageBar } from '@/components/usage-bar';
 import { updateOnboarding } from '@/lib/onboarding';
 import type { ApiKey, Environment } from '@launchpromptly/types';
 
+const IS_BETA = new Date() < new Date('2025-04-30T23:59:59Z');
+
 interface BillingInfo {
   plan: string;
   subscriptionStatus?: string;
@@ -170,11 +172,18 @@ export default function SettingsPage() {
                 >
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-gray-900">{plan.name}</h3>
-                    {isCurrent && (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                        Current
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {IS_BETA && isCurrent && (
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                          Beta — All Features
+                        </span>
+                      )}
+                      {isCurrent && (
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                          Current
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <p className="mt-1 text-2xl font-bold">{plan.price}<span className="text-sm font-normal text-gray-500">/mo</span></p>
                   <p className="mt-1 text-sm text-gray-500">{plan.limit}</p>
@@ -189,14 +198,20 @@ export default function SettingsPage() {
                     ))}
                   </ul>
                   {!isCurrent && checkoutUrl && (
-                    <a
-                      href={checkoutUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-4 block rounded bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-blue-700"
-                    >
-                      Upgrade to {plan.name}
-                    </a>
+                    IS_BETA ? (
+                      <div className="mt-4 rounded bg-gray-100 px-4 py-2 text-center text-sm font-medium text-gray-400">
+                        Free during beta — billing starts May 1
+                      </div>
+                    ) : (
+                      <a
+                        href={checkoutUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-4 block rounded bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-blue-700"
+                      >
+                        Upgrade to {plan.name}
+                      </a>
+                    )
                   )}
                 </div>
               );
