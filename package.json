@@ -1,5 +1,5 @@
 {
-  "name": "launchpromptly",
+  "name": "launchpromptly-platform",
   "private": true,
   "workspaces": [
     "apps/*",

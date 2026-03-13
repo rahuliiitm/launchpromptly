@@ -12,6 +12,7 @@
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
     "@launchpromptly/calculators": "*",
+    "launchpromptly": "^0.2.3",
     "@launchpromptly/types": "*",
     "@sentry/nextjs": "^10.40.0",
     "jspdf": "^4.2.0",
