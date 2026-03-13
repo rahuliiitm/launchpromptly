@@ -5,8 +5,9 @@ WORKDIR /app
 # Copy workspace root files
 COPY package.json package-lock.json turbo.json ./
 
-# Copy all workspace package.json files
+# Copy ALL workspace package.json files (lockfile expects complete workspace)
 COPY apps/web/package.json apps/web/
+COPY apps/api/package.json apps/api/
 COPY packages/calculators/package.json packages/calculators/
 COPY packages/types/package.json packages/types/
 COPY packages/utils/package.json packages/utils/
@@ -17,7 +18,10 @@ RUN npm ci
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
+# Copy ALL node_modules (root + workspace-specific)
+COPY --from=deps /app ./
+
+# Now overlay the full source (node_modules excluded by .dockerignore)
 COPY . .
 
 # Accept API URL as build arg (baked into Next.js at build time)
