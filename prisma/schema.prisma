@@ -63,6 +63,7 @@ model Project {
   auditLogs        AuditLog[]
   securityPolicies SecurityPolicy[]
   alertRules       AlertRule[]
+  detectionFeedback DetectionFeedback[]
 
   @@index([organizationId])
 }
@@ -213,4 +214,24 @@ model AlertRule {
   project         Project  @relation(fields: [projectId], references: [id])
 
   @@index([projectId, enabled])
+}
+
+model DetectionFeedback {
+  id            String   @id @default(uuid())
+  projectId     String
+  eventId       String
+  userId        String
+  guardrailType String   // 'injection' | 'jailbreak' | 'pii' | 'content'
+  originalAction String  // what the SDK decided: 'allow' | 'warn' | 'block'
+  feedback      String   // 'correct' | 'false_positive' | 'false_negative'
+  notes         String?  @db.Text
+  promptHash    String?  // SHA-256 for dedup (not actual text)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  project       Project  @relation(fields: [projectId], references: [id])
+
+  @@unique([eventId, userId, guardrailType])
+  @@index([projectId, guardrailType])
+  @@index([projectId, createdAt])
+  @@index([eventId])
 }

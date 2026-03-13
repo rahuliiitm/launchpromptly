@@ -15,6 +15,7 @@ import { BillingModule } from './billing/billing.module';
 import { EnvironmentModule } from './environment/environment.module';
 import { AuditModule } from './audit/audit.module';
 import { AlertModule } from './alert/alert.module';
+import { FeedbackModule } from './feedback/feedback.module';
 import { SecurityPolicyModule } from './security-policy/security-policy.module';
 import { SecurityAnalyticsModule } from './security-analytics/security-analytics.module';
 import { AppController } from './app.controller';
@@ -46,6 +47,7 @@ import { AppController } from './app.controller';
     EnvironmentModule,
     AuditModule,
     AlertModule,
+    FeedbackModule,
     SecurityPolicyModule,
     SecurityAnalyticsModule,
   ],

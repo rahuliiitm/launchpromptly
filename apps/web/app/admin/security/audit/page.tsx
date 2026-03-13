@@ -128,6 +128,8 @@ export default function AuditLogsPage() {
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [selectedEventDetail, setSelectedEventDetail] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [feedbackState, setFeedbackState] = useState<Record<string, string>>({});
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
 
   const fetchData = useCallback(() => {
     const token = getToken();
@@ -172,6 +174,7 @@ export default function AuditLogsPage() {
     const projectId = getProjectId();
     if (!token || !projectId) return;
     setDetailLoading(true);
+    setFeedbackState({});
     try {
       const data = await apiFetch<any>(
         `/v1/events/${projectId}/${eventId}`,
@@ -182,6 +185,28 @@ export default function AuditLogsPage() {
       setSelectedEventDetail({ error: true });
     } finally {
       setDetailLoading(false);
+    }
+  }
+
+  async function submitFeedback(guardrailType: string, originalAction: string, feedback: string) {
+    const token = getToken();
+    const projectId = getProjectId();
+    if (!token || !projectId || !selectedEventDetail?.id) return;
+    setFeedbackSaving(true);
+    try {
+      await apiFetch(
+        `/v1/security/feedback/${projectId}/${selectedEventDetail.id}`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ guardrailType, originalAction, feedback }),
+        },
+      );
+      setFeedbackState((prev) => ({ ...prev, [guardrailType]: feedback }));
+    } catch {
+      // Silently fail — non-critical action
+    } finally {
+      setFeedbackSaving(false);
     }
   }
 
@@ -481,6 +506,35 @@ export default function AuditLogsPage() {
                   return (
                     <div className="space-y-4">
                       <SecuritySummaryBanner count={totalFindings} />
+
+                      {/* Detection feedback */}
+                      {totalFindings > 0 && (
+                        <div className="flex items-center gap-3 rounded-lg border bg-gray-50 px-4 py-3">
+                          <span className="text-sm text-gray-600">Was this detection accurate?</span>
+                          <div className="flex gap-2">
+                            {(['correct', 'false_positive', 'false_negative'] as const).map((fb) => {
+                              const label = fb === 'correct' ? 'Correct' : fb === 'false_positive' ? 'False positive' : 'Missed something';
+                              const activeColor = fb === 'correct' ? 'bg-green-100 text-green-700 border-green-300' : fb === 'false_positive' ? 'bg-yellow-100 text-yellow-700 border-yellow-300' : 'bg-red-100 text-red-700 border-red-300';
+                              const guardrailType = injData ? 'injection' : jailData ? 'jailbreak' : (inputDetails.length + outputDetails.length) > 0 ? 'pii' : 'content';
+                              const action = injData?.action ?? jailData?.action ?? 'warn';
+                              const isActive = feedbackState[guardrailType] === fb;
+                              return (
+                                <button
+                                  key={fb}
+                                  disabled={feedbackSaving}
+                                  onClick={() => submitFeedback(guardrailType, action, fb)}
+                                  className={`rounded border px-3 py-1 text-xs font-medium transition-colors ${isActive ? activeColor : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'} disabled:opacity-50`}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {Object.keys(feedbackState).length > 0 && (
+                            <span className="ml-auto text-xs text-green-600">Feedback saved</span>
+                          )}
+                        </div>
+                      )}
 
                       {/* PII Section */}
                       {(selectedEventDetail.piiDetectionCount ?? 0) > 0 && (
