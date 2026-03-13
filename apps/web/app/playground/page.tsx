@@ -2,23 +2,50 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import {
-  scanPII,
-  scanInjection,
-  scanContent,
-  scanJailbreak,
-  scanUnicode,
-  scanSecrets,
-  piiTypeLabel,
-  categoryLabel,
-  type PIIDetection,
-  type InjectionResult,
-  type ContentViolation,
-  type JailbreakResult,
-  type UnicodeFinding,
-  type SecretFinding,
-} from '@/lib/guardrail-scanner';
+import { piiTypeLabel, categoryLabel } from '@/lib/security-labels';
 import { ResultCard, ActionBadge, HighlightedText, SecuritySummaryBanner, JailbreakGauge, UnicodeThreatsTable, SecretDetectionTable } from '@/components/security-viz';
+
+// ── Types (match API response shape) ──────────────────────────────────────
+
+interface PIIDetection {
+  type: string;
+  value: string;
+  start: number;
+  end: number;
+  confidence: number;
+}
+
+interface InjectionResult {
+  riskScore: number;
+  triggered: string[];
+  action: 'allow' | 'warn' | 'block';
+}
+
+interface ContentViolation {
+  category: string;
+  matched: string;
+  severity: string;
+}
+
+interface JailbreakResult {
+  score: number;
+  triggered: string[];
+  action: 'allow' | 'warn' | 'block';
+}
+
+interface UnicodeFinding {
+  category: string;
+  description: string;
+  positions: number[];
+  severity: string;
+}
+
+interface SecretFinding {
+  type: string;
+  value: string;
+  start: number;
+  end: number;
+}
 
 const EXAMPLES = [
   {
@@ -66,20 +93,52 @@ export default function PlaygroundPage() {
   const [unicodeResults, setUnicodeResults] = useState<UnicodeFinding[] | null>(null);
   const [secretResults, setSecretResults] = useState<SecretFinding[] | null>(null);
   const [hasScanned, setHasScanned] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleScan() {
-    setPiiResults(piiEnabled ? scanPII(input) : null);
-    setInjectionResult(injectionEnabled ? scanInjection(input) : null);
-    setContentResults(contentEnabled ? scanContent(input) : null);
-    setJailbreakResult(jailbreakEnabled ? scanJailbreak(input) : null);
-    setUnicodeResults(unicodeEnabled ? scanUnicode(input) : null);
-    setSecretResults(secretEnabled ? scanSecrets(input) : null);
-    setHasScanned(true);
+  async function handleScan() {
+    setScanning(true);
+    setError(null);
+
+    const scanners: string[] = [];
+    if (piiEnabled) scanners.push('pii');
+    if (injectionEnabled) scanners.push('injection');
+    if (contentEnabled) scanners.push('content');
+    if (jailbreakEnabled) scanners.push('jailbreak');
+    if (unicodeEnabled) scanners.push('unicode');
+    if (secretEnabled) scanners.push('secrets');
+
+    try {
+      const res = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: input, scanners }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Scan failed' }));
+        throw new Error(err.error || `Scan failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      setPiiResults(data.pii);
+      setInjectionResult(data.injection);
+      setContentResults(data.content);
+      setJailbreakResult(data.jailbreak);
+      setUnicodeResults(data.unicode);
+      setSecretResults(data.secrets);
+      setHasScanned(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Scan failed');
+    } finally {
+      setScanning(false);
+    }
   }
 
   function loadExample(text: string) {
     setInput(text);
     setHasScanned(false);
+    setError(null);
     setPiiResults(null);
     setInjectionResult(null);
     setContentResults(null);
@@ -179,11 +238,15 @@ export default function PlaygroundPage() {
 
               <button
                 onClick={handleScan}
-                disabled={!input.trim()}
+                disabled={!input.trim() || scanning}
                 className="mt-4 w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
               >
-                Scan Text
+                {scanning ? 'Scanning...' : 'Scan Text'}
               </button>
+
+              {error && (
+                <p className="mt-2 text-sm text-red-600">{error}</p>
+              )}
             </div>
           </div>
 
@@ -238,7 +301,7 @@ export default function PlaygroundPage() {
                               <tr key={i} className="border-b last:border-0">
                                 <td className="py-2">
                                   <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                                    {piiTypeLabel(d.type)}
+                                    {piiTypeLabel(d.type as any)}
                                   </span>
                                 </td>
                                 <td className="py-2 font-mono text-xs text-gray-700">{d.value}</td>
@@ -465,4 +528,3 @@ function ToggleButton({
     </button>
   );
 }
-

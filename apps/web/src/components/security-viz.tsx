@@ -1,6 +1,6 @@
 'use client';
 
-import { piiTypeLabel, categoryLabel } from '@/lib/guardrail-scanner';
+import { piiTypeLabel, categoryLabel } from '@/lib/security-labels';
 
 // ── ResultCard ──────────────────────────────────────────────────────────────
 

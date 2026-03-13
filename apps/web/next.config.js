@@ -2,6 +2,19 @@
 const nextConfig = {
   output: 'standalone',
   transpilePackages: ['@launchpromptly/types', '@launchpromptly/calculators'],
+  experimental: {
+    serverComponentsExternalPackages: ['launchpromptly', '@huggingface/transformers', 'onnxruntime-node'],
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Exclude native onnxruntime binaries from webpack bundling
+      config.module.rules.push({
+        test: /\.node$/,
+        use: [{ loader: 'node-loader' }],
+      });
+    }
+    return config;
+  },
   async headers() {
     return [
       {
