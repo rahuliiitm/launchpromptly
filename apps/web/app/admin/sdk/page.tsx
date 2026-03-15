@@ -133,15 +133,15 @@ response = openai.chat.completions.create(
 )
 # PII is redacted before the API call, response is de-redacted after`;
 
-const ML_PLUGIN_CODE_NODE = `// Optional: ML-enhanced detection (Node.js)
+const ML_PLUGIN_CODE_NODE = `// ML-enhanced detection (Node.js) — included on all plans
 import { LaunchPromptly } from 'launchpromptly';
 import { MLToxicityDetector, MLInjectionDetector, MLPIIDetector } from 'launchpromptly/ml';
 
-// Load models (async — first run downloads from HuggingFace)
+// Load models (async — first run downloads from HuggingFace, ~8-20ms inference after)
 const [toxicity, injection, pii] = await Promise.all([
-  MLToxicityDetector.create(),     // Xenova/toxic-bert (~170MB)
-  MLInjectionDetector.create(),    // protectai/deberta-v3 (~350MB)
-  MLPIIDetector.create(),          // Xenova/bert-base-NER (~170MB)
+  MLToxicityDetector.create(),     // toxic-bert (~170MB, quantized)
+  MLInjectionDetector.create(),    // Prompt-Guard-86M (~86MB, quantized)
+  MLPIIDetector.create(),          // bert-base-NER (~170MB, quantized)
 ]);
 
 const lp = new LaunchPromptly({
@@ -154,7 +154,7 @@ const lp = new LaunchPromptly({
     },
     injection: {
       enabled: true,
-      providers: [injection], // Semantic injection via DeBERTa
+      providers: [injection], // Semantic injection detection
     },
     contentFilter: {
       enabled: true,
@@ -163,12 +163,12 @@ const lp = new LaunchPromptly({
   },
 });`;
 
-const ML_PLUGIN_CODE_PYTHON = `# Optional: ML-enhanced detection (Python)
+const ML_PLUGIN_CODE_PYTHON = `# ML-enhanced detection (Python) — included on all plans
 from launchpromptly import LaunchPromptly
 from launchpromptly.ml import MLToxicityDetector, MLInjectionDetector, PresidioPIIDetector
 
-toxicity = MLToxicityDetector()     # unitary/toxic-bert
-injection = MLInjectionDetector()   # protectai/deberta-v3
+toxicity = MLToxicityDetector()     # toxic-bert (quantized, ~8-20ms inference)
+injection = MLInjectionDetector()   # Prompt-Guard-86M (quantized)
 pii = PresidioPIIDetector()         # Microsoft Presidio + spaCy NER
 
 lp = LaunchPromptly(
@@ -181,7 +181,7 @@ lp = LaunchPromptly(
         },
         "injection": {
             "enabled": True,
-            "providers": [injection], # Semantic injection via DeBERTa
+            "providers": [injection], # Semantic injection detection
         },
         "content_filter": {
             "enabled": True,
@@ -324,19 +324,19 @@ export default function SDKSetupPage() {
 
       {/* Step 6 — ML Plugin */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold">6. ML-Enhanced Detection (Optional)</h2>
+        <h2 className="text-lg font-semibold">6. ML-Enhanced Detection</h2>
         <p className="mt-1 text-sm text-gray-500">
           Add local ML models for NER-based PII detection (person names, orgs, locations),
           semantic injection analysis, and ML-powered toxicity classification.
-          All inference runs locally &mdash; no data leaves your infrastructure.
+          All inference runs locally &mdash; no data leaves your infrastructure. Included on all plans.
         </p>
 
         <div className="relative mt-3">
           <pre className="rounded-lg bg-gray-900 p-4 text-sm text-green-400">
-            {activeTab === 'node' ? 'npm install @huggingface/transformers' : 'pip install launchpromptly[ml]'}
+            {activeTab === 'node' ? 'npm install onnxruntime-node @huggingface/transformers' : 'pip install launchpromptly[ml-onnx]'}
           </pre>
           <button
-            onClick={() => copyToClipboard(activeTab === 'node' ? 'npm install @huggingface/transformers' : 'pip install launchpromptly[ml]', 'ml-install')}
+            onClick={() => copyToClipboard(activeTab === 'node' ? 'npm install onnxruntime-node @huggingface/transformers' : 'pip install launchpromptly[ml-onnx]', 'ml-install')}
             className="absolute right-2 top-2 rounded bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
           >
             {copied === 'ml-install' ? 'Copied!' : 'Copy'}

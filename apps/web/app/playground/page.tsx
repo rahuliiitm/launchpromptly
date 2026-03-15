@@ -19,6 +19,7 @@ interface InjectionResult {
   riskScore: number;
   triggered: string[];
   action: 'allow' | 'warn' | 'block';
+  detectorUsed?: 'regex' | 'ml' | 'regex+ml';
 }
 
 interface ContentViolation {
@@ -31,6 +32,7 @@ interface JailbreakResult {
   score: number;
   triggered: string[];
   action: 'allow' | 'warn' | 'block';
+  detectorUsed?: 'regex' | 'ml' | 'regex+ml';
 }
 
 interface UnicodeFinding {
@@ -95,6 +97,7 @@ export default function PlaygroundPage() {
   const [hasScanned, setHasScanned] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mlActive, setMlActive] = useState(false);
 
   async function handleScan() {
     setScanning(true);
@@ -127,6 +130,7 @@ export default function PlaygroundPage() {
       setJailbreakResult(data.jailbreak);
       setUnicodeResults(data.unicode);
       setSecretResults(data.secrets);
+      setMlActive(data.mlActive ?? false);
       setHasScanned(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Scan failed');
@@ -164,6 +168,10 @@ export default function PlaygroundPage() {
           <p className="mt-2 text-gray-500">
             Paste any prompt to see what LaunchPromptly detects. No sign-up required.
           </p>
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700">
+            <span className={`inline-block h-2 w-2 rounded-full ${mlActive ? 'bg-purple-500' : 'bg-gray-400'}`} />
+            {mlActive ? 'Regex + ML models active — full detection pipeline' : 'Regex detection active — ML models loading...'}
+          </div>
         </div>
       </div>
 
@@ -327,6 +335,9 @@ export default function PlaygroundPage() {
                       </svg>
                     }
                   >
+                    {injectionResult.detectorUsed && (
+                      <DetectorBadge detector={injectionResult.detectorUsed} />
+                    )}
                     {/* Risk score gauge */}
                     <div className="mb-4">
                       <div className="flex items-center justify-between mb-1">
@@ -437,6 +448,9 @@ export default function PlaygroundPage() {
                       </svg>
                     }
                   >
+                    {jailbreakResult.detectorUsed && (
+                      <DetectorBadge detector={jailbreakResult.detectorUsed} />
+                    )}
                     <JailbreakGauge score={jailbreakResult.score} action={jailbreakResult.action} triggered={jailbreakResult.triggered} />
                   </ResultCard>
                 )}
@@ -498,6 +512,30 @@ export default function PlaygroundPage() {
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────────
+
+function DetectorBadge({ detector }: { detector: 'regex' | 'ml' | 'regex+ml' }) {
+  if (detector === 'regex+ml') {
+    return (
+      <div className="mb-3 flex items-center gap-2">
+        <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Regex</span>
+        <span className="text-xs text-gray-400">+</span>
+        <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">ML Model</span>
+      </div>
+    );
+  }
+  if (detector === 'ml') {
+    return (
+      <div className="mb-3">
+        <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">ML Model</span>
+      </div>
+    );
+  }
+  return (
+    <div className="mb-3">
+      <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Regex</span>
+    </div>
+  );
+}
 
 function ToggleButton({
   label,

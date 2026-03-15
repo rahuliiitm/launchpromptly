@@ -64,11 +64,15 @@ export interface ScanRequest {
 
 export interface ScanResponse {
   pii: PIIDetection[] | null;
-  injection: { riskScore: number; triggered: string[]; action: string } | null;
+  injection: { riskScore: number; triggered: string[]; action: string; detectorUsed: 'regex' | 'ml' | 'regex+ml' } | null;
   content: Array<{ category: string; matched: string; severity: string }> | null;
-  jailbreak: { score: number; triggered: string[]; action: string } | null;
+  jailbreak: { score: number; triggered: string[]; action: string; detectorUsed: 'regex' | 'ml' | 'regex+ml' } | null;
   unicode: Array<{ category: string; description: string; positions: number[]; severity: string }> | null;
   secrets: Array<{ type: string; value: string; start: number; end: number }> | null;
+  /** Whether ML models are loaded and active for this scan. */
+  mlActive: boolean;
+  /** Which ML models are loaded. */
+  mlModels?: string[];
 }
 
 const SEVERITY_MAP: Record<string, 'warn' | 'block'> = {
@@ -100,6 +104,8 @@ export async function POST(req: Request) {
 
     const enabled = new Set(scanners ?? ['pii', 'injection', 'content', 'jailbreak', 'unicode', 'secrets']);
 
+    const mlIsActive = !!(mlInjection && mlJailbreak && mlToxicity);
+
     const result: ScanResponse = {
       pii: null,
       injection: null,
@@ -107,6 +113,10 @@ export async function POST(req: Request) {
       jailbreak: null,
       unicode: null,
       secrets: null,
+      mlActive: mlIsActive,
+      mlModels: mlIsActive
+        ? ['Prompt-Guard-86M (injection/jailbreak)', 'toxic-bert (content)', 'bert-base-NER (PII)']
+        : undefined,
     };
 
     if (enabled.has('pii')) {
@@ -128,6 +138,7 @@ export async function POST(req: Request) {
         riskScore: merged.riskScore,
         triggered: merged.triggered,
         action: merged.action,
+        detectorUsed: mlInjection ? 'regex+ml' : 'regex',
       };
     }
 
@@ -165,6 +176,7 @@ export async function POST(req: Request) {
         score: merged.riskScore,
         triggered: merged.triggered,
         action: merged.action,
+        detectorUsed: mlJailbreak ? 'regex+ml' : 'regex',
       };
     }
 
